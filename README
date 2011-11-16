@@ -1,0 +1,18 @@
+The recsServer has two functions
+
+A) To upload new models to the Amazon SimpleDB domain
+B) Serve recommendations
+
+To upload new models, you need to upload 2 files in S3 under bucket sintagespareas. The one is the correlations file
+and the other the metadata file. Once these two files are placed you open a cygwin shell and do
+
+'curl -d "correlations=sintagesPareasCorrelations_top10.csv&metadata=rr_recipes.csv" http://recs-sintagespareas.elasticbeanstalk.com/recs/items/create  -v'
+
+To install curl under cygwin look under Web category during the installation process
+
+If you want to do a GET and return JSON
+'curl -H "Accept: application/json" http://recs-sintagespareas.elasticbeanstalk.com/recs/items/10997'
+
+OR for JSONP
+
+'curl -H "Accept: application/x-javascript" http://recs-sintagespareas.elasticbeanstalk.com/recs/items/10997?jsoncallback=jsoncallback'
