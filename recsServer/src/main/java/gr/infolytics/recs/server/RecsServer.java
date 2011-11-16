@@ -70,8 +70,7 @@ public class RecsServer {
 	private static final String SIMPLE_DB_DOMAIN = "SintagesPareasCorrelations";
 	private static final String BUCKET_NAME = "sintagespareas";
     private static final String AWS_CREDENTIALS = "AwsCredentials.properties";
-    private static final String MEMCACHED_SERVER = "ip-10-122-75-2.ec2.internal";
-//    private static final String MEMCACHED_SERVER = "ec2-184-73-93-13.compute-1.amazonaws.com";
+    private static final String MEMCACHED_SERVER = "ip-10-212-101-110.ec2.internal";
     private static final int MEMCACHED_PORT = 11211;
    
     private Collection getRecsFromSimpleDB(String sourceItemId) {
@@ -154,8 +153,9 @@ public class RecsServer {
         catch (IOException ex) {
         	logger.error("Cannot insantiate memcached client ... using simpleDB");
         }
-    	
+   	
         Collection simpleDBCollection = getRecsFromSimpleDB(sourceItemId);
+        
         if (client != null) {
         	try {
         		client.set(sourceItemId, 36000, simpleDBCollection);
@@ -165,8 +165,7 @@ public class RecsServer {
         		logger.error("Cannot write to memcached " + MEMCACHED_SERVER + " port " + MEMCACHED_PORT);
         	}
         }
-    	
-    	
+    	  	
         
         return simpleDBCollection;
        
@@ -334,11 +333,26 @@ public class RecsServer {
                 String sourceItemId = fields[0];
                 
                 // Delete from cache
-                deleteFromCache(client, sourceItemId);
+                if (client != null) {
+                	try {
+                    	deleteFromCache(client, sourceItemId);
+                    }
+                    catch (Exception ex) {
+                    	logger.warn("Cannot delete from cache");
+                    }
+                }
+                
                 
                 for (int i = 1; i < fields.length - 1; i = i + 2) {
                 	String targetItemId = fields[i];
-                	float score = Float.parseFloat(fields[i+1]);
+                	float score = 0.0f;
+                	try {
+                		score = Float.parseFloat(fields[i+1]);
+                	}
+                	catch (NumberFormatException ex) {
+                		logger.warn("Cannot parse float " + fields[i+1] + " ... skipping");
+                		continue;
+                	}
                 	String itemName = sourceItemId + "_" + targetItemId;
                 	
                 	ItemType item = metadata.get(targetItemId);
@@ -423,6 +437,7 @@ public class RecsServer {
 
                 String[] fields = line.split(";");
                 if (fields.length != 3) {
+                	logger.warn("Cannot parse line \"" + line + "\" ... skipping");
                 	continue;
                 }
                 String itemId = fields[0];
