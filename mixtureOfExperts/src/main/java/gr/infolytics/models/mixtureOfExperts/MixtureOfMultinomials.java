@@ -408,9 +408,10 @@ public class MixtureOfMultinomials extends MixtureOfExperts{
 	}
 	
 	private List<AttributeValue<Integer>> createUserProfile(String[] tokenizedProfile){
-		try{
+		
+		try {
 			if (tokenizedProfile.length % 2 == 0){
-				logger.error("Incorrect number of arguments for profile od user " + tokenizedProfile[0]);
+				logger.error("Incorrect number of arguments for profile of user " + tokenizedProfile[0]);
 				throw new IOException();
 			}
 			int numberOfEntries = (tokenizedProfile.length - 1) / 2;

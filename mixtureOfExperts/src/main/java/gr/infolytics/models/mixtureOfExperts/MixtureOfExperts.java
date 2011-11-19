@@ -34,6 +34,7 @@ import org.slf4j.LoggerFactory;
  */
 
 public abstract class MixtureOfExperts {
+	public static String newline = System.getProperty("line.separator");
 	protected int numberOfExperts;
 	protected int numberOfAttributes;
 	protected int numberOfUsers;
@@ -550,9 +551,6 @@ public abstract class MixtureOfExperts {
 			ArrayList<ArrayList<AttributeValue<String>>> rankedProbs = 
 				new ArrayList<ArrayList<AttributeValue<String>>>(numberOfExperts);
 			File awFile = new File(outFilename);
-			if (awFile == null) {
-				throw new IOException();
-			}
 			float[][] probAttributeGivenCluster = new float[numberOfAttributes][];
 			for (int att=0; att<numberOfAttributes; att++)
 				probAttributeGivenCluster[att] = new float[numberOfExperts];
@@ -689,9 +687,6 @@ public abstract class MixtureOfExperts {
 	public void writeAttributeAssociations(String associationsFilename, int maxAssociations){
 		try {
 		    File awFile = new File(associationsFilename);
-		    if (awFile == null) {
-		    	throw new IOException();
-		    }
 		    float[][] attributePosteriorProb = calculateProbClusterGivenAttribute();
 		    float[] probOfCluster = new float[numberOfExperts];
 			for (int c=0; c<numberOfExperts; c++)
@@ -756,9 +751,7 @@ public abstract class MixtureOfExperts {
 	public void writeAttributeAssociations(String inputFilename, String outputFilename, int maxAssociations){
 		try {
 			File aFile = new File(inputFilename);
-			if (aFile == null) {
-				throw new IOException();
-			}
+			
 			if (!aFile.exists()) {
 				throw new IOException();
 			}
@@ -770,9 +763,6 @@ public abstract class MixtureOfExperts {
 			}
 	
 		    File awFile = new File(outputFilename);
-		    if (awFile == null) {
-		    	throw new IOException();
-		    }
 		    Writer output = new BufferedWriter( new FileWriter(awFile) );
 		    ArrayList<AttributeValue<String>> tokensList = new ArrayList<AttributeValue<String>>(300);
 		    float[] logProbOfAttributeGivenCluster = new float[numberOfExperts];
@@ -985,6 +975,166 @@ public abstract class MixtureOfExperts {
 	    }
 		catch (IOException e){
 			logger.error("Could not write to " + descriptionFile.getAbsolutePath());
+			e.printStackTrace();
+			System.exit(1);
+		}
+	}
+	
+	public void calculateTopN(File expertMembershipsFile, File outAssociations, int topN) {
+		calculateTopN(expertMembershipsFile, outAssociations, 0.3f, topN);
+	}
+	
+	public void calculateTopN(File expertMembershipsFile, File outAssociations, float similarityThreshold, int topN) {
+		
+		// Setup writing
+		Writer output = null;
+		try {
+			output = new BufferedWriter( new FileWriter(outAssociations) );
+		}
+		catch (IOException e){
+			logger.error("Could not write to " + outAssociations.getAbsolutePath());
+			e.printStackTrace();
+			System.exit(1);
+		}
+		
+		// Read the expert memberships
+		HashMap<String, HashMap<Integer, Float>> expertMemberships = new HashMap<String, HashMap<Integer, Float>>();
+		if (!expertMembershipsFile.exists()) {
+			logger.error("File does not exist " + expertMembershipsFile.getAbsolutePath());
+			System.exit(-1);
+		}
+		if (!expertMembershipsFile.isFile()) {
+			logger.error("Not a file " + expertMembershipsFile.getAbsolutePath());
+			System.exit(-1);
+		}
+		if (!expertMembershipsFile.canRead()) {
+			logger.error("No read rights on " + expertMembershipsFile.getAbsolutePath());
+			System.exit(-1);
+		}
+		try {
+			BufferedReader br = new BufferedReader(new FileReader(expertMembershipsFile));
+			numberOfUsers=0;
+			String lineStr;
+			
+		    while ((lineStr = br.readLine()) != null) {
+		    	String[] fields = lineStr.split(" ");
+		    	String id = fields[0];
+		    	
+		    	if (expertMemberships.containsKey(id)) {
+		    		logger.error("Id \"" + id + "\" already exists");
+		    		continue;
+		    	}
+		    	
+		    	HashMap<Integer, Float> hm = new HashMap<Integer, Float>();
+		    	expertMemberships.put(id, hm);
+		    	for (int i = 1; i < fields.length - 1; i = i + 2) {
+		    		
+		    		int expert = -1;
+		    		try {
+		    			expert = Integer.parseInt(fields[i]);
+		    		}
+		    		catch (NumberFormatException ex) {
+		    			logger.error("Cannot parse expert index " + fields[i]);
+		    			System.exit(-1);
+		    		}
+		    		
+		    		float membership = 0.0f;
+		    		try {
+		    			membership = Float.parseFloat(fields[i + 1]);
+		    		}
+		    		catch (NumberFormatException ex) {
+		    			logger.error("Cannot parse expert membership " + fields[i + 1]);
+		    			System.exit(-1);
+		    		}
+		    		
+		    		hm.put(expert, membership);
+		    	}
+		    }
+		    br.close();
+		}
+		catch (IOException e){
+			logger.error("Could not read from " + expertMembershipsFile.getAbsolutePath());
+			e.printStackTrace();
+			System.exit(1);
+		}
+		
+		// Now calculate the top N
+		// First calculate the norm for each id
+		HashMap<String, Float> norms = new HashMap<String, Float>();
+		for (Map.Entry<String, HashMap<Integer, Float>> me : expertMemberships.entrySet()) {
+			String id = me.getKey();
+			HashMap<Integer, Float> hm = me.getValue();
+			float norm = 0.0f;
+			for (Map.Entry<Integer, Float> experts : hm.entrySet()) {
+				float m = experts.getValue();
+				norm += m * m;
+			}
+			norm = norm > 0.0f ? (float)Math.sqrt(norm) : 0.0f;
+			
+			norms.put(id, norm);
+		}
+		
+		// Now do pairwise calculations
+		for (Map.Entry<String, HashMap<Integer, Float>> meA : expertMemberships.entrySet()) {
+			String idA = meA.getKey();
+			HashMap<Integer, Float> hmA = meA.getValue();
+			float normA = norms.get(idA);
+			
+			List<AttributeValue<String>> topNList = new ArrayList<AttributeValue<String>>();
+			for (Map.Entry<String, HashMap<Integer, Float>> meB : expertMemberships.entrySet()) {
+				String idB = meB.getKey();
+				if (idA.equals(idB)) {
+					continue;
+				}
+				HashMap<Integer, Float> hmB = meB.getValue();
+				
+				float similarity = 0.0f;
+				for (Map.Entry<Integer, Float> expertsA : hmA.entrySet()) {
+					Float m = hmB.get(expertsA.getKey());
+					if (m == null) {
+						continue;
+					}
+					similarity += m * expertsA.getValue();
+				}
+				float normB = norms.get(idB);
+				similarity /= (normA * normB);
+				
+				
+				if (similarity < similarityThreshold) {
+					continue;
+				}
+				
+				topNList.add(new AttributeValue<String>(idB, similarity));
+			}
+			Collections.sort(topNList);
+			
+			topNList = topNList.size() < topN ? topNList : topNList.subList(0, topN);
+			if (topNList.size() == 0) {
+				continue;
+			}
+			
+			StringBuffer sb = new StringBuffer();
+		    sb.append(idA); 
+		    for (AttributeValue<String> av : topNList) {
+		    	sb.append(";"); sb.append(av.getIndex()); sb.append(";"); sb.append((float)Math.round(av.getValue() * 1000)/10.0f);
+		    }
+		    sb.append(newline);
+		    
+		    try {
+			    output.write(sb.toString());
+			}
+			catch (IOException e){
+				logger.error("Could not write to " + outAssociations.getAbsolutePath());
+				e.printStackTrace();
+				System.exit(1);
+			}
+			
+		}
+		try {
+			output.close();
+		}
+		catch (IOException e){
+			logger.error("Could not write to " + outAssociations.getAbsolutePath());
 			e.printStackTrace();
 			System.exit(1);
 		}
