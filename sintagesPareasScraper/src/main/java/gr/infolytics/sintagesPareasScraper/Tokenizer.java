@@ -25,7 +25,14 @@ public class Tokenizer {
 		String out = in.replaceAll("\\d+\\.\\d+", "NUMBER");
 		out = out.replaceAll("\\d+", "NUMBER");
 		out = out.toLowerCase(locale);
-		out = out.replaceAll("[\\.,\\(\\)\\?;!:\\[\\]\\{\\}\"%&-]", "");
+		out = out.replaceAll("[\\.,\\(\\)\\?;!:\\[\\]\\{\\}\"%&\\*'\\+/>-]", "");
+		out = out.replace('Ü', 'á');
+		out = out.replace('Ý', 'å');
+		out = out.replace('ß', 'é');
+		out = out.replace('ü', 'ï');
+		out = out.replace('ý', 'õ');
+		out = out.replace('þ', 'ù');
+		out = out.replace('Þ', 'ç');
 		out = out.replaceAll("\\s+", " ");
 		out = out.trim();
 		
@@ -74,6 +81,9 @@ public class Tokenizer {
 				String[] words = text.split(" ");
 				HashMap<Integer, Integer> wordCount = new HashMap<Integer, Integer>();
 				for (String word : words) {
+					if (word == null || word.isEmpty()) {
+						continue;
+					}
 					Integer indx = dictionary.get(word);
 					if (indx == null) {
 						indx = dictionary.size();
@@ -90,8 +100,11 @@ public class Tokenizer {
 				}
 				
 				// Now write the vector model
+				if (wordCount.size() == 0) {
+					continue;
+				}
 				StringBuffer sb = new StringBuffer();
-				sb.append(id); sb.append(";");
+				sb.append(id); sb.append(" ");
 				boolean first = true;
 				for (Map.Entry<Integer, Integer> me : wordCount.entrySet()) {
 					if (!first) {
@@ -117,7 +130,11 @@ public class Tokenizer {
 			// Now write the dictionary
 			for (Map.Entry<String, Integer> me : dictionary.entrySet()) {
 				StringBuffer sb = new StringBuffer();
-				sb.append("\""); sb.append(me.getKey()); sb.append("\";\""); sb.append(me.getValue()); sb.append("\"");
+				String word = me.getKey();
+				if (word == null || word.isEmpty()) {
+					continue;
+				}
+				sb.append(me.getValue()); sb.append("\t"); sb.append(word);
 				sb.append(newline);
 				
 				try {
