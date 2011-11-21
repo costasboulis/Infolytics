@@ -1,0 +1,7 @@
+aardvark,antelope,bear,boar,buffalo,calf,cavy,cheetah,deer,dolphin,elephant,fruitbat,giraffe,girl,goat,gorilla,hamster,hare,leopard,lion,lynx,mink,mole,mongoose,opossum,oryx,platypus,polecat,pony,porpoise,puma,pussycat,raccoon,reindeer,seal,sealion,squirrel,vampire,vole,wallaby,wolf
+chicken,crow,dove,duck,flamingo,gull,hawk,kiwi,lark,ostrich,parakeet,penguin,pheasant,rhea,skimmer,skua,sparrow,swan,vulture,wren
+pitviper,seasnake,slowworm,tortoise,tuatara
+bass,carp,catfish,chub,dogfish,haddock,herring,pike,piranha,seahorse,sole,stingray,tuna
+frog,frog,newt,toad
+flea,gnat,honeybee,housefly,ladybird,moth,termite,wasp
+clam,crab,crayfish,lobster,octopus,scorpion,seawasp,slug,starfish,worm
