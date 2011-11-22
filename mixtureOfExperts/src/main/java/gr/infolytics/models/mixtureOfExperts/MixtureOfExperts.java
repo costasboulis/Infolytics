@@ -1027,23 +1027,27 @@ public abstract class MixtureOfExperts {
 		    	
 		    	HashMap<Integer, Float> hm = new HashMap<Integer, Float>();
 		    	expertMemberships.put(id, hm);
-		    	for (int i = 1; i < fields.length - 1; i = i + 2) {
+		    	for (int i = 1; i < fields.length; i ++) {
+		    		String[] expertFields = fields[i].split(":");
+		    		if (expertFields.length != 2){
+		    			continue;
+		    		}
 		    		
 		    		int expert = -1;
 		    		try {
-		    			expert = Integer.parseInt(fields[i]);
+		    			expert = Integer.parseInt(expertFields[0]);
 		    		}
 		    		catch (NumberFormatException ex) {
-		    			logger.error("Cannot parse expert index " + fields[i]);
+		    			logger.error("Cannot parse expert index " + expertFields[0]);
 		    			System.exit(-1);
 		    		}
 		    		
 		    		float membership = 0.0f;
 		    		try {
-		    			membership = Float.parseFloat(fields[i + 1]);
+		    			membership = Float.parseFloat(expertFields[1]);
 		    		}
 		    		catch (NumberFormatException ex) {
-		    			logger.error("Cannot parse expert membership " + fields[i + 1]);
+		    			logger.error("Cannot parse expert membership " + expertFields[1]);
 		    			System.exit(-1);
 		    		}
 		    		
