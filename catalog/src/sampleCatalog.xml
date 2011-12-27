@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<catalog>
+   <created_at>2010-04-08 12:32</created_at>
+   <products>
+      <product>
+          <uid>322233</uid>
+          <name><![CDATA[MadBiker 600]]></name>
+          <link><![CDATA[http://www.mywebstore.gr/product/322233]]></link>
+          <image><![CDATA[http://www.mywebstore.gr/product/322233.jpg]]></image>
+          <price>322.33</price>
+          <category id="23"><![CDATA[Αθλητικά > Extreme Sports]]></category>
+          <manufacturer><![CDATA[SuperGlasses]]></manufacturer>
+          <description><![CDATA[Πρωτοποριακά γυαλιά με .....]]></description>
+          <weight>350</weight>
+          <mpn>ZHD332</mpn>
+          <instock>N</instock>
+          <availability>Κατόπιν Παραγγελίας</availability>
+      </product>
+   </products>
+</catalog>
