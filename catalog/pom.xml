@@ -8,7 +8,7 @@
   <name>catalog</name>
   <url>http://maven.apache.org</url>
   <build>
-        <finalName>recsServer</finalName>
+        <finalName>catalog</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
