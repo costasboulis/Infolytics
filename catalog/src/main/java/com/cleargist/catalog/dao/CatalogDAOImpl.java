@@ -148,7 +148,7 @@ public class CatalogDAOImpl implements CatalogDAO {
 		
 		Unmarshaller unmarshaller = null;
     	try {
-    		JAXBContext jaxbContext = JAXBContext.newInstance("gr.infolytics.catalog.entity.jaxb");
+    		JAXBContext jaxbContext = JAXBContext.newInstance("com.cleargist.catalog.entity.jaxb");
     		unmarshaller = jaxbContext.createUnmarshaller();
     	}
     	catch (JAXBException ex) {
