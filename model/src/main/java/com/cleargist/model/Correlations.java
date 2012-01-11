@@ -1,7 +1,7 @@
 package com.cleargist.model;
 
 
-
+// TODO : Load multiple tokens before calculating SS
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -64,9 +64,9 @@ public class Correlations implements Learnable {
 	private static final int TOP_CORRELATIONS = 10;
 	private Logger logger = Logger.getLogger(getClass());
 	public static String newline = System.getProperty("line.separator");
-	private static final String BASE_STATS_BUCKETNAME = "STATS_";
-	private static final String MERGED_STATS_FILENAME = "merged.txt";
-	private static final String LOCAL_STATS_FILENAME = "stats_";
+	private static final String STATS_BASE_BUCKETNAME = "STATS_";      // Base name of the S3 bucket name
+	private static final String MERGED_STATS_FILENAME = "merged.txt";  // Name of the merged suff. stats file in S3 and local file system
+	private static final String STATS_BASE_FILENAME = "stats_";   	       // Base name of the suff. stats file in S3 and local file system 
 	
 	public List<String> getRecommendedProducts(List<String> productIDs, String tenantID, Filter filter) throws Exception {
 		double weight = (double)productIDs.size();
@@ -180,7 +180,7 @@ public class Correlations implements Learnable {
 		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
 				Correlations.class.getResourceAsStream(AWS_CREDENTIALS)));
     	
-    	String statsBucketName = BASE_STATS_BUCKETNAME + tenantID;
+    	String statsBucketName = STATS_BASE_BUCKETNAME + tenantID;
     	ObjectListing objectListing = s3.listObjects(statsBucketName);
     	List<S3ObjectSummary> objSummaries = objectListing.getObjectSummaries();
     	
@@ -241,7 +241,7 @@ public class Correlations implements Learnable {
     		}
     		
     		// Read the SS1 part
-    		while ((line = reader.readLine()) != null) {
+    		while (true) {
     			String[] fields = line.split(";");
     			if (fields.length % 2 == 0) {
     				logger.error("Cannot parse line " + line + " of file " + statsFile.getKey() + " from bucket " 
@@ -263,6 +263,10 @@ public class Correlations implements Learnable {
     				hm.put(fields[i], f);
     			}
     			SS1.put(sourceID, hm);
+    			
+    			if ((line = reader.readLine()) == null) {
+    				break;
+    			}
     		}
     		reader.close();
     	}
@@ -274,12 +278,12 @@ public class Correlations implements Learnable {
     	
     	
     	// open the S3 merged file and create new local merged file
-    	String bucketName = BASE_STATS_BUCKETNAME + tenantID;
+    	String bucketName = STATS_BASE_BUCKETNAME + tenantID;
 		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
 				Correlations.class.getResourceAsStream(AWS_CREDENTIALS)));
     	
 		BufferedWriter out = null;
-		String tmpFilename = "tmpMerged_" + tenantID;
+		String tmpFilename = MERGED_STATS_FILENAME + tenantID;
 		File localMergedFile = new File(tmpFilename);
 		try {
 			out = new BufferedWriter(new FileWriter(localMergedFile));
@@ -381,6 +385,7 @@ public class Correlations implements Learnable {
     				
     				SS1.remove(sourceID);
     			}
+    			out.flush();
     			
     			if ((line = reader.readLine()) == null) {
     				break;
@@ -397,6 +402,7 @@ public class Correlations implements Learnable {
     			sb.append(newline);
     			out.write(sb.toString());
     		}
+    		out.flush();
     		out.close();
     		reader.close();
     	}
@@ -476,10 +482,10 @@ public class Correlations implements Learnable {
 		}
 		
 		// Now write sufficient statistics to local file, expanding the symmetry
-		String tmpFilename = LOCAL_STATS_FILENAME + "_" + token + "_" + tenantID;
-		File localSSFile = new File(tmpFilename);
+		String localStatsFilename = STATS_BASE_FILENAME + "_" + token + "_" + tenantID;
+		File localSSFile = new File(localStatsFilename);
 		BufferedWriter out = new BufferedWriter(new FileWriter(localSSFile));
-		out.write(Float.toString(numberOfProfiles)); out.write(newline);
+		out.write(Float.toString(numberOfProfiles) + newline); 
 		for (Map.Entry<String, Float> me : SS0.entrySet()) {
 			StringBuffer sb = new StringBuffer();
 			sb.append(me.getKey()); sb.append(";"); sb.append(me.getValue());
@@ -487,6 +493,8 @@ public class Correlations implements Learnable {
 			
 			out.write(sb.toString());
 		}
+		out.flush();
+		
 		for (Map.Entry<String, HashMap<String, Float>> me : SS1.entrySet()) {
 			String sourceID = me.getKey();
 			StringBuffer sb = new StringBuffer();
@@ -499,7 +507,7 @@ public class Correlations implements Learnable {
 				
 				Float f = hm.get(sourceID);
 				if (f != null) {
-					sb.append(";"); sb.append(me.getKey()); sb.append(f);
+					sb.append(";"); sb.append(me.getKey()); sb.append(";"); sb.append(f);
 				}
 			}
 			sb.append(newline);
@@ -514,8 +522,8 @@ public class Correlations implements Learnable {
 		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
 				Correlations.class.getResourceAsStream(AWS_CREDENTIALS)));
     	
-    	String statsBucketName = BASE_STATS_BUCKETNAME + tenantID;
-    	String statsFilename = LOCAL_STATS_FILENAME + token;
+    	String statsBucketName = STATS_BASE_BUCKETNAME + tenantID;
+    	String statsFilename = STATS_BASE_FILENAME + token;
 		PutObjectRequest r = new PutObjectRequest(statsBucketName, statsFilename, localSSFile);
     	r.setStorageClass(StorageClass.ReducedRedundancy);
     	s3.putObject(r);
@@ -568,7 +576,7 @@ public class Correlations implements Learnable {
     	
     	String correlationsModelDomainName = getBackupModelDomainName(tenantID);
     	deleteDomain(sdb, correlationsModelDomainName);
-    	createDomain(sdb, correlationsModelDomainName);
+    	createDomain(correlationsModelDomainName);
 		List<ReplaceableItem> items = new ArrayList<ReplaceableItem>();
 		while ((line = reader.readLine()) != null) {
 			String[] fields = line.split(";");
@@ -672,7 +680,7 @@ public class Correlations implements Learnable {
 		// Delete stats bucket
 		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
 				Correlations.class.getResourceAsStream(AWS_CREDENTIALS)));
-		String bucketName = BASE_STATS_BUCKETNAME + tenantID;
+		String bucketName = STATS_BASE_BUCKETNAME + tenantID;
 		if (!s3.doesBucketExist(bucketName)) {
 			s3.createBucket(bucketName, Region.EU_Ireland);
 		}
