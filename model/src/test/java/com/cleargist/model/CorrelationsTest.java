@@ -11,16 +11,24 @@ import java.util.LinkedList;
 import java.util.List;
 
 import org.apache.log4j.Logger;
+import org.junit.After;
 import org.junit.Test;
 
 import com.amazonaws.auth.PropertiesCredentials;
+import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.services.simpledb.AmazonSimpleDB;
 import com.amazonaws.services.simpledb.AmazonSimpleDBClient;
+import com.amazonaws.services.simpledb.model.Attribute;
 import com.amazonaws.services.simpledb.model.BatchPutAttributesRequest;
 import com.amazonaws.services.simpledb.model.CreateDomainRequest;
 import com.amazonaws.services.simpledb.model.DeleteDomainRequest;
+import com.amazonaws.services.simpledb.model.Item;
 import com.amazonaws.services.simpledb.model.ReplaceableAttribute;
 import com.amazonaws.services.simpledb.model.ReplaceableItem;
+import com.amazonaws.services.simpledb.model.SelectRequest;
+import com.amazonaws.services.simpledb.model.SelectResult;
 
 
 
@@ -28,8 +36,11 @@ public class CorrelationsTest {
 	private static final String AWS_CREDENTIALS = "/AwsCredentials.properties";
 	private Logger logger = Logger.getLogger(getClass());
 	private String PROFILE_DOMAIN = "PROFILE_test";
-	
-	
+	private String MODEL_DOMAIN = "MODEL_CORRELATIONS_test";
+	private String OTHER_MODEL_DOMAIN = "MODEL_OTHER_CORRELATIONS_test";
+	private String STATS_BUCKET = "tmpstatstest";
+	public static String newline = System.getProperty("line.separator");
+		
 	private void loadProfiles(String profilesFilename) throws FileNotFoundException, IOException {
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				CorrelationsTest.class.getResourceAsStream(AWS_CREDENTIALS)));
@@ -87,6 +98,71 @@ public class CorrelationsTest {
 		
 	}
 	
+	@After
+	public void cleanUp() throws Exception {
+		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
+				CorrelationsTest.class.getResourceAsStream(AWS_CREDENTIALS)));
+		sdb.deleteDomain(new DeleteDomainRequest(PROFILE_DOMAIN));
+		sdb.deleteDomain(new DeleteDomainRequest(MODEL_DOMAIN));
+		sdb.deleteDomain(new DeleteDomainRequest(OTHER_MODEL_DOMAIN));
+		
+		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
+				Correlations.class.getResourceAsStream(AWS_CREDENTIALS)));
+		
+		List<S3ObjectSummary> objSummaries = s3.listObjects(STATS_BUCKET).getObjectSummaries();
+		int i = 0;
+    	while (i < objSummaries.size()) {
+    		s3.deleteObject(STATS_BUCKET, objSummaries.get(i).getKey());
+    		i ++;
+    	}
+    	s3.deleteBucket(STATS_BUCKET);
+	}
+	
+	private void showModel() throws Exception {
+		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
+				CorrelationsTest.class.getResourceAsStream(AWS_CREDENTIALS)));
+		
+		List<String> tokens = new LinkedList<String>();
+		String selectExpression = "select count(*) from `" + OTHER_MODEL_DOMAIN + "`";
+		String nextToken = null;
+		while (true) {
+			SelectRequest selectRequest = new SelectRequest(selectExpression);
+			selectRequest.setNextToken(nextToken);
+			SelectResult selectResult = sdb.select(selectRequest);
+			nextToken = selectResult.getNextToken();
+			
+			if (nextToken == null) {
+				tokens.add("NULL");
+				break;
+			}
+			
+			tokens.add(nextToken);
+		}	
+		
+		for (String token : tokens) {
+			selectExpression = "select * from `" + OTHER_MODEL_DOMAIN + "`";
+			SelectRequest selectRequest = new SelectRequest(selectExpression);
+			if (!token.equals("NULL")) {
+				selectRequest.setNextToken(token);
+			}
+			SelectResult selectResult = sdb.select(selectRequest);
+			List<Item> items = selectResult.getItems();
+			for (Item item : items) {
+				StringBuffer sb = new StringBuffer();
+				sb.append(item.getName());
+				for (Attribute attribute : item.getAttributes()) {
+					if (attribute.getName().startsWith("Attribute")) {
+						String value = attribute.getValue();
+						sb.append(";"); sb.append(value);
+					}
+				}
+				sb.append(newline);
+				logger.info(sb.toString());
+			}
+		}
+		
+	}
+	
 	@Test
 	public void testA() {
 		try {
@@ -102,6 +178,13 @@ public class CorrelationsTest {
 		Correlations model = new Correlations();
 		try {
 			model.updateModel("test");
+		}
+		catch (Exception ex) {
+			assertTrue(false);
+		}
+		
+		try {
+			showModel();
 		}
 		catch (Exception ex) {
 			assertTrue(false);
