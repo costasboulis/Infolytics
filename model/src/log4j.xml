@@ -5,9 +5,12 @@
   <appender name="ConsoleAppender" class="org.apache.log4j.ConsoleAppender">
     <layout class="org.apache.log4j.SimpleLayout"/>
   </appender>
+	
+  
   <root>
-    <priority value ="info" />
+    <priority value ="INFO" />
     <appender-ref ref="ConsoleAppender"/>
   </root>
+  
 </log4j:configuration>
 

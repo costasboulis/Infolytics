@@ -25,11 +25,8 @@ import com.amazonaws.AmazonServiceException;
 import com.amazonaws.auth.PropertiesCredentials;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
-import com.amazonaws.services.s3.model.CreateBucketRequest;
 import com.amazonaws.services.s3.model.DeleteObjectRequest;
-import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
-import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.Region;
 import com.amazonaws.services.s3.model.S3Object;
@@ -64,9 +61,9 @@ public class Correlations implements Learnable {
 	private static final int TOP_CORRELATIONS = 10;
 	private Logger logger = Logger.getLogger(getClass());
 	public static String newline = System.getProperty("line.separator");
-	private static final String STATS_BASE_BUCKETNAME = "STATS_";      // Base name of the S3 bucket name
+	private static final String STATS_BASE_BUCKETNAME = "tmpstats";      // Base name of the S3 bucket name
 	private static final String MERGED_STATS_FILENAME = "merged.txt";  // Name of the merged suff. stats file in S3 and local file system
-	private static final String STATS_BASE_FILENAME = "stats_";   	       // Base name of the suff. stats file in S3 and local file system 
+	private static final String STATS_BASE_FILENAME = "partialStats";   	       // Base name of the suff. stats file in S3 and local file system 
 	
 	public List<String> getRecommendedProducts(List<String> productIDs, String tenantID, Filter filter) throws Exception {
 		double weight = (double)productIDs.size();
@@ -467,7 +464,7 @@ public class Correlations implements Learnable {
 					hm = new HashMap<String, Float>();
 					SS1.put(productI, hm);
 				}
-				for (int j = i + 1; i < productIDs.size(); j ++) {
+				for (int j = i + 1; j < productIDs.size(); j ++) {
 					String productJ = productIDs.get(j);
 					
 					Float count = hm.get(productJ);
@@ -507,7 +504,7 @@ public class Correlations implements Learnable {
 				
 				Float f = hm.get(sourceID);
 				if (f != null) {
-					sb.append(";"); sb.append(me.getKey()); sb.append(";"); sb.append(f);
+					sb.append(";"); sb.append(me3.getKey()); sb.append(";"); sb.append(f);
 				}
 			}
 			sb.append(newline);
@@ -680,6 +677,8 @@ public class Correlations implements Learnable {
 		// Delete stats bucket
 		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
 				Correlations.class.getResourceAsStream(AWS_CREDENTIALS)));
+		
+		
 		String bucketName = STATS_BASE_BUCKETNAME + tenantID;
 		if (!s3.doesBucketExist(bucketName)) {
 			s3.createBucket(bucketName, Region.EU_Ireland);
@@ -693,9 +692,13 @@ public class Correlations implements Learnable {
 			}
 		}
 		
-		
-		for (String token : tokens) {
-			calculateSufficientStatistics(tenantID, token);
+		if (tokens.size() > 0) {
+			for (String token : tokens) {
+				calculateSufficientStatistics(tenantID, token);
+			}
+		}
+		else {
+			calculateSufficientStatistics(tenantID, null);
 		}
 		
 		mergeSufficientStatistics(tenantID);
@@ -801,5 +804,21 @@ public class Correlations implements Learnable {
     	AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				Correlations.class.getResourceAsStream(AWS_CREDENTIALS)));
     	sdb.createDomain(new CreateDomainRequest(domainName));
+    }
+    
+    private String getProfileDomainName(String tenantID) {
+    	return "PROFILE_" + tenantID;
+    }
+    
+    private String getModelDomainName(String tenantID) {
+    	return "MODEL_CORRELATIONS_" + tenantID;
+    }
+    
+    private String getBackupModelDomainName(String tenantID) {
+    	return "MODEL_OTHER_CORRELATIONS_" + tenantID;
+    }
+    
+    private void swapModelDomainNames(String tenantID) {
+    	
     }
 }
