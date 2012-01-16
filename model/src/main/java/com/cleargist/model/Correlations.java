@@ -1,7 +1,6 @@
 package com.cleargist.model;
 
 
-// TODO : Load multiple tokens before calculating SS
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -54,6 +53,7 @@ import com.amazonaws.services.simpledb.model.SelectResult;
 
 public class Correlations implements Learnable {
 	private static final String AWS_CREDENTIALS = "/AwsCredentials.properties";
+	private static final float PROFILES_PER_CHUNK = 25000;
 	private static final float COOCCURRENCE_THRESHOLD = 2.0f;
 	private static final double CORRELATION_THRESHOLD = 0.05;
 	private static final int TOP_CORRELATIONS = 10;
@@ -75,16 +75,9 @@ public class Correlations implements Learnable {
 	}
 	
 	private List<String> getRecommendedProductsInternal(List<AttributeObject> productIds, String tenantID, Filter filter) throws Exception {
-		AmazonSimpleDB sdb = null;
-    	try {
-    		sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
-    				Correlations.class.getResourceAsStream(AWS_CREDENTIALS)));
-    	}
-    	catch (IOException ex) {
-    		String errorMessage = "Cannot connect to Amazon SimpleDB, check credentials";
-    		logger.error(errorMessage);
-    		throw new Exception();
-    	}
+		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
+				Correlations.class.getResourceAsStream(AWS_CREDENTIALS)));
+    	
     	String correlationsModelDomainName = getModelDomainName(tenantID);
     	HashMap<String, Double> targetIds = new HashMap<String, Double>();
     	for (AttributeObject attObject : productIds) {
@@ -414,18 +407,10 @@ public class Correlations implements Learnable {
 	}
 	
 	
-	public void calculateSufficientStatistics(String tenantID, List<Item> items, String tkn) throws Exception {
-		String token = tkn == null ? "ALL" : tkn;
-		HashMap<String, HashMap<String, Float>> SS1 = new HashMap<String, HashMap<String, Float>>();
-		HashMap<String, Float> SS0 = new HashMap<String, Float>();
+	private void calculateSufficientStatistics(String tenantID, List<Item> items, 
+			HashMap<String, HashMap<String, Float>> SS1, 
+			HashMap<String, Float> SS0) throws Exception {
 		
-		
-		// Do the processing of profiles here
-		if (items == null || items.size() == 0) {
-			logger.warn("Empty list of Item provided");
-			return;
-		}
-		float numberOfProfiles = items.size();
 		for (Item item : items) {
 			List<String> productIDs = new ArrayList<String>();
 			for (Attribute attribute : item.getAttributes()) {
@@ -467,9 +452,84 @@ public class Correlations implements Learnable {
 				}
 			}
 		}
+	}
+	
+	public void calculateSufficientStatistics(String tenantID) throws Exception {
 		
-		// Now write sufficient statistics to local file, expanding the symmetry
-		String localStatsFilename = STATS_BASE_FILENAME + "_" + token + "_" + tenantID;
+		// Delete stats bucket
+		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
+				Correlations.class.getResourceAsStream(AWS_CREDENTIALS)));
+		
+		
+		String bucketName = STATS_BASE_BUCKETNAME + tenantID;
+		if (!s3.doesBucketExist(bucketName)) {
+			s3.createBucket(bucketName, Region.EU_Ireland);
+		}
+		else {
+			ObjectListing objListing = s3.listObjects(bucketName);
+			if (objListing.getObjectSummaries().size() > 0) {
+				for (S3ObjectSummary objSummary : objListing.getObjectSummaries()) {
+					s3.deleteObject(bucketName, objSummary.getKey());
+				}
+			}
+		}
+		
+		// Now calcualte new suff stats
+		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
+				Correlations.class.getResourceAsStream(AWS_CREDENTIALS)));
+		String profileDomain = getProfileDomainName(tenantID);
+		String selectExpression = "select * from `" + profileDomain + "` limit 2500";
+		
+		HashMap<String, HashMap<String, Float>> SS1 = new HashMap<String, HashMap<String, Float>>();
+		HashMap<String, Float> SS0 = new HashMap<String, Float>();
+		String resultNextToken = null;
+		SelectRequest selectRequest = new SelectRequest(selectExpression);
+		int chunk = 1;
+		int profilesInChunk = 0;
+		do {
+		    if (resultNextToken != null) {
+		    	selectRequest.setNextToken(resultNextToken);
+		    }
+		    
+		    SelectResult selectResult = sdb.select(selectRequest);
+		    
+		    String newToken = selectResult.getNextToken();
+		    if (newToken != null && !newToken.equals(resultNextToken)) {
+		    	resultNextToken = selectResult.getNextToken();
+		    }
+		    else {
+		    	resultNextToken = null;
+		    }
+		    List<Item> items = selectResult.getItems();
+		    
+		    calculateSufficientStatistics(tenantID, items, SS1, SS0);
+		    
+		    profilesInChunk += items.size();
+		    
+		    if (profilesInChunk >= PROFILES_PER_CHUNK) {
+		    	writeSufficientStatistics(tenantID, profilesInChunk, SS1, SS0, Integer.toString(chunk));
+		    	SS1 = new HashMap<String, HashMap<String, Float>>();
+		    	SS0 = new HashMap<String, Float>();
+		    	profilesInChunk = 0;
+		    	chunk ++;
+		    }
+		    
+		} while (resultNextToken != null);
+		
+		if (profilesInChunk > 0) {
+	    	writeSufficientStatistics(tenantID, profilesInChunk, SS1, SS0, Integer.toString(chunk));
+	    	SS1 = new HashMap<String, HashMap<String, Float>>();
+	    	SS0 = new HashMap<String, Float>();
+	    	profilesInChunk = 0;
+	    	chunk ++;
+	    }
+	}
+	
+	private void writeSufficientStatistics(String tenantID, float numberOfProfiles,
+			HashMap<String, HashMap<String, Float>> SS1, 
+			HashMap<String, Float> SS0, String chunkID) throws Exception {
+		
+		String localStatsFilename = STATS_BASE_FILENAME + "_" + tenantID + "_" + chunkID;
 		File localSSFile = new File(localStatsFilename);
 		BufferedWriter out = new BufferedWriter(new FileWriter(localSSFile));
 		out.write(Float.toString(numberOfProfiles) + newline); 
@@ -515,7 +575,7 @@ public class Correlations implements Learnable {
 				Correlations.class.getResourceAsStream(AWS_CREDENTIALS)));
     	
     	String statsBucketName = STATS_BASE_BUCKETNAME + tenantID;
-    	String statsFilename = STATS_BASE_FILENAME + token;
+    	String statsFilename = STATS_BASE_FILENAME + chunkID;
 		PutObjectRequest r = new PutObjectRequest(statsBucketName, statsFilename, localSSFile);
     	r.setStorageClass(StorageClass.ReducedRedundancy);
     	s3.putObject(r);
@@ -524,10 +584,12 @@ public class Correlations implements Learnable {
 		localSSFile.delete();
 	}
 	
-	private void estimateModelParameters(S3Object mergedStats, String tenantID) 
+	private void estimateModelParameters(String bucketName, String filename, String tenantID) 
 	throws AmazonServiceException, AmazonClientException, IOException, Exception {
     	AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
 				Correlations.class.getResourceAsStream(AWS_CREDENTIALS)));
+    	
+    	S3Object mergedStats = s3.getObject(bucketName, filename);
     	
     	
     	// Read in memory SS0
@@ -650,65 +712,19 @@ public class Correlations implements Learnable {
 	
 	public void updateModel(String tenantID) 
 	throws AmazonServiceException, AmazonClientException, Exception {
-		// Delete stats bucket
-		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
-				Correlations.class.getResourceAsStream(AWS_CREDENTIALS)));
 		
-		
-		String bucketName = STATS_BASE_BUCKETNAME + tenantID;
-		if (!s3.doesBucketExist(bucketName)) {
-			s3.createBucket(bucketName, Region.EU_Ireland);
-		}
-		else {
-			ObjectListing objListing = s3.listObjects(bucketName);
-			if (objListing.getObjectSummaries().size() > 0) {
-				for (S3ObjectSummary objSummary : objListing.getObjectSummaries()) {
-					s3.deleteObject(bucketName, objSummary.getKey());
-				}
-			}
-		}
-		
-		// Calculate sufficient statistics per chunk
-		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
-				Correlations.class.getResourceAsStream(AWS_CREDENTIALS)));
-		String profileDomain = getProfileDomainName(tenantID);
-		String selectExpression = "select * from `" + profileDomain + "` limit 2500";
-		
-		String resultNextToken = null;
-		SelectRequest selectRequest = new SelectRequest(selectExpression);
-		int chunk = 1;
-		do {
-		    if (resultNextToken != null) {
-		    	selectRequest.setNextToken(resultNextToken);
-		    }
-		    
-		    SelectResult selectResult = sdb.select(selectRequest);
-		    
-		    calculateSufficientStatistics(tenantID, selectResult.getItems(), Integer.toString(chunk));
-		    
-		    String newToken = selectResult.getNextToken();
-		    if (newToken != null && !newToken.equals(resultNextToken)) {
-		    	resultNextToken = selectResult.getNextToken();
-		    }
-		    else {
-		    	resultNextToken = null;
-		    }
-		    
-		    chunk ++;
-		    
-		} while (resultNextToken != null);
-		
-		
+		calculateSufficientStatistics(tenantID);
 		
 		mergeSufficientStatistics(tenantID);
 		
-		S3Object mergedStats = s3.getObject(bucketName, MERGED_STATS_FILENAME);
-		estimateModelParameters(mergedStats, tenantID);
+		String bucketName = STATS_BASE_BUCKETNAME + tenantID;
+		estimateModelParameters(bucketName, MERGED_STATS_FILENAME, tenantID);
 		
 		// Now that all work is done, point to the new model
     	swapModelDomainNames(tenantID);
 	}
 	
+
 	private void writeSimpleDB(AmazonSimpleDB sdb, String SimpleDBDomain, List<ReplaceableItem> recsPairs) 
 	throws DuplicateItemNameException, InvalidParameterValueException, NumberDomainBytesExceededException, NumberSubmittedItemsExceededException, 
 	NumberSubmittedAttributesExceededException, NumberDomainAttributesExceededException, NumberItemAttributesExceededException, 
@@ -775,7 +791,70 @@ public class Correlations implements Learnable {
     	}
     }
     
-    
+	public void writeModelToFile(String tenantID, String bucketName, String modelFilename, String modelDomainName) throws Exception {
+		
+		BufferedWriter out = null;
+		String tmpFilename = modelFilename + "_" + tenantID;
+		File localFile = new File(tmpFilename);
+		try {
+			out = new BufferedWriter(new FileWriter(localFile));
+		}
+		catch (IOException ex) {
+			logger.error("Cannot write to file " + localFile.getAbsolutePath());
+			throw new Exception();
+		}
+		
+		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
+				Correlations.class.getResourceAsStream(AWS_CREDENTIALS)));
+		
+		String selectExpression = "select * from `" + modelDomainName + "` limit 2500";
+		String resultNextToken = null;
+		SelectRequest selectRequest = new SelectRequest(selectExpression);
+		do {
+		    if (resultNextToken != null) {
+		    	selectRequest.setNextToken(resultNextToken);
+		    }
+		    
+		    SelectResult selectResult = sdb.select(selectRequest);
+		    
+		    String newToken = selectResult.getNextToken();
+		    if (newToken != null && !newToken.equals(resultNextToken)) {
+		    	resultNextToken = selectResult.getNextToken();
+		    }
+		    else {
+		    	resultNextToken = null;
+		    }
+		    
+		    
+		    List<Item> items = selectResult.getItems();
+			for (Item item : items) {
+				StringBuffer sb = new StringBuffer();
+				sb.append(item.getName());
+				for (Attribute attribute : item.getAttributes()) {
+					String value = attribute.getValue();
+					sb.append(";"); sb.append(value);
+				}
+				sb.append(newline);
+				
+				out.write(sb.toString());
+				out.flush();
+			}
+			out.close();
+		    
+		} while (resultNextToken != null);
+		
+		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
+				Correlations.class.getResourceAsStream(AWS_CREDENTIALS)));
+    	
+		
+		PutObjectRequest r = new PutObjectRequest(bucketName, modelFilename, localFile);
+    	r.setStorageClass(StorageClass.ReducedRedundancy);
+    	s3.putObject(r);
+    	
+		// cleanup
+		localFile.delete();
+	}
+	
     private String getProfileDomainName(String tenantID) {
     	return "PROFILE_" + tenantID;
     }
