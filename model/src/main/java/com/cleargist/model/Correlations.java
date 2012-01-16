@@ -41,11 +41,9 @@ import com.amazonaws.services.simpledb.model.DeleteDomainRequest;
 import com.amazonaws.services.simpledb.model.DuplicateItemNameException;
 import com.amazonaws.services.simpledb.model.InvalidParameterValueException;
 import com.amazonaws.services.simpledb.model.Item;
-import com.amazonaws.services.simpledb.model.MissingParameterException;
 import com.amazonaws.services.simpledb.model.NoSuchDomainException;
 import com.amazonaws.services.simpledb.model.NumberDomainAttributesExceededException;
 import com.amazonaws.services.simpledb.model.NumberDomainBytesExceededException;
-import com.amazonaws.services.simpledb.model.NumberDomainsExceededException;
 import com.amazonaws.services.simpledb.model.NumberItemAttributesExceededException;
 import com.amazonaws.services.simpledb.model.NumberSubmittedAttributesExceededException;
 import com.amazonaws.services.simpledb.model.NumberSubmittedItemsExceededException;
@@ -416,26 +414,18 @@ public class Correlations implements Learnable {
 	}
 	
 	
-	public void calculateSufficientStatistics(String tenantID, String token) throws Exception {
+	public void calculateSufficientStatistics(String tenantID, List<Item> items, String tkn) throws Exception {
+		String token = tkn == null ? "ALL" : tkn;
 		HashMap<String, HashMap<String, Float>> SS1 = new HashMap<String, HashMap<String, Float>>();
 		HashMap<String, Float> SS0 = new HashMap<String, Float>();
-		Float numberOfProfiles = 0.0f;
 		
-		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
-				Correlations.class.getResourceAsStream(AWS_CREDENTIALS)));
-    	
-    	String profileDomain = getProfileDomainName(tenantID);
-		String selectExpression = "select * from `" + profileDomain + "`";
-		SelectRequest selectRequest = new SelectRequest(selectExpression);
-		selectRequest.setNextToken(token);
-		SelectResult selectResult = sdb.select(selectRequest);
-		List<Item> items = selectResult.getItems();
+		
+		// Do the processing of profiles here
 		if (items == null || items.size() == 0) {
-			logger.warn("No data retrieved for token " + token);
+			logger.warn("Empty list of Item provided");
 			return;
 		}
-		// Do the processing of profiles here
-		numberOfProfiles += items.size();
+		float numberOfProfiles = items.size();
 		for (Item item : items) {
 			List<String> productIDs = new ArrayList<String>();
 			for (Attribute attribute : item.getAttributes()) {
@@ -496,20 +486,25 @@ public class Correlations implements Learnable {
 			String sourceID = me.getKey();
 			StringBuffer sb = new StringBuffer();
 			sb.append(sourceID);
+			boolean found = false;
 			for (Map.Entry<String, Float> me2 : me.getValue().entrySet()) {
+				found = true;
 				sb.append(";"); sb.append(me2.getKey()); sb.append(";"); sb.append(me2.getValue());
 			}
 			for (Map.Entry<String, HashMap<String, Float>> me3 : SS1.entrySet()) {
-				HashMap<String, Float> hm = me.getValue();
+				HashMap<String, Float> hm = me3.getValue();
 				
 				Float f = hm.get(sourceID);
 				if (f != null) {
+					found = true;
 					sb.append(";"); sb.append(me3.getKey()); sb.append(";"); sb.append(f);
 				}
 			}
 			sb.append(newline);
 			
-			out.write(sb.toString());
+			if (found) {
+				out.write(sb.toString());
+			}
 			out.flush();
 		}
 		out.close();
@@ -540,14 +535,7 @@ public class Correlations implements Learnable {
     	HashMap<String, Float> SS0 = new HashMap<String, Float>();
     	BufferedReader reader = new BufferedReader(new InputStreamReader(mergedStats.getObjectContent()));
 		String line = reader.readLine();
-    	try {
-    		numberOfProfiles = Float.parseFloat(line);
-    	}
-    	catch (NumberFormatException ex) {
-    		logger.error("Cannot parse number of profiles \"" + line + "\" from file " + mergedStats.getKey() 
-    				+ " from bucket " + mergedStats.getBucketName() + "... skipping");
-    		throw new Exception();
-    	}
+		numberOfProfiles = Float.parseFloat(line);
 		while ((line = reader.readLine()) != null) {
 			String[] fields = line.split(";");
 			if (fields.length != 2) {
@@ -572,14 +560,17 @@ public class Correlations implements Learnable {
 				Correlations.class.getResourceAsStream(AWS_CREDENTIALS)));
     	
     	String correlationsModelDomainName = getBackupModelDomainName(tenantID);
-    	deleteDomain(sdb, correlationsModelDomainName);
-    	createDomain(correlationsModelDomainName);
+    	sdb.deleteDomain(new DeleteDomainRequest(correlationsModelDomainName));
+    	sdb.createDomain(new CreateDomainRequest(correlationsModelDomainName));
 		List<ReplaceableItem> items = new ArrayList<ReplaceableItem>();
-		while ((line = reader.readLine()) != null) {
+		while (true) {
 			String[] fields = line.split(";");
 			if (fields.length % 2 == 0) {
 				logger.error("Cannot parse line \"" + line + "\" at file " + mergedStats.getKey() 
 						+ " at bucket " + mergedStats.getBucketName() + "... skipping");
+				if ((line = reader.readLine()) == null) {
+					break;
+				}
 				continue;
 			}
 			List<AttributeObject> itemsList = new LinkedList<AttributeObject>(); 
@@ -612,9 +603,12 @@ public class Correlations implements Learnable {
 				if (score < CORRELATION_THRESHOLD) {
 					continue;
 				}
-				itemsList.add(new AttributeObject(targetID, score));
+				itemsList.add(new AttributeObject(targetID, Math.round(score * 100.0)));
 			}
 			if (itemsList.size() == 0) {
+				if ((line = reader.readLine()) == null) {
+					break;
+				}
 				continue;
 			}
 			Collections.sort(itemsList);
@@ -638,6 +632,9 @@ public class Correlations implements Learnable {
         		items = new ArrayList<ReplaceableItem>();
         	}
 			
+			if ((line = reader.readLine()) == null) {
+				break;
+			}
 		}
 		reader.close();
 		
@@ -653,27 +650,6 @@ public class Correlations implements Learnable {
 	
 	public void updateModel(String tenantID) 
 	throws AmazonServiceException, AmazonClientException, Exception {
-		// Determine the list of tokens
-		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
-				Correlations.class.getResourceAsStream(AWS_CREDENTIALS)));
-		List<String> tokens = new LinkedList<String>();
-		String profileDomain = getProfileDomainName(tenantID);
-		String selectExpression = "select count(*) from `" + profileDomain + "`";
-		String nextToken = null;
-		while (true) {
-			SelectRequest selectRequest = new SelectRequest(selectExpression);
-			selectRequest.setNextToken(nextToken);
-			SelectResult selectResult = sdb.select(selectRequest);
-			nextToken = selectResult.getNextToken();
-			
-			if (nextToken == null) {
-				break;
-			}
-			
-			tokens.add(nextToken);
-		}	
-		
-		
 		// Delete stats bucket
 		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
 				Correlations.class.getResourceAsStream(AWS_CREDENTIALS)));
@@ -692,14 +668,37 @@ public class Correlations implements Learnable {
 			}
 		}
 		
-		if (tokens.size() > 0) {
-			for (String token : tokens) {
-				calculateSufficientStatistics(tenantID, token);
-			}
-		}
-		else {
-			calculateSufficientStatistics(tenantID, null);
-		}
+		// Calculate sufficient statistics per chunk
+		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
+				Correlations.class.getResourceAsStream(AWS_CREDENTIALS)));
+		String profileDomain = getProfileDomainName(tenantID);
+		String selectExpression = "select * from `" + profileDomain + "` limit 2500";
+		
+		String resultNextToken = null;
+		SelectRequest selectRequest = new SelectRequest(selectExpression);
+		int chunk = 1;
+		do {
+		    if (resultNextToken != null) {
+		    	selectRequest.setNextToken(resultNextToken);
+		    }
+		    
+		    SelectResult selectResult = sdb.select(selectRequest);
+		    
+		    calculateSufficientStatistics(tenantID, selectResult.getItems(), Integer.toString(chunk));
+		    
+		    String newToken = selectResult.getNextToken();
+		    if (newToken != null && !newToken.equals(resultNextToken)) {
+		    	resultNextToken = selectResult.getNextToken();
+		    }
+		    else {
+		    	resultNextToken = null;
+		    }
+		    
+		    chunk ++;
+		    
+		} while (resultNextToken != null);
+		
+		
 		
 		mergeSufficientStatistics(tenantID);
 		
@@ -775,36 +774,7 @@ public class Correlations implements Learnable {
     		throw new Exception();
     	}
     }
-	
-	private void deleteDomain(AmazonSimpleDB sdb, String domainToDelete) throws Exception {
-    	try {
-    		sdb.deleteDomain(new DeleteDomainRequest(domainToDelete));
-    	}
-    	catch (MissingParameterException ex) {
-            String errorMessage = "Cannot delete domain in SimpleDB, missing parameter " + ex.getStackTrace();
-    		logger.error(errorMessage);
-        }
-    	catch (AmazonServiceException ase) {
-    		String errorMessage = "Cannot delete domain in SimpleDB, Amazon Service error";
-    		logger.error(errorMessage);
-        }
-    	catch (AmazonClientException ace) {
-            String errorMessage = "Caught an AmazonClientException, which means the client encountered "
-                + "a serious internal problem while trying to communicate with SimpleDB, "
-                + "such as not being able to access the network.";
-            logger.error(errorMessage);
-        }
-    	
-    }
     
-    private void createDomain(String domainName) 
-    throws InvalidParameterValueException, NumberDomainsExceededException, MissingParameterException, 
-    AmazonServiceException, AmazonClientException, IOException {
-    	
-    	AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
-				Correlations.class.getResourceAsStream(AWS_CREDENTIALS)));
-    	sdb.createDomain(new CreateDomainRequest(domainName));
-    }
     
     private String getProfileDomainName(String tenantID) {
     	return "PROFILE_" + tenantID;

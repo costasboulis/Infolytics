@@ -14,6 +14,8 @@ import org.apache.log4j.Logger;
 import org.junit.After;
 import org.junit.Test;
 
+import com.amazonaws.AmazonClientException;
+import com.amazonaws.AmazonServiceException;
 import com.amazonaws.auth.PropertiesCredentials;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
@@ -44,10 +46,29 @@ public class CorrelationsTest {
 	private void loadProfiles(String profilesFilename) throws FileNotFoundException, IOException {
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				CorrelationsTest.class.getResourceAsStream(AWS_CREDENTIALS)));
+/*		
+		for (String domain : sdb.listDomains().getDomainNames()) {
+			logger.warn(domain);
+			sdb.deleteDomain(new DeleteDomainRequest(domain));
+		}
+	*/	
+		try {
+			sdb.deleteDomain(new DeleteDomainRequest(PROFILE_DOMAIN));
+			sdb.createDomain(new CreateDomainRequest(PROFILE_DOMAIN));
+		}
+		catch (AmazonServiceException ase) {
+			if (ase.getStatusCode() != 200) {
+				logger.error(ase.getErrorCode() + " while deleting/creating profile domain");
+				throw new IOException();
+			}
+		}
+		catch (AmazonClientException ace) {
+			logger.error(ace.getMessage());
+			throw new IOException();
+		}
 		
-		sdb.deleteDomain(new DeleteDomainRequest(PROFILE_DOMAIN));
-		sdb.createDomain(new CreateDomainRequest(PROFILE_DOMAIN));
 		
+		logger.info("Reading profiles " + profilesFilename);
 		File file = new File(profilesFilename);
 		BufferedReader reader = new BufferedReader(new FileReader(file));
 		String line = null;
@@ -78,6 +99,16 @@ public class CorrelationsTest {
 				try {
 		    		sdb.batchPutAttributes(new BatchPutAttributesRequest(PROFILE_DOMAIN, items));
 		    	}
+				catch (AmazonServiceException ase) {
+					if (ase.getStatusCode() != 200) {
+						logger.error(ase.getErrorCode() + " while inserting profiles");
+						throw new IOException();
+					}
+				}
+				catch (AmazonClientException ace) {
+					logger.error(ace.getMessage());
+					throw new IOException();
+				}
 				catch (Exception ex) {
 					throw new IOException();
 				}
@@ -91,6 +122,16 @@ public class CorrelationsTest {
 			try {
 	    		sdb.batchPutAttributes(new BatchPutAttributesRequest(PROFILE_DOMAIN, items));
 	    	}
+			catch (AmazonServiceException ase) {
+				if (ase.getStatusCode() != 200) {
+					logger.error(ase.getErrorCode());
+					System.exit(-1);
+				}
+			}
+			catch (AmazonClientException ace) {
+				logger.error(ace.getMessage());
+				System.exit(-1);
+			}
 			catch (Exception ex) {
 				throw new IOException();
 			}
@@ -122,52 +163,48 @@ public class CorrelationsTest {
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				CorrelationsTest.class.getResourceAsStream(AWS_CREDENTIALS)));
 		
-		List<String> tokens = new LinkedList<String>();
-		String selectExpression = "select count(*) from `" + OTHER_MODEL_DOMAIN + "`";
-		String nextToken = null;
-		while (true) {
-			SelectRequest selectRequest = new SelectRequest(selectExpression);
-			selectRequest.setNextToken(nextToken);
-			SelectResult selectResult = sdb.select(selectRequest);
-			nextToken = selectResult.getNextToken();
-			
-			if (nextToken == null) {
-				tokens.add("NULL");
-				break;
-			}
-			
-			tokens.add(nextToken);
-		}	
-		
-		for (String token : tokens) {
-			selectExpression = "select * from `" + OTHER_MODEL_DOMAIN + "`";
-			SelectRequest selectRequest = new SelectRequest(selectExpression);
-			if (!token.equals("NULL")) {
-				selectRequest.setNextToken(token);
-			}
-			SelectResult selectResult = sdb.select(selectRequest);
-			List<Item> items = selectResult.getItems();
+		String selectExpression = "select * from `" + OTHER_MODEL_DOMAIN + "` limit 2500";
+		String resultNextToken = null;
+		SelectRequest selectRequest = new SelectRequest(selectExpression);
+		do {
+		    if (resultNextToken != null) {
+		    	selectRequest.setNextToken(resultNextToken);
+		    }
+		    
+		    SelectResult selectResult = sdb.select(selectRequest);
+		    
+		    String newToken = selectResult.getNextToken();
+		    if (newToken != null && !newToken.equals(resultNextToken)) {
+		    	resultNextToken = selectResult.getNextToken();
+		    }
+		    else {
+		    	resultNextToken = null;
+		    }
+		    
+		    
+		    List<Item> items = selectResult.getItems();
 			for (Item item : items) {
 				StringBuffer sb = new StringBuffer();
 				sb.append(item.getName());
 				for (Attribute attribute : item.getAttributes()) {
-					if (attribute.getName().startsWith("Attribute")) {
-						String value = attribute.getValue();
-						sb.append(";"); sb.append(value);
-					}
+					String value = attribute.getValue();
+					sb.append(";"); sb.append(value);
 				}
-				sb.append(newline);
-				logger.info(sb.toString());
+//				sb.append(newline);
+				logger.warn(sb.toString());
 			}
-		}
+		    
+		} while (resultNextToken != null);
 		
 	}
 	
 	@Test
 	public void testA() {
 		try {
+			String filename = "smallSintagesPareasProfiles.csv";
+//			String filename = "fewProfiles.txt";
 			String profiles = System.getProperty("user.dir") + File.separator + "src" + File.separator + "test" + File.separator 
-			+ "resources" + File.separator + "smallSintagesPareasProfiles.csv";
+			+ "resources" + File.separator + filename;
 			loadProfiles(profiles);
 		}
 		catch (Exception ex) {
