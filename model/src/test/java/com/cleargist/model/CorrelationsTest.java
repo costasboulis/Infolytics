@@ -7,6 +7,8 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -19,6 +21,7 @@ import com.amazonaws.AmazonServiceException;
 import com.amazonaws.auth.PropertiesCredentials;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.services.simpledb.AmazonSimpleDB;
 import com.amazonaws.services.simpledb.AmazonSimpleDBClient;
@@ -46,12 +49,6 @@ public class CorrelationsTest {
 	private void loadProfiles(String profilesFilename) throws FileNotFoundException, IOException {
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				CorrelationsTest.class.getResourceAsStream(AWS_CREDENTIALS)));
-/*		
-		for (String domain : sdb.listDomains().getDomainNames()) {
-			logger.warn(domain);
-			sdb.deleteDomain(new DeleteDomainRequest(domain));
-		}
-	*/	
 		try {
 			sdb.deleteDomain(new DeleteDomainRequest(PROFILE_DOMAIN));
 			sdb.createDomain(new CreateDomainRequest(PROFILE_DOMAIN));
@@ -136,7 +133,7 @@ public class CorrelationsTest {
 				throw new IOException();
 			}
 		}
-		
+		logger.info("Finished reading profiles");
 	}
 	
 	@After
@@ -198,34 +195,120 @@ public class CorrelationsTest {
 		
 	}
 	
+	private boolean areCorrelationsEqual(String bucketName, String filenameA, String filenameB) throws Exception {
+		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
+				Correlations.class.getResourceAsStream(AWS_CREDENTIALS)));
+		
+		S3Object statsObject = s3.getObject(bucketName, filenameA);
+		BufferedReader reader = new BufferedReader(new InputStreamReader(statsObject.getObjectContent()));
+		String line = null;
+		HashMap<String, HashMap<String, Float>> correlationsA = new HashMap<String, HashMap<String, Float>>();
+		while ((line = reader.readLine()) != null) {
+			String[] fields = line.split(";");
+			String sourceID = fields[0];
+			
+			HashMap<String, Float> hm = new HashMap<String, Float>();
+			correlationsA.put(sourceID, hm);
+			for (int i = 1; i < fields.length; i = i + 2) {
+				hm.put(fields[i], Float.parseFloat(fields[i+1]));
+			}
+		}
+		reader.close();
+		
+		statsObject = s3.getObject(bucketName, filenameB);
+		reader = new BufferedReader(new InputStreamReader(statsObject.getObjectContent()));
+		int cnt = 0;
+		while ((line = reader.readLine()) != null) {
+			String[] fields = line.split(";");
+			String sourceID = fields[0];
+			
+			HashMap<String, Float> hmA = correlationsA.get(sourceID);
+			if (hmA == null) {
+				return false;
+			}
+			HashMap<String, Float> hmB = new HashMap<String, Float>();
+			for (int i = 1; i < fields.length; i = i + 2) {
+				Float fA = hmA.get(fields[i]);
+				if (fA == null) {
+					return false;
+				}
+				
+				Float fB = Float.parseFloat(fields[i+1]);
+				if (fA.floatValue() != fB.floatValue()) {
+					return false;
+				}
+				hmB.put(fields[i], fB);
+			}
+			
+			if (hmA.size() != hmB.size()) {
+				return false;
+			}
+			
+			cnt ++;
+		}
+		reader.close();
+		
+		if (cnt != correlationsA.size()) {
+			return false;
+		}
+		
+		return true;
+	}
+	
+	
 	@Test
-	public void testA() {
+	public void testMerging() {
+		String filename = "smallSintagesPareasProfiles.csv";
+//		String filename = "fewProfiles.txt";
+		String profiles = System.getProperty("user.dir") + File.separator + "src" + File.separator + "test" + File.separator 
+		+ "resources" + File.separator + filename;
 		try {
-			String filename = "smallSintagesPareasProfiles.csv";
-//			String filename = "fewProfiles.txt";
-			String profiles = System.getProperty("user.dir") + File.separator + "src" + File.separator + "test" + File.separator 
-			+ "resources" + File.separator + filename;
 			loadProfiles(profiles);
 		}
 		catch (Exception ex) {
 			assertTrue(false);
 		}
-		logger.info("Finished reading profiles");
 		
+		
+		// Use a single chunk
 		Correlations model = new Correlations();
+		model.setProfilesPerChunk(25000);
 		try {
 			model.updateModel("test");
+			model.writeModelToFile("test", "sintagespareas", "singleChunk.txt", OTHER_MODEL_DOMAIN);
+			cleanUp();
 		}
 		catch (Exception ex) {
 			assertTrue(false);
 		}
 		
+		
+		
+		// Use multiple chunks
 		try {
-			showModel();
+			loadProfiles(profiles);
 		}
 		catch (Exception ex) {
 			assertTrue(false);
 		}
+		model = new Correlations();
+		model.setProfilesPerChunk(3000);
+		try {
+			model.updateModel("test");
+			model.writeModelToFile("test", "sintagespareas", "multipleChunks.txt", OTHER_MODEL_DOMAIN);
+		}
+		catch (Exception ex) {
+			assertTrue(false);
+		}
+		
+		// Compare correlations
+		try {
+			areCorrelationsEqual("sintagespareas", "singleChunk.txt", "multipleChunks.txt");
+		}
+		catch (Exception ex) {
+			assertTrue(false);
+		}
+		
 		
 		assertTrue(true);
 	}

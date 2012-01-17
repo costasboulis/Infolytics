@@ -53,7 +53,6 @@ import com.amazonaws.services.simpledb.model.SelectResult;
 
 public class Correlations implements Learnable {
 	private static final String AWS_CREDENTIALS = "/AwsCredentials.properties";
-	private static final float PROFILES_PER_CHUNK = 25000;
 	private static final float COOCCURRENCE_THRESHOLD = 2.0f;
 	private static final double CORRELATION_THRESHOLD = 0.05;
 	private static final int TOP_CORRELATIONS = 10;
@@ -62,6 +61,14 @@ public class Correlations implements Learnable {
 	private static final String STATS_BASE_BUCKETNAME = "tmpstats";      // Base name of the S3 bucket name
 	private static final String MERGED_STATS_FILENAME = "merged.txt";  // Name of the merged suff. stats file in S3 and local file system
 	private static final String STATS_BASE_FILENAME = "partialStats";   	       // Base name of the suff. stats file in S3 and local file system 
+	private float profilesPerChunk;
+	
+	public Correlations() {
+		this.profilesPerChunk = 25000;
+	}
+	public void setProfilesPerChunk(int n) {
+		this.profilesPerChunk = n < 2500 ? 2500 : n;
+	}
 	
 	public List<String> getRecommendedProducts(List<String> productIDs, String tenantID, Filter filter) throws Exception {
 		double weight = (double)productIDs.size();
@@ -506,7 +513,7 @@ public class Correlations implements Learnable {
 		    
 		    profilesInChunk += items.size();
 		    
-		    if (profilesInChunk >= PROFILES_PER_CHUNK) {
+		    if (profilesInChunk >= this.profilesPerChunk) {
 		    	writeSufficientStatistics(tenantID, profilesInChunk, SS1, SS0, Integer.toString(chunk));
 		    	SS1 = new HashMap<String, HashMap<String, Float>>();
 		    	SS0 = new HashMap<String, Float>();
@@ -839,9 +846,10 @@ public class Correlations implements Learnable {
 				out.write(sb.toString());
 				out.flush();
 			}
-			out.close();
 		    
 		} while (resultNextToken != null);
+		out.close();
+		
 		
 		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
 				Correlations.class.getResourceAsStream(AWS_CREDENTIALS)));
