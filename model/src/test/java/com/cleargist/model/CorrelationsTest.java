@@ -156,44 +156,6 @@ public class CorrelationsTest {
     	s3.deleteBucket(STATS_BUCKET);
 	}
 	
-	private void showModel() throws Exception {
-		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
-				CorrelationsTest.class.getResourceAsStream(AWS_CREDENTIALS)));
-		
-		String selectExpression = "select * from `" + OTHER_MODEL_DOMAIN + "` limit 2500";
-		String resultNextToken = null;
-		SelectRequest selectRequest = new SelectRequest(selectExpression);
-		do {
-		    if (resultNextToken != null) {
-		    	selectRequest.setNextToken(resultNextToken);
-		    }
-		    
-		    SelectResult selectResult = sdb.select(selectRequest);
-		    
-		    String newToken = selectResult.getNextToken();
-		    if (newToken != null && !newToken.equals(resultNextToken)) {
-		    	resultNextToken = selectResult.getNextToken();
-		    }
-		    else {
-		    	resultNextToken = null;
-		    }
-		    
-		    
-		    List<Item> items = selectResult.getItems();
-			for (Item item : items) {
-				StringBuffer sb = new StringBuffer();
-				sb.append(item.getName());
-				for (Attribute attribute : item.getAttributes()) {
-					String value = attribute.getValue();
-					sb.append(";"); sb.append(value);
-				}
-//				sb.append(newline);
-				logger.warn(sb.toString());
-			}
-		    
-		} while (resultNextToken != null);
-		
-	}
 	
 	private boolean areCorrelationsEqual(String bucketName, String filenameA, String filenameB) throws Exception {
 		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
@@ -255,11 +217,57 @@ public class CorrelationsTest {
 		return true;
 	}
 	
+	@Test
+	public void testPersonalized() {
+//		String filename = "smallSintagesPareasProfiles.csv";
+		String filename = "fewProfiles.txt";
+		String profiles = System.getProperty("user.dir") + File.separator + "src" + File.separator + "test" + File.separator 
+		+ "resources" + File.separator + filename;
+		try {
+			loadProfiles(profiles);
+		}
+		catch (Exception ex) {
+			assertTrue(false);
+		}
+		Correlations model = new Correlations();
+		model.setProfilesPerChunk(25000);
+		try {
+			model.updateModel("test");
+		}
+		catch (Exception ex) {
+			assertTrue(false);
+		}
+		
+		DummyFilter filter = new DummyFilter();
+		List<String> recs = null;
+		try {
+			recs = model.getPersonalizedRecommendedProducts("A", "test", filter);
+		}
+		catch (Exception ex) {
+			assertTrue(false);
+		}
+		assertTrue(recs.size() == 0);
+		
+		
+		recs = null;
+		try {
+			recs = model.getPersonalizedRecommendedProducts("C", "test", filter);
+		}
+		catch (Exception ex) {
+			assertTrue(false);
+		}
+		assertTrue(recs.size() == 2);
+		
+		
+		// Test more filters here
+		
+		
+	}
 	
 	@Test
 	public void testMerging() {
-		String filename = "smallSintagesPareasProfiles.csv";
-//		String filename = "fewProfiles.txt";
+//		String filename = "smallSintagesPareasProfiles.csv";
+		String filename = "fewProfiles.txt";
 		String profiles = System.getProperty("user.dir") + File.separator + "src" + File.separator + "test" + File.separator 
 		+ "resources" + File.separator + filename;
 		try {
@@ -309,6 +317,16 @@ public class CorrelationsTest {
 			assertTrue(false);
 		}
 		
+		try {
+			AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
+				CorrelationsTest.class.getResourceAsStream(AWS_CREDENTIALS)));
+			
+			s3.deleteObject("sintagespareas", "multipleChunks.txt");
+			s3.deleteObject("sintagespareas", "singleChunk.txt");
+		}
+		catch (Exception ex) {
+			assertTrue(false);
+		}
 		
 		assertTrue(true);
 	}

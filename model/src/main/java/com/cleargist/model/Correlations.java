@@ -11,6 +11,7 @@ import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -62,10 +63,14 @@ public class Correlations implements Learnable {
 	private static final String MERGED_STATS_FILENAME = "merged.txt";  // Name of the merged suff. stats file in S3 and local file system
 	private static final String STATS_BASE_FILENAME = "partialStats";   	       // Base name of the suff. stats file in S3 and local file system 
 	private float profilesPerChunk;
+	private String currentModelDomainName;
+	
 	
 	public Correlations() {
 		this.profilesPerChunk = 25000;
 	}
+	
+	
 	public void setProfilesPerChunk(int n) {
 		this.profilesPerChunk = n < 2500 ? 2500 : n;
 	}
@@ -85,11 +90,16 @@ public class Correlations implements Learnable {
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				Correlations.class.getResourceAsStream(AWS_CREDENTIALS)));
     	
+		HashSet<String> sourceIDs = new HashSet<String>();
+    	for (AttributeObject attObject : productIds) {
+    		sourceIDs.add(attObject.getUID());
+    	}
+    	
     	String correlationsModelDomainName = getModelDomainName(tenantID);
     	HashMap<String, Double> targetIds = new HashMap<String, Double>();
     	for (AttributeObject attObject : productIds) {
     		String sourceItemId = attObject.getUID();
-    		String selectExpression = "select * from `" + correlationsModelDomainName + "` where itemName() = '" + sourceItemId + "'";
+    		String selectExpression = "select * from `" + correlationsModelDomainName + "` where itemName() = '" + sourceItemId + "' limit 1";
             SelectRequest selectRequest = new SelectRequest(selectExpression);
             List<Item> items = sdb.select(selectRequest).getItems();
             if (items == null || items.size() == 0) {
@@ -101,6 +111,9 @@ public class Correlations implements Learnable {
             for (Attribute attribute : item.getAttributes()) {
             	String[] fields = attribute.getValue().split(";");
             	targetItemId = fields[0];
+            	if (sourceIDs.contains(targetItemId)) {
+            		continue;
+            	}
             	score = Double.parseDouble(fields[1]);
             	
             	double weight = attObject.getScore();
@@ -143,7 +156,7 @@ public class Correlations implements Learnable {
     	}
     	
     	String profileDomain = getProfileDomainName(tenantID);
-		String selectExpression = "select * from `" + profileDomain + "` where USER_ID = '" + userID + "' limit 1";
+		String selectExpression = "select * from `" + profileDomain + "` where itemName() = '" + userID + "' limit 1";
 		SelectRequest selectRequest = new SelectRequest(selectExpression);
 		List<Item> items = sdb.select(selectRequest).getItems();
 		if (items == null || items.size() == 0) {
@@ -867,15 +880,41 @@ public class Correlations implements Learnable {
     	return "PROFILE_" + tenantID;
     }
     
+    // This needs to be persisted outside of this object
     private String getModelDomainName(String tenantID) {
-    	return "MODEL_CORRELATIONS_" + tenantID;
+    	return this.currentModelDomainName == null ? "MODEL_CORRELATIONS_" + tenantID : this.currentModelDomainName;
     }
     
     private String getBackupModelDomainName(String tenantID) {
-    	return "MODEL_OTHER_CORRELATIONS_" + tenantID;
+    	String modelA = "MODEL_CORRELATIONS_" + tenantID;
+    	String modelB = "MODEL_OTHER_CORRELATIONS_" + tenantID;
+    	if (this.currentModelDomainName == null) {
+    		this.currentModelDomainName = modelA;	
+    	}
+    	
+    	if (this.currentModelDomainName.equals(modelA)) {
+    		return modelB;
+    	}
+    	else {
+    		return modelA;
+    	}
+    	
     }
     
     private void swapModelDomainNames(String tenantID) {
     	
+    	String modelA = "MODEL_CORRELATIONS_" + tenantID;
+    	String modelB = "MODEL_OTHER_CORRELATIONS_" + tenantID;
+    	if (this.currentModelDomainName == null) {
+    		this.currentModelDomainName = modelA;
+    	}
+    	else {
+    		if (this.currentModelDomainName.equals(modelA)) {
+        		this.currentModelDomainName = modelB;
+        	}
+        	else {
+        		this.currentModelDomainName = modelA;
+        	}
+    	}
     }
 }
