@@ -59,15 +59,18 @@ public class StandardFilter implements Filter {
     		}
     		
     		if (product != null) {
-    			if (product.getInstock().equals("N") && !this.allowOutOfStock) {
+    			String instock = product.getInstock() == null ? "Y" : product.getInstock();
+    			if (instock.equals("N") && !this.allowOutOfStock) {
 					continue;
 				}
-    			if (finalList.size() != 0 && !product.getCategory().equals(category) && this.showOnlyFromSameCategory) {
+    			
+    			String productCategory = product.getCategory() == null ? "Category" : product.getCategory();
+    			if (finalList.size() != 0 && !productCategory.equals(category) && this.showOnlyFromSameCategory) {
     				continue;
     			}
     			finalList.add(uid);
     			if (finalList.size() == 1) {
-    				category = product.getCategory();
+    				category = productCategory;
     			}
     			
     			if (finalList.size() >= this.getNumRecs()) {
