@@ -8,12 +8,16 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 
 import org.apache.log4j.Logger;
 import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 
 import com.amazonaws.AmazonClientException;
@@ -21,6 +25,7 @@ import com.amazonaws.AmazonServiceException;
 import com.amazonaws.auth.PropertiesCredentials;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.model.Bucket;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.services.simpledb.AmazonSimpleDB;
@@ -28,12 +33,12 @@ import com.amazonaws.services.simpledb.AmazonSimpleDBClient;
 import com.amazonaws.services.simpledb.model.Attribute;
 import com.amazonaws.services.simpledb.model.BatchPutAttributesRequest;
 import com.amazonaws.services.simpledb.model.CreateDomainRequest;
+import com.amazonaws.services.simpledb.model.DeleteAttributesRequest;
 import com.amazonaws.services.simpledb.model.DeleteDomainRequest;
-import com.amazonaws.services.simpledb.model.Item;
 import com.amazonaws.services.simpledb.model.ReplaceableAttribute;
 import com.amazonaws.services.simpledb.model.ReplaceableItem;
-import com.amazonaws.services.simpledb.model.SelectRequest;
-import com.amazonaws.services.simpledb.model.SelectResult;
+import com.cleargist.catalog.entity.jaxb.Catalog;
+
 
 
 
@@ -41,8 +46,8 @@ public class CorrelationsTest {
 	private static final String AWS_CREDENTIALS = "/AwsCredentials.properties";
 	private Logger logger = Logger.getLogger(getClass());
 	private String PROFILE_DOMAIN = "PROFILE_test";
-	private String MODEL_DOMAIN = "MODEL_CORRELATIONS_test";
-	private String OTHER_MODEL_DOMAIN = "MODEL_OTHER_CORRELATIONS_test";
+	private String MODEL_DOMAIN = "MODEL_CORRELATIONS_test_A";
+	private String OTHER_MODEL_DOMAIN = "MODEL_CORRELATIONS_test_B";
 	private String STATS_BUCKET = "tmpstatstest";
 	public static String newline = System.getProperty("line.separator");
 		
@@ -136,6 +141,32 @@ public class CorrelationsTest {
 		logger.info("Finished reading profiles");
 	}
 	
+	@Before
+	public void setUp() throws Exception {
+		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
+				CorrelationsTest.class.getResourceAsStream(AWS_CREDENTIALS)));
+		
+		boolean found = false;
+		for (String domainName : sdb.listDomains().getDomainNames()) {
+			if (domainName.equals("MODEL_STATES")) {
+				found = true;
+				break;
+			}
+		}
+		if (!found) {
+			sdb.createDomain(new CreateDomainRequest("MODEL_STATES"));
+		}
+		
+		
+		List<ReplaceableItem> items = new ArrayList<ReplaceableItem>();
+		List<ReplaceableAttribute> attributes = new ArrayList<ReplaceableAttribute>();
+		ReplaceableAttribute attribute = new ReplaceableAttribute("MODEL_CORRELATIONS_", MODEL_DOMAIN, true);
+		attributes.add(attribute);
+		ReplaceableItem item = new ReplaceableItem("test", attributes);
+		items.add(item);
+		sdb.batchPutAttributes(new BatchPutAttributesRequest("MODEL_STATES", items));
+	}
+	
 	@After
 	public void cleanUp() throws Exception {
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
@@ -145,21 +176,40 @@ public class CorrelationsTest {
 		sdb.deleteDomain(new DeleteDomainRequest(OTHER_MODEL_DOMAIN));
 		
 		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
-				Correlations.class.getResourceAsStream(AWS_CREDENTIALS)));
+				CorrelationsTest.class.getResourceAsStream(AWS_CREDENTIALS)));
 		
-		List<S3ObjectSummary> objSummaries = s3.listObjects(STATS_BUCKET).getObjectSummaries();
-		int i = 0;
-    	while (i < objSummaries.size()) {
-    		s3.deleteObject(STATS_BUCKET, objSummaries.get(i).getKey());
-    		i ++;
-    	}
-    	s3.deleteBucket(STATS_BUCKET);
+		boolean found = false;
+		for (Bucket bucket : s3.listBuckets()) {
+			if (bucket.getName().equals(STATS_BUCKET)) {
+				found = true;
+				break;
+			}
+		}
+		if (found) {
+			List<S3ObjectSummary> objSummaries = s3.listObjects(STATS_BUCKET).getObjectSummaries();
+			int i = 0;
+	    	while (i < objSummaries.size()) {
+	    		s3.deleteObject(STATS_BUCKET, objSummaries.get(i).getKey());
+	    		i ++;
+	    	}
+	    	s3.deleteBucket(STATS_BUCKET);
+		}
+		
+    	
+        DeleteAttributesRequest deleteAttributesRequest = new DeleteAttributesRequest();
+        deleteAttributesRequest.setItemName("test");
+        deleteAttributesRequest.setDomainName("MODEL_STATES");
+        Set<Attribute> attributes = new HashSet<Attribute>();
+        Attribute att = new Attribute();
+        att.setName("MODEL_CORRELATIONS_");
+        deleteAttributesRequest.setAttributes(attributes);
+        sdb.deleteAttributes(deleteAttributesRequest);
 	}
 	
 	
 	private boolean areCorrelationsEqual(String bucketName, String filenameA, String filenameB) throws Exception {
 		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
-				Correlations.class.getResourceAsStream(AWS_CREDENTIALS)));
+				CorrelationsTest.class.getResourceAsStream(AWS_CREDENTIALS)));
 		
 		S3Object statsObject = s3.getObject(bucketName, filenameA);
 		BufferedReader reader = new BufferedReader(new InputStreamReader(statsObject.getObjectContent()));
@@ -229,17 +279,17 @@ public class CorrelationsTest {
 		catch (Exception ex) {
 			assertTrue(false);
 		}
-		Correlations model = new Correlations();
+		CorrelationsModel model = new CorrelationsModel();
 		model.setProfilesPerChunk(25000);
 		try {
-			model.updateModel("test");
+			model.createModel("test");
 		}
 		catch (Exception ex) {
 			assertTrue(false);
 		}
 		
-		DummyFilter filter = new DummyFilter();
-		List<String> recs = null;
+		PassThroughFilter filter = new PassThroughFilter();
+		List<Catalog.Products.Product> recs = null;
 		try {
 			recs = model.getPersonalizedRecommendedProducts("A", "test", filter);
 		}
@@ -266,8 +316,8 @@ public class CorrelationsTest {
 	
 	@Test
 	public void testMerging() {
-//		String filename = "smallSintagesPareasProfiles.csv";
-		String filename = "fewProfiles.txt";
+		String filename = "smallSintagesPareasProfiles.csv";
+//		String filename = "fewProfiles.txt";
 		String profiles = System.getProperty("user.dir") + File.separator + "src" + File.separator + "test" + File.separator 
 		+ "resources" + File.separator + filename;
 		try {
@@ -279,10 +329,10 @@ public class CorrelationsTest {
 		
 		
 		// Use a single chunk
-		Correlations model = new Correlations();
+		CorrelationsModel model = new CorrelationsModel();
 		model.setProfilesPerChunk(25000);
 		try {
-			model.updateModel("test");
+			model.createModel("test");
 			model.writeModelToFile("test", "sintagespareas", "singleChunk.txt", OTHER_MODEL_DOMAIN);
 			cleanUp();
 		}
@@ -294,15 +344,17 @@ public class CorrelationsTest {
 		
 		// Use multiple chunks
 		try {
+			cleanUp();
+			setUp();
 			loadProfiles(profiles);
 		}
 		catch (Exception ex) {
 			assertTrue(false);
 		}
-		model = new Correlations();
+		model = new CorrelationsModel();
 		model.setProfilesPerChunk(3000);
 		try {
-			model.updateModel("test");
+			model.createModel("test");
 			model.writeModelToFile("test", "sintagespareas", "multipleChunks.txt", OTHER_MODEL_DOMAIN);
 		}
 		catch (Exception ex) {

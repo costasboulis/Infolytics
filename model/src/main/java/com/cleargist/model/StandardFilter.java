@@ -45,8 +45,8 @@ public class StandardFilter implements Filter {
 		return this.allowOutOfStock;
 	}
 	
-	public List<String> applyFiltering(List<String> unfilteredIds, String tenantID) {
-		List<String> finalList = new ArrayList<String>();
+	public List<Catalog.Products.Product> applyFiltering(List<String> unfilteredIds, String tenantID) {
+		List<Catalog.Products.Product> finalList = new ArrayList<Catalog.Products.Product>();
     	String category = null;
     	for (String uid : unfilteredIds) {
     		Catalog.Products.Product product = null;
@@ -68,7 +68,7 @@ public class StandardFilter implements Filter {
     			if (finalList.size() != 0 && !productCategory.equals(category) && this.showOnlyFromSameCategory) {
     				continue;
     			}
-    			finalList.add(uid);
+    			finalList.add(product);
     			if (finalList.size() == 1) {
     				category = productCategory;
     			}

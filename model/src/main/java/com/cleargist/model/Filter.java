@@ -2,6 +2,8 @@ package com.cleargist.model;
 
 import java.util.List;
 
+import com.cleargist.catalog.entity.jaxb.Catalog;
+
 public interface Filter {
-	public List<String> applyFiltering(List<String> unfilteredIds, String tenantID);
+	public List<Catalog.Products.Product> applyFiltering(List<String> unfilteredIds, String tenantID);
 }
