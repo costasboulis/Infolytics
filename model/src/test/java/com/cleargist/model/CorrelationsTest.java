@@ -334,7 +334,6 @@ public class CorrelationsTest {
 		try {
 			model.createModel("test");
 			model.writeModelToFile("test", "sintagespareas", "singleChunk.txt", OTHER_MODEL_DOMAIN);
-			cleanUp();
 		}
 		catch (Exception ex) {
 			assertTrue(false);

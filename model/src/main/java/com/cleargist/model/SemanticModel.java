@@ -4,12 +4,12 @@ import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
-import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -30,11 +30,13 @@ import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.services.s3.model.StorageClass;
 import com.amazonaws.services.simpledb.AmazonSimpleDB;
 import com.amazonaws.services.simpledb.AmazonSimpleDBClient;
+import com.amazonaws.services.simpledb.model.Attribute;
 import com.amazonaws.services.simpledb.model.BatchPutAttributesRequest;
 import com.amazonaws.services.simpledb.model.CreateDomainRequest;
 import com.amazonaws.services.simpledb.model.DeleteDomainRequest;
 import com.amazonaws.services.simpledb.model.DuplicateItemNameException;
 import com.amazonaws.services.simpledb.model.InvalidParameterValueException;
+import com.amazonaws.services.simpledb.model.Item;
 import com.amazonaws.services.simpledb.model.NoSuchDomainException;
 import com.amazonaws.services.simpledb.model.NumberDomainAttributesExceededException;
 import com.amazonaws.services.simpledb.model.NumberDomainBytesExceededException;
@@ -43,6 +45,9 @@ import com.amazonaws.services.simpledb.model.NumberSubmittedAttributesExceededEx
 import com.amazonaws.services.simpledb.model.NumberSubmittedItemsExceededException;
 import com.amazonaws.services.simpledb.model.ReplaceableAttribute;
 import com.amazonaws.services.simpledb.model.ReplaceableItem;
+import com.amazonaws.services.simpledb.model.SelectRequest;
+import com.cleargist.catalog.dao.CatalogDAO;
+import com.cleargist.catalog.dao.CatalogDAOImpl;
 import com.cleargist.catalog.entity.jaxb.Catalog;
 
 
@@ -51,15 +56,20 @@ public class SemanticModel extends Model {
 	private static final String BASE_BUCKET_NAME = "profilessemanticmodel";
 	private static final String RAW_PROFILES_FILENAME = "raw_profiles.txt";
 	private static final String TFIDF_FILENAME = "tfidf.txt";
-	private static final String ASSOCIATIONS_FILENAME = "associations_";
+	private static final String ASSOCIATIONS_FILENAME = "semantic_associations_";
 	private static final float THRESHOLD = 0.01f;
 	private static final int TOP_N = 10;
 	public static String newline = System.getProperty("line.separator");
 	protected static final Locale locale = new Locale("el", "GR"); 
 	private Logger logger = Logger.getLogger(getClass());
+	private CatalogDAO catalog;
 	
-	public String getDomainBasename() {
+	protected String getDomainBasename() {
 		return "MODEL_SEMANTIC_";
+	}
+	
+	protected String getStatsBucketName(String tenantID) {
+		return STATS_BASE_BUCKETNAME + "semantic" + tenantID;
 	}
 	
 	private String removeSpecialChars(String in) {
@@ -80,40 +90,10 @@ public class SemanticModel extends Model {
 		return out;
 	}
 	
-	public void calculateSufficientStatistics(String bucketName, String baseFilename, String tenantID) throws Exception {
-		
-	}
-	
-	public void mergeSufficientStatistics(String bucketName, String mergedStatsFilename, String tenantID) throws Exception {
-		
-	}
-	
-	public List<Catalog.Products.Product> getRecommendedProducts(List<String> productIds, String tenantID, Filter filter) throws Exception {
-		return new ArrayList<Catalog.Products.Product>();
-	}
-	
-	public void estimateModelParameters(String bucketName, String filename, String tenantID) throws Exception {
-		
-	}
-	
-	public List<Catalog.Products.Product> getPersonalizedRecommendedProducts(String userId, String tenantID, Filter filter) throws Exception {
-		return new ArrayList<Catalog.Products.Product>();
-	}
-	
-	private void dummyCopyProfiles(String tenantID) throws Exception {
+	protected void calculateSufficientStatistics(String bucketName, String baseFilename, String tenantID) throws Exception {
 		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
 				SemanticModel.class.getResourceAsStream(AWS_CREDENTIALS)));
 		
-		String bucketName = BASE_BUCKET_NAME + tenantID;
-		s3.copyObject("sintagespareas", "recipesTexts.txt", bucketName, "raw_profiles.txt");
-	}
-	
-	public void createModel(String tenantID) throws IOException, Exception {
-		
-		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
-				SemanticModel.class.getResourceAsStream(AWS_CREDENTIALS)));
-		
-		String bucketName = BASE_BUCKET_NAME + tenantID;
 		if (!s3.doesBucketExist(bucketName)) {
 			s3.createBucket(bucketName, Region.EU_Ireland);
 		}
@@ -126,7 +106,9 @@ public class SemanticModel extends Model {
 			}
 		}
 		// Create the raw data, get the description field of each item
-		dummyCopyProfiles(tenantID);
+		catalog = new CatalogDAOImpl();
+		String rawProfilesFilename = RAW_PROFILES_FILENAME;
+		extractDescriptionField(catalog.getAllProducts("", tenantID), bucketName, rawProfilesFilename, tenantID);
 		
 		
 		// Compute the inverse document frequency
@@ -220,18 +202,28 @@ public class SemanticModel extends Model {
 		
 		
 		// Now copy the local tfidf file to S3
-    	PutObjectRequest r = new PutObjectRequest(bucketName, tmpFilename, localTfidfFile);
+    	PutObjectRequest r = new PutObjectRequest(bucketName, TFIDF_FILENAME, localTfidfFile);
     	r.setStorageClass(StorageClass.ReducedRedundancy);
     	s3.putObject(r);
     	localTfidfFile.delete();
     	
+	}
+	
+	public void mergeSufficientStatistics(String bucketName, String mergedStatsFilename, String tenantID) throws Exception {
+		// Nothing for now, this is not MapReducable for the moment
+	}
+	
+	protected void estimateModelParameters(String bucketName, String filename, String tenantID) throws Exception {
 		// Compute cosine similarity for each pair of items and persist the top-N both in S3 and in SimpleDB
+		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
+				SemanticModel.class.getResourceAsStream(AWS_CREDENTIALS)));
 		List<HashMap<String, Float>> vectors = new ArrayList<HashMap<String, Float>>();
 		List<Double> denom = new ArrayList<Double>();
 		HashMap<Integer, String> itemNames = new HashMap<Integer, String>();
-		S3Object tfidfFile = s3.getObject(bucketName, tmpFilename);
-		reader = new BufferedReader(new InputStreamReader(tfidfFile.getObjectContent()));
+		S3Object tfidfFile = s3.getObject(bucketName, filename);
+		BufferedReader reader = new BufferedReader(new InputStreamReader(tfidfFile.getObjectContent()));
 		int k = 0;
+		String line = null;
 		while ((line = reader.readLine()) != null) {
 			String[] fields = line.split(";");
 			
@@ -254,8 +246,8 @@ public class SemanticModel extends Model {
 		
 		
 		String associationsFilename = ASSOCIATIONS_FILENAME + tenantID;
-		File localAssociationsFile = new File(tmpFilename);
-		out = new BufferedWriter(new FileWriter(localAssociationsFile));
+		File localAssociationsFile = new File(associationsFilename);
+		BufferedWriter out = new BufferedWriter(new FileWriter(localAssociationsFile));
 		for (int i = 0; i < vectors.size(); i ++) {
 			if (i % 1000 == 0) {
 				logger.info("Processed " + i + " items");
@@ -313,14 +305,124 @@ public class SemanticModel extends Model {
 		out.close();
 		
 		
-		r = new PutObjectRequest(bucketName, associationsFilename, localAssociationsFile);
+		PutObjectRequest r = new PutObjectRequest(bucketName, associationsFilename, localAssociationsFile);
     	r.setStorageClass(StorageClass.ReducedRedundancy);
     	s3.putObject(r);
     	localAssociationsFile.delete();
 		
     	// Load into domain
+    	loadFromS3File2Domain(bucketName, associationsFilename, getBackupModelDomainName(getDomainBasename(), tenantID));
+	}
+
+	public List<Catalog.Products.Product> getRecommendedProducts(List<String> productIDs, String tenantID, Filter filter) throws Exception {
+		double weight = (double)productIDs.size();
+		List<AttributeObject> productIDsInternal = new LinkedList<AttributeObject>();
+		for (String productID : productIDs) {
+			productIDsInternal.add(new AttributeObject(productID, weight));
+			weight -= 1.0;
+		}
+		
+		return getRecommendedProductsInternal(productIDsInternal, tenantID, filter);
+	}
+	
+	private List<Catalog.Products.Product> getRecommendedProductsInternal(List<AttributeObject> productIds, String tenantID, Filter filter) throws Exception {
+		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
+				CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
     	
-		// Swap models
+		HashSet<String> sourceIDs = new HashSet<String>();
+    	for (AttributeObject attObject : productIds) {
+    		sourceIDs.add(attObject.getUID());
+    	}
+    	
+    	String semanticModelDomainName = getPrimaryModelDomainName(getDomainBasename(), tenantID);
+    	HashMap<String, Double> targetIds = new HashMap<String, Double>();
+    	for (AttributeObject attObject : productIds) {
+    		String sourceItemId = attObject.getUID();
+    		String selectExpression = "select * from `" + semanticModelDomainName + "` where itemName() = '" + sourceItemId + "' limit 1";
+            SelectRequest selectRequest = new SelectRequest(selectExpression);
+            List<Item> items = sdb.select(selectRequest).getItems();
+            if (items == null || items.size() == 0) {
+            	continue;
+            }
+            Item item = items.get(0);
+            String targetItemId = null;
+        	double score = 0.0;
+            for (Attribute attribute : item.getAttributes()) {
+            	String[] fields = attribute.getValue().split(";");
+            	targetItemId = fields[0];
+            	if (sourceIDs.contains(targetItemId)) {
+            		continue;
+            	}
+            	score = Double.parseDouble(fields[1]);
+            	
+            	double weight = attObject.getScore();
+            	double weightedScore = weight * score;
+            	Double s = targetIds.get(targetItemId);
+            	if (s == null) {
+            		targetIds.put(targetItemId, weightedScore);
+            	}
+            	else {
+            		targetIds.put(targetItemId, s.doubleValue() + weightedScore);
+            	}
+            }
+            
+    	}
+    	
+    	List<AttributeObject> rankedList = new ArrayList<AttributeObject>();
+    	for (Map.Entry<String, Double> me : targetIds.entrySet()) {
+    		rankedList.add(new AttributeObject(me.getKey(), me.getValue()));
+    	}
+    	Collections.sort(rankedList);
+    	
+    	List<String> unfilteredIDs = new ArrayList<String>();
+    	for (AttributeObject attObject : rankedList) {
+    		unfilteredIDs.add(attObject.getUID());
+    	}
+    	
+    	return filter.applyFiltering(unfilteredIDs, tenantID);
+	}
+	
+	
+	
+	public List<Catalog.Products.Product> getPersonalizedRecommendedProducts(String userID, String tenantID, Filter filter) throws Exception {
+		// Retrieve the user profile
+		List<AttributeObject> sourceIDs = getUserProfile(userID, tenantID);
+		return getRecommendedProductsInternal(sourceIDs, tenantID, filter);
+	}
+	
+	
+	private void dummyCopyProfiles(String tenantID) throws Exception {
+		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
+				SemanticModel.class.getResourceAsStream(AWS_CREDENTIALS)));
+		
+		String bucketName = BASE_BUCKET_NAME + tenantID;
+		s3.copyObject("sintagespareas", "recipesTexts.txt", bucketName, "raw_profiles.txt");
+	}
+	
+	private void extractDescriptionField(List<Catalog.Products.Product> products, String bucketName, String filename, String tenantID) throws Exception {
+		File localDescriptionsFile = new File(bucketName + filename);
+		BufferedWriter out = new BufferedWriter(new FileWriter(localDescriptionsFile));
+		for (Catalog.Products.Product product : products) {
+			String uid = product.getUid();
+			String description = product.getDescription();
+			
+			if (uid != null && description != null && description.length() > 0) {
+				StringBuffer sb = new StringBuffer();
+				sb.append("\""); sb.append(uid); sb.append("\";\""); sb.append(description); sb.append("\""); sb.append(newline);
+				out.write(sb.toString());
+				
+				out.flush();
+			}
+		}
+		out.close();
+		
+		// move to S3
+		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
+				SemanticModel.class.getResourceAsStream(AWS_CREDENTIALS)));
+		PutObjectRequest r = new PutObjectRequest(bucketName, filename, localDescriptionsFile);
+    	r.setStorageClass(StorageClass.ReducedRedundancy);
+    	s3.putObject(r);
+    	localDescriptionsFile.delete();
 	}
 	
 	private void loadFromS3File2Domain(String bucketName, String filename, String domainName) throws Exception {

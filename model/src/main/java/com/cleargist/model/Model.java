@@ -24,7 +24,7 @@ import com.cleargist.catalog.entity.jaxb.Catalog;
 public abstract class Model {
 	private static final String AWS_CREDENTIALS = "/AwsCredentials.properties";
 	private Logger logger = Logger.getLogger(getClass());
-	private static final String STATS_BASE_BUCKETNAME = "tmpstats";      // Base name of the S3 bucket name
+	protected static final String STATS_BASE_BUCKETNAME = "tmpstats";      // Base name of the S3 bucket name
 	private static final String MERGED_STATS_FILENAME = "merged.txt";    // Name of the merged suff. stats file in S3 and local file system
 	private static final String STATS_BASE_FILENAME = "partialStats";    // Base name of the suff. stats file in S3 and local file system 
 	private static final String MODEL_STATES_DOMAIN = "MODEL_STATES";    // SimpleDB domain where model states are stored
@@ -32,7 +32,7 @@ public abstract class Model {
 	public void createModel(String tenantID) 
 	throws AmazonServiceException, AmazonClientException, Exception {
 		
-		String bucketName = STATS_BASE_BUCKETNAME + tenantID;
+		String bucketName = getStatsBucketName(tenantID);
 		
 		calculateSufficientStatistics(bucketName, STATS_BASE_FILENAME, tenantID);
 		
@@ -54,6 +54,8 @@ public abstract class Model {
 	public abstract List<Catalog.Products.Product> getPersonalizedRecommendedProducts(String userId, String tenantID, Filter filter) throws Exception;
 	
     protected abstract String getDomainBasename();
+    
+    protected abstract String getStatsBucketName(String tenantID);
     
     protected String getProfileDomainName(String tenantID) {
     	return "PROFILE_" + tenantID;

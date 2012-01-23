@@ -75,8 +75,12 @@ public class CorrelationsModel extends Model {
 		this.profilesPerChunk = n < 2500 ? 2500 : n;
 	}
 	
-	public String getDomainBasename() {
+	protected  String getDomainBasename() {
 		return "MODEL_CORRELATIONS_";
+	}
+	
+	protected String getStatsBucketName(String tenantID) {
+		return STATS_BASE_BUCKETNAME + "correlations" + tenantID;
 	}
 	
 	public List<Catalog.Products.Product> getRecommendedProducts(List<String> productIDs, String tenantID, Filter filter) throws Exception {
