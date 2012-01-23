@@ -1,6 +1,9 @@
 package com.cleargist.catalog.dao;
 
 
+import java.util.LinkedList;
+import java.util.List;
+
 import com.cleargist.catalog.entity.jaxb.Catalog;
 
 public class DummyCatalog implements CatalogDAO {
@@ -26,5 +29,9 @@ public class DummyCatalog implements CatalogDAO {
 	
 	public void appendCatalog(String bucket, String catalogName, String catalogID, String tenantID) throws Exception {
 		
+	}
+	
+	public List<Catalog.Products.Product> getAllProducts(String catalogID, String tenantID) throws Exception {
+		return new LinkedList<Catalog.Products.Product>();
 	}
 }

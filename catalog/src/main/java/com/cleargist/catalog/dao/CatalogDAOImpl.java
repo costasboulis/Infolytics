@@ -7,6 +7,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 
 import javax.xml.bind.JAXBContext;
@@ -513,14 +514,10 @@ public class CatalogDAOImpl implements CatalogDAO {
     		throw new Exception();
     	}
 		String catalogDomain = getCatalogName(catalogID, tenantID);
-    	String selectExpression = "select * from `" + catalogDomain + "` where UID = '" + productID + "'";
+    	String selectExpression = "select * from `" + catalogDomain + "` where UID = '" + productID + "' limit 1";
         SelectRequest selectRequest = new SelectRequest(selectExpression);
         List<Item> items = sdb.select(selectRequest).getItems();
-        if (items.size() > 1) {
-        	logger.error("Found " + items.size() + " results in product retrieval");
-        	throw new Exception();
-        	
-        }
+       
         if (items.size() == 0) {
         	logger.info("Found zero results in product retrieval");
         	throw new Exception();
@@ -585,6 +582,79 @@ public class CatalogDAOImpl implements CatalogDAO {
         	}
         }
         return product;
+	}
+	
+	public List<Catalog.Products.Product> getAllProducts(String catalogID, String tenantID) throws Exception {
+		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
+				CatalogDAOImpl.class.getResourceAsStream(AWS_CREDENTIALS)));
+		String catalogDomain = getCatalogName(catalogID, tenantID);
+    	String selectExpression = "select * from `" + catalogDomain + "`";
+        SelectRequest selectRequest = new SelectRequest(selectExpression);
+        List<Item> items = sdb.select(selectRequest).getItems();
+        
+        List<Catalog.Products.Product> products = new LinkedList<Catalog.Products.Product>();
+        for (Item item : items) {
+        	Catalog.Products.Product product = new Catalog.Products.Product();
+            for (Attribute attribute : item.getAttributes()) {
+            	if (attribute.getName().equals(UID_STRING)) {
+            		product.setUid(attribute.getValue());
+            	}
+            	else if (attribute.getName().equals(NAME_STRING)) {
+            		product.setName(attribute.getValue());
+            	}
+            	else if (attribute.getName().equals(LINK_STRING)) {
+            		product.setLink(attribute.getValue());
+            	}
+            	else if (attribute.getName().equals(IMAGE_STRING)) {
+            		product.setImage(attribute.getValue());
+            	}
+            	else if (attribute.getName().equals(PRICE_STRING)) {
+            		if (attribute.getValue() != null) {
+            			product.setPrice(BigDecimal.valueOf(Double.parseDouble(attribute.getValue())));
+            		}
+            	}
+            	else if (attribute.getName().equals(CATEGORY_STRING)) {
+            		product.setCategory(attribute.getValue());
+            	}
+            	else if (attribute.getName().equals(CATEGORYID_STRING)) {
+            		if (attribute.getValue() != null) {
+            			product.setCategoryId(BigInteger.valueOf(Integer.parseInt(attribute.getValue())));
+            		}
+            	}
+            	else if (attribute.getName().equals(DESCRIPTION_STRING)) {
+            		product.setDescription(attribute.getValue());
+            	}
+            	else if (attribute.getName().equals(WEIGHT_STRING)) {
+            		if (attribute.getValue() != null) {
+            			product.setWeight(BigInteger.valueOf(Integer.parseInt(attribute.getValue())));
+            		}
+            	}
+            	else if (attribute.getName().equals(MANUFACTURER_STRING)) {
+            		product.setManufacturer(attribute.getValue());
+            	}
+            	else if (attribute.getName().equals(MPN_STRING)) {
+            		product.setMpn(attribute.getValue());
+            	}
+            	else if (attribute.getName().equals(SHIPPING_STRING)) {
+            		if (attribute.getValue() != null) {
+            			product.setShipping(BigDecimal.valueOf(Double.parseDouble(attribute.getValue())));
+            		}
+            	}
+            	else if (attribute.getName().equals(AVAILABILITY_STRING)) {
+            		product.setAvailability(attribute.getValue());
+            	}
+            	else if (attribute.getName().equals(INSTOCK_STRING)) {
+            		product.setInstock(attribute.getValue());
+            	}
+            	else if (attribute.getName().equals(ISBN_STRING)) {
+            		product.setIsbn(attribute.getValue());
+            	}
+            }
+            
+            products.add(product);
+        }
+        
+        return products;
 	}
 	
 	public void addProduct(Catalog.Products.Product product, String catalogID, String tenantID) throws Exception {

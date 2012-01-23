@@ -1,6 +1,7 @@
 package com.cleargist.catalog.dao;
 
 import java.io.IOException;
+import java.util.List;
 
 import javax.xml.bind.JAXBException;
 
@@ -32,6 +33,8 @@ public interface CatalogDAO {
 	AmazonServiceException, AmazonClientException, IOException, Exception;
 	
 	public Catalog.Products.Product getProductByID(String productID, String catalogID, String tenantID) throws Exception;
+	
+	public List<Catalog.Products.Product> getAllProducts(String catalogID, String tenantID) throws Exception;
 	
 	public void deleteProduct(String productID, String catalogID, String tenantID) throws Exception;
 	
