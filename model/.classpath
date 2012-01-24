@@ -23,7 +23,7 @@
   <classpathentry kind="var" path="M2_REPO/org/hamcrest/hamcrest-core/1.1/hamcrest-core-1.1.jar" sourcepath="M2_REPO/org/hamcrest/hamcrest-core/1.1/hamcrest-core-1.1-sources.jar"/>
   <classpathentry kind="var" path="M2_REPO/org/apache/httpcomponents/httpclient/4.2-alpha1/httpclient-4.2-alpha1.jar" sourcepath="M2_REPO/org/apache/httpcomponents/httpclient/4.2-alpha1/httpclient-4.2-alpha1-sources.jar"/>
   <classpathentry kind="var" path="M2_REPO/org/apache/httpcomponents/httpcore/4.2-alpha2/httpcore-4.2-alpha2.jar" sourcepath="M2_REPO/org/apache/httpcomponents/httpcore/4.2-alpha2/httpcore-4.2-alpha2-sources.jar"/>
-  <classpathentry kind="var" path="M2_REPO/org/codehaus/jackson/jackson-core-asl/1.9.3/jackson-core-asl-1.9.3.jar" sourcepath="M2_REPO/org/codehaus/jackson/jackson-core-asl/1.9.3/jackson-core-asl-1.9.3-sources.jar"/>
+  <classpathentry kind="var" path="M2_REPO/org/codehaus/jackson/jackson-core-asl/1.9.4/jackson-core-asl-1.9.4.jar" sourcepath="M2_REPO/org/codehaus/jackson/jackson-core-asl/1.9.4/jackson-core-asl-1.9.4-sources.jar"/>
   <classpathentry kind="var" path="M2_REPO/junit/junit/4.9/junit-4.9.jar" sourcepath="M2_REPO/junit/junit/4.9/junit-4.9-sources.jar">
     <attributes>
       <attribute value="jar:file:/C:/Users/kboulis/.m2/repository/junit/junit/4.9/junit-4.9-javadoc.jar!/" name="javadoc_location"/>

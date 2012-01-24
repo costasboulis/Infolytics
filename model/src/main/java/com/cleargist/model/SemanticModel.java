@@ -35,8 +35,9 @@ import com.amazonaws.services.simpledb.model.BatchPutAttributesRequest;
 import com.amazonaws.services.simpledb.model.CreateDomainRequest;
 import com.amazonaws.services.simpledb.model.DeleteDomainRequest;
 import com.amazonaws.services.simpledb.model.DuplicateItemNameException;
+import com.amazonaws.services.simpledb.model.GetAttributesRequest;
+import com.amazonaws.services.simpledb.model.GetAttributesResult;
 import com.amazonaws.services.simpledb.model.InvalidParameterValueException;
-import com.amazonaws.services.simpledb.model.Item;
 import com.amazonaws.services.simpledb.model.NoSuchDomainException;
 import com.amazonaws.services.simpledb.model.NumberDomainAttributesExceededException;
 import com.amazonaws.services.simpledb.model.NumberDomainBytesExceededException;
@@ -45,7 +46,6 @@ import com.amazonaws.services.simpledb.model.NumberSubmittedAttributesExceededEx
 import com.amazonaws.services.simpledb.model.NumberSubmittedItemsExceededException;
 import com.amazonaws.services.simpledb.model.ReplaceableAttribute;
 import com.amazonaws.services.simpledb.model.ReplaceableItem;
-import com.amazonaws.services.simpledb.model.SelectRequest;
 import com.cleargist.catalog.dao.CatalogDAO;
 import com.cleargist.catalog.dao.CatalogDAOImpl;
 import com.cleargist.catalog.entity.jaxb.Catalog;
@@ -53,7 +53,6 @@ import com.cleargist.catalog.entity.jaxb.Catalog;
 
 public class SemanticModel extends Model {
 	private static final String AWS_CREDENTIALS = "/AwsCredentials.properties";
-	private static final String BASE_BUCKET_NAME = "profilessemanticmodel";
 	private static final String RAW_PROFILES_FILENAME = "raw_profiles.txt";
 	private static final String TFIDF_FILENAME = "tfidf.txt";
 	private static final String ASSOCIATIONS_FILENAME = "semantic_associations_";
@@ -338,16 +337,14 @@ public class SemanticModel extends Model {
     	HashMap<String, Double> targetIds = new HashMap<String, Double>();
     	for (AttributeObject attObject : productIds) {
     		String sourceItemId = attObject.getUID();
-    		String selectExpression = "select * from `" + semanticModelDomainName + "` where itemName() = '" + sourceItemId + "' limit 1";
-            SelectRequest selectRequest = new SelectRequest(selectExpression);
-            List<Item> items = sdb.select(selectRequest).getItems();
-            if (items == null || items.size() == 0) {
-            	continue;
-            }
-            Item item = items.get(0);
+    		GetAttributesRequest request = new GetAttributesRequest();
+    		request.setDomainName(semanticModelDomainName);
+    		request.setItemName(sourceItemId);
+    		GetAttributesResult result = sdb.getAttributes(request);
+            
             String targetItemId = null;
         	double score = 0.0;
-            for (Attribute attribute : item.getAttributes()) {
+            for (Attribute attribute : result.getAttributes()) {
             	String[] fields = attribute.getValue().split(";");
             	targetItemId = fields[0];
             	if (sourceIDs.contains(targetItemId)) {
@@ -390,7 +387,7 @@ public class SemanticModel extends Model {
 		return getRecommendedProductsInternal(sourceIDs, tenantID, filter);
 	}
 	
-	
+	/*
 	private void dummyCopyProfiles(String tenantID) throws Exception {
 		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
 				SemanticModel.class.getResourceAsStream(AWS_CREDENTIALS)));
@@ -398,7 +395,7 @@ public class SemanticModel extends Model {
 		String bucketName = BASE_BUCKET_NAME + tenantID;
 		s3.copyObject("sintagespareas", "recipesTexts.txt", bucketName, "raw_profiles.txt");
 	}
-	
+	*/
 	private void extractDescriptionField(List<Catalog.Products.Product> products, String bucketName, String filename, String tenantID) throws Exception {
 		File localDescriptionsFile = new File(bucketName + filename);
 		BufferedWriter out = new BufferedWriter(new FileWriter(localDescriptionsFile));

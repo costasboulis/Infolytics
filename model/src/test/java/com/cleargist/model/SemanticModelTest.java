@@ -2,41 +2,99 @@ package com.cleargist.model;
 
 import static org.junit.Assert.assertTrue;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.math.BigDecimal;
 import java.util.List;
 
 import org.apache.log4j.Logger;
 import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 
 import com.amazonaws.auth.PropertiesCredentials;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.services.simpledb.AmazonSimpleDB;
 import com.amazonaws.services.simpledb.AmazonSimpleDBClient;
 import com.amazonaws.services.simpledb.model.DeleteDomainRequest;
+import com.cleargist.catalog.dao.CatalogDAO;
+import com.cleargist.catalog.dao.CatalogDAOImpl;
+import com.cleargist.catalog.entity.jaxb.Catalog;
 
 public class SemanticModelTest {
 	private static final String AWS_CREDENTIALS = "/AwsCredentials.properties";
 	private Logger logger = Logger.getLogger(getClass());
 	
+	@Before
+	public void loadCatalog() throws Exception {
+		createXMLCatalog();
+		CatalogDAO catalog = new CatalogDAOImpl();
+		catalog.insertCatalog("cleargist", "recipesTexts.xml", "", "test");
+	}
+	
+	public void createXMLCatalog() throws Exception {
+		
+		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
+				SemanticModelTest.class.getResourceAsStream(AWS_CREDENTIALS)));
+		S3Object rawProfilesFile = s3.getObject("sintagespareas", "recipesTexts.txt");
+		BufferedReader reader = new BufferedReader(new InputStreamReader(rawProfilesFile.getObjectContent()));
+		String line = null;
+		
+		CatalogDAO catalogWriter = new CatalogDAOImpl();
+		Catalog catalog = new Catalog();
+		catalog.setProducts(new Catalog.Products());
+		Catalog.Products products = catalog.getProducts();
+		List<Catalog.Products.Product> productList = products.getProduct();
+		while ((line = reader.readLine()) != null) {
+			String[] topFields = line.split("\";\"");
+			if (topFields.length != 2) {
+				logger.warn("Skipping line " + line);
+				continue;
+			}
+			topFields[0] = topFields[0].replaceAll("\"", "");
+			topFields[1] = topFields[1].replaceAll("\"", "");
+			
+			Catalog.Products.Product product = new Catalog.Products.Product();
+			product.setUid(topFields[0]);
+			product.setName(topFields[0]);
+			product.setLink(topFields[0]);
+			product.setImage(topFields[0]);
+			product.setPrice(new BigDecimal(0.0f));
+			product.setCategory("FOOD");
+			product.setDescription(topFields[1]);
+			
+			productList.add(product);
+		}
+		reader.close();
+		
+		catalogWriter.marshallCatalog(catalog, "cleargist", "catalog.xsd", "cleargist", "recipesTexts.xml", "test");
+	}
+	
 	@After
 	public void cleanUp() throws Exception {
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
-				CorrelationsTest.class.getResourceAsStream(AWS_CREDENTIALS)));
+				SemanticModel.class.getResourceAsStream(AWS_CREDENTIALS)));
 		
-		sdb.deleteDomain(new DeleteDomainRequest("SEMANTIC_ASSOCIATIONS_test"));
+		sdb.deleteDomain(new DeleteDomainRequest("MODEL_SEMANTIC_test"));
+		sdb.deleteDomain(new DeleteDomainRequest("CATALOG_test"));
+		
 		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
 				SemanticModelTest.class.getResourceAsStream(AWS_CREDENTIALS)));
 		
 		String bucketName = "profilessemanticmodeltest";
-		List<S3ObjectSummary> objSummaries = s3.listObjects(bucketName).getObjectSummaries();
-		int i = 0;
-    	while (i < objSummaries.size()) {
-    		s3.deleteObject(bucketName, objSummaries.get(i).getKey());
-    		i ++;
-    	}
-    	s3.deleteBucket(bucketName);
+		if (s3.doesBucketExist(bucketName)) {
+			List<S3ObjectSummary> objSummaries = s3.listObjects(bucketName).getObjectSummaries();
+			int i = 0;
+	    	while (i < objSummaries.size()) {
+	    		s3.deleteObject(bucketName, objSummaries.get(i).getKey());
+	    		i ++;
+	    	}
+	    	s3.deleteBucket(bucketName);
+		}
+		
 	}
 	
 	@Test

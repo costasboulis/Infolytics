@@ -39,6 +39,8 @@ import com.amazonaws.services.simpledb.model.BatchPutAttributesRequest;
 import com.amazonaws.services.simpledb.model.CreateDomainRequest;
 import com.amazonaws.services.simpledb.model.DeleteDomainRequest;
 import com.amazonaws.services.simpledb.model.DuplicateItemNameException;
+import com.amazonaws.services.simpledb.model.GetAttributesRequest;
+import com.amazonaws.services.simpledb.model.GetAttributesResult;
 import com.amazonaws.services.simpledb.model.InvalidParameterValueException;
 import com.amazonaws.services.simpledb.model.Item;
 import com.amazonaws.services.simpledb.model.NoSuchDomainException;
@@ -107,16 +109,14 @@ public class CorrelationsModel extends Model {
     	HashMap<String, Double> targetIds = new HashMap<String, Double>();
     	for (AttributeObject attObject : productIds) {
     		String sourceItemId = attObject.getUID();
-    		String selectExpression = "select * from `" + correlationsModelDomainName + "` where itemName() = '" + sourceItemId + "' limit 1";
-            SelectRequest selectRequest = new SelectRequest(selectExpression);
-            List<Item> items = sdb.select(selectRequest).getItems();
-            if (items == null || items.size() == 0) {
-            	continue;
-            }
-            Item item = items.get(0);
+    		GetAttributesRequest request = new GetAttributesRequest();
+    		request.setDomainName(correlationsModelDomainName);
+    		request.setItemName(sourceItemId);
+    		GetAttributesResult result = sdb.getAttributes(request);
+    		
             String targetItemId = null;
         	double score = 0.0;
-            for (Attribute attribute : item.getAttributes()) {
+            for (Attribute attribute : result.getAttributes()) {
             	String[] fields = attribute.getValue().split(";");
             	targetItemId = fields[0];
             	if (sourceIDs.contains(targetItemId)) {

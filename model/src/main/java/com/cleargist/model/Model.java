@@ -13,6 +13,8 @@ import com.amazonaws.auth.PropertiesCredentials;
 import com.amazonaws.services.simpledb.AmazonSimpleDB;
 import com.amazonaws.services.simpledb.AmazonSimpleDBClient;
 import com.amazonaws.services.simpledb.model.Attribute;
+import com.amazonaws.services.simpledb.model.GetAttributesRequest;
+import com.amazonaws.services.simpledb.model.GetAttributesResult;
 import com.amazonaws.services.simpledb.model.Item;
 import com.amazonaws.services.simpledb.model.PutAttributesRequest;
 import com.amazonaws.services.simpledb.model.ReplaceableAttribute;
@@ -74,15 +76,14 @@ public abstract class Model {
     	}
     	
     	String profileDomain = getProfileDomainName(tenantID);
-		String selectExpression = "select * from `" + profileDomain + "` where itemName() = '" + userID + "' limit 1";
-		SelectRequest selectRequest = new SelectRequest(selectExpression);
-		List<Item> items = sdb.select(selectRequest).getItems();
-		if (items == null || items.size() == 0) {
-			return new LinkedList<AttributeObject>();
-		}
+    	GetAttributesRequest request = new GetAttributesRequest();
+		request.setDomainName(profileDomain);
+		request.setItemName(userID);
+		GetAttributesResult result = sdb.getAttributes(request);
+		
+		
 		List<AttributeObject> profile = new LinkedList<AttributeObject>();
-		Item existingItem = items.get(0);
-		for (Attribute attribute : existingItem.getAttributes()) {
+		for (Attribute attribute : result.getAttributes()) {
 			if (attribute.getName().startsWith("Attribute")) {
 				String value = attribute.getValue();
 				String[] parsedValue = value.split(";");
