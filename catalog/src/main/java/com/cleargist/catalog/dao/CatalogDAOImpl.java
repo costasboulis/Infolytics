@@ -84,7 +84,7 @@ public class CatalogDAOImpl implements CatalogDAO {
 
 	
 	public static String getCatalogName(String catalogID, String tenantID) {
-		return "CATALOG_" + catalogID + "_" + tenantID;
+		return catalogID == null || catalogID.isEmpty() ? "CATALOG_" + tenantID : "CATALOG_" + catalogID + "_" + tenantID;
 	}
 	
 	public void deleteCatalog(String catalogID, String tenantID) throws Exception {
@@ -161,7 +161,7 @@ public class CatalogDAOImpl implements CatalogDAO {
     		throw new Exception();
     	}
     	
-    	File localCatalogFile = new File(getCatalogName("", tenantID));
+    	File localCatalogFile = new File(getCatalogName(null, tenantID));
     	try {
 			marshaller.marshal(catalog, new FileOutputStream(localCatalogFile));
 		}
