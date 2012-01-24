@@ -40,4 +40,7 @@ public interface CatalogDAO {
 	
 	public void deleteCatalog(String catalogID, String tenantID) throws Exception;
 	
+	public void marshallCatalog(Catalog catalog, String schemaBucketName, String schemaFilename, String bucketName, String filename, String tenantID) 
+	throws JAXBException, IOException, Exception;
+	
 }

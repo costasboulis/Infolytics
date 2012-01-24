@@ -1,6 +1,13 @@
 package com.cleargist.catalog.dao;
 
+
+
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.math.BigDecimal;
@@ -12,7 +19,10 @@ import java.util.List;
 
 import javax.xml.bind.JAXBContext;
 import javax.xml.bind.JAXBException;
+import javax.xml.bind.Marshaller;
 import javax.xml.bind.Unmarshaller;
+import javax.xml.validation.Schema;
+import javax.xml.validation.SchemaFactory;
 
 import org.apache.log4j.Logger;
 
@@ -22,7 +32,9 @@ import com.amazonaws.auth.PropertiesCredentials;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.GetObjectRequest;
+import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
+import com.amazonaws.services.s3.model.StorageClass;
 import com.amazonaws.services.simpledb.AmazonSimpleDB;
 import com.amazonaws.services.simpledb.AmazonSimpleDBClient;
 import com.amazonaws.services.simpledb.model.Attribute;
@@ -52,6 +64,7 @@ import com.cleargist.catalog.entity.jaxb.Catalog;
 public class CatalogDAOImpl implements CatalogDAO {
 	private static final String AWS_CREDENTIALS = "/AwsCredentials.properties";
 	private Logger logger = Logger.getLogger(getClass());
+	public static String newline = System.getProperty("line.separator");
 	private static final String UID_STRING = "UID";
 	private static final String NAME_STRING = "NAME";
 	private static final String LINK_STRING = "LINK";
@@ -107,45 +120,79 @@ public class CatalogDAOImpl implements CatalogDAO {
         }
 	}
 	
-	private Catalog unmarshallCatalog(String bucket, String filename) throws JAXBException, IOException, Exception {
-		// Make sure you can access the file
-		AmazonS3 s3 = null;
+	public void marshallCatalog(Catalog catalog, String schemaBucketName, String schemaFilename, String bucketName, String filename, String tenantID) 
+	throws JAXBException, IOException, Exception {
+		
+		// Copy the XSD file locally
+		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
+				CatalogDAOImpl.class.getResourceAsStream(AWS_CREDENTIALS)));
+		S3Object s3CarSchemaFile = s3.getObject(schemaBucketName, schemaFilename);
+		BufferedReader reader = new BufferedReader(new InputStreamReader(s3CarSchemaFile.getObjectContent()));
+		File localSchemaFile = new File("catalog.xsd");
+		BufferedWriter out = new BufferedWriter(new FileWriter(localSchemaFile));
+		String line = null;
+		while ((line = reader.readLine()) != null) {
+			out.write(line + newline);
+			out.flush();
+		}
+		reader.close();
+		out.close();
+		
+		
+		// Use the local XSD file to marshall the catalog 
+		Marshaller marshaller = null;
     	try {
-    		s3 = new AmazonS3Client(new PropertiesCredentials(
-    				CatalogDAOImpl.class.getResourceAsStream(AWS_CREDENTIALS)));
+    		JAXBContext jaxbContext = JAXBContext.newInstance("com.cleargist.catalog.entity.jaxb");
+    		marshaller = jaxbContext.createMarshaller();
+    		SchemaFactory sf = SchemaFactory.newInstance(javax.xml.XMLConstants.W3C_XML_SCHEMA_NS_URI);
+    		Schema schema = null;
+    		try {
+    			schema = sf.newSchema(localSchemaFile);
+    		}
+    		catch (Exception e){
+    			logger.warn("Cannot create schema, check schema location " + localSchemaFile.getAbsolutePath());
+    			System.exit(-1);
+    		}
+    		marshaller.setSchema(schema);
+    		marshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, new Boolean(true));
     	}
-    	catch (IOException ex) {
-    		String errorMessage = "Cannot connect to Amazon S3, check credentials";
-    		logger.error(errorMessage);
-    		throw new IOException();
-    	}
-        S3Object catalogFile = null;
-    	try {
-    		catalogFile = s3.getObject(new GetObjectRequest(bucket, filename));
-    	}
-    	catch (AmazonServiceException ase) {
-    		String errorMessage = "Cannot get file from Amazon S3, check filename";
-    		logger.error(errorMessage);
-    		throw new AmazonServiceException(errorMessage);
-        }
-    	catch (AmazonClientException ace) {
-            String errorMessage = "Caught an AmazonClientException, which means the client encountered "
-                + "a serious internal problem while trying to communicate with S3, "
-                + "such as not being able to access the network.";
-            logger.error(errorMessage);
-    		throw new AmazonClientException(errorMessage);
-        }
-    	
-    	
-		// Validate that the S3Object exists and that you can unmarshall it
-		BufferedReader reader = null;
-    	try {
-    		reader = new BufferedReader(new InputStreamReader(catalogFile.getObjectContent()));
-    	}
-    	catch (Exception ex) {
-    		logger.error("Cannot read catalog from S3 object");
+    	catch (JAXBException ex) {
+    		logger.error("Setting up marshalling failed");
     		throw new Exception();
     	}
+    	
+    	File localCatalogFile = new File(getCatalogName("", tenantID));
+    	try {
+			marshaller.marshal(catalog, new FileOutputStream(localCatalogFile));
+		}
+		catch (JAXBException ex) {
+			logger.error("Could not marshal the catalog");
+			throw new Exception();
+		}
+		catch (FileNotFoundException ex2) {
+			logger.error("Could not write to " + localCatalogFile.getAbsolutePath());
+			throw new Exception();
+		}
+    	
+		
+		// Now copy the marshalled local file to S3
+		if (!s3.doesBucketExist(bucketName)) {
+			s3.createBucket(bucketName);
+		}
+    	PutObjectRequest r = new PutObjectRequest(bucketName, filename, localCatalogFile);
+    	r.setStorageClass(StorageClass.ReducedRedundancy);
+    	s3.putObject(r);
+    	localCatalogFile.delete();
+    	localSchemaFile.delete();
+	}
+	
+	private Catalog unmarshallCatalog(String bucket, String filename) throws JAXBException, IOException, Exception {
+	
+		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
+				CatalogDAOImpl.class.getResourceAsStream(AWS_CREDENTIALS)));
+    	
+        S3Object catalogFile = s3.getObject(new GetObjectRequest(bucket, filename));
+		BufferedReader reader = new BufferedReader(new InputStreamReader(catalogFile.getObjectContent()));
 		
 		Unmarshaller unmarshaller = null;
     	try {
@@ -291,15 +338,9 @@ public class CatalogDAOImpl implements CatalogDAO {
 		Catalog catalog = unmarshallCatalog(bucket, filename);
         
 		// Delete existing Amazon SimpleDB domain, if it exists
-        AmazonSimpleDB sdb = null;
-    	try {
-    		sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
-    				CatalogDAOImpl.class.getResourceAsStream(AWS_CREDENTIALS)));
-    	}
-    	catch (IOException ex) {
-    		logger.error("Cannot initiate SimpleDB client");
-    		throw new IOException();
-    	}
+        AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
+				CatalogDAOImpl.class.getResourceAsStream(AWS_CREDENTIALS)));
+    	
         String catalogDomain = getCatalogName(catalogID, tenantID);
         try {
     		for (String domain : sdb.listDomains().getDomainNames()) {
@@ -658,26 +699,7 @@ public class CatalogDAOImpl implements CatalogDAO {
 	}
 	
 	public void addProduct(Catalog.Products.Product product, String catalogID, String tenantID) throws Exception {
-		AmazonSimpleDB sdb = null;
-    	try {
-    		sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
-    				CatalogDAOImpl.class.getResourceAsStream(AWS_CREDENTIALS)));
-    	}
-    	catch (IOException ex) {
-    		logger.error("Cannot initiate SimpleDB client");
-    		throw new Exception();
-    	}
-		String catalogDomain = getCatalogName(catalogID, tenantID);
-		String productID = product == null ? null : product.getUid();
-		if (productID == null) {
-			logger.error("No UID provided, cannot add product");
-		}
-    	String selectExpression = "select * from `" + catalogDomain + "` where UID = '" + productID + "'";
-        SelectRequest selectRequest = new SelectRequest(selectExpression);
-        List<Item> items = sdb.select(selectRequest).getItems();
-        if (items.size() != 0) {
-        	logger.warn("Found " + items.size() + " results with productID " + productID + " ... removing");
-        }
+		
         
 	}
 }
