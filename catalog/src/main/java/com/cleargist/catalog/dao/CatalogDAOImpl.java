@@ -44,6 +44,8 @@ import com.amazonaws.services.simpledb.model.CreateDomainRequest;
 import com.amazonaws.services.simpledb.model.DeleteAttributesRequest;
 import com.amazonaws.services.simpledb.model.DeleteDomainRequest;
 import com.amazonaws.services.simpledb.model.DuplicateItemNameException;
+import com.amazonaws.services.simpledb.model.GetAttributesRequest;
+import com.amazonaws.services.simpledb.model.GetAttributesResult;
 import com.amazonaws.services.simpledb.model.InvalidParameterValueException;
 import com.amazonaws.services.simpledb.model.Item;
 import com.amazonaws.services.simpledb.model.MissingParameterException;
@@ -312,11 +314,7 @@ public class CatalogDAOImpl implements CatalogDAO {
     		}
     		
     		
-    		StringBuffer sb = new StringBuffer();
-    		sb.append(uid); sb.append("_"); sb.append(catalogDomain); 
-    		String itemName = sb.toString();
-    		
-    		recsPairs.add(new ReplaceableItem(itemName).withAttributes(attributes));
+    		recsPairs.add(new ReplaceableItem(uid).withAttributes(attributes));
     		
     		if (recsPairs.size() == 25) {
         		writeSimpleDB(sdb, catalogDomain, recsPairs);
@@ -555,19 +553,13 @@ public class CatalogDAOImpl implements CatalogDAO {
     		throw new Exception();
     	}
 		String catalogDomain = getCatalogName(catalogID, tenantID);
-    	String selectExpression = "select * from `" + catalogDomain + "` where UID = '" + productID + "' limit 1";
-        SelectRequest selectRequest = new SelectRequest(selectExpression);
-        List<Item> items = sdb.select(selectRequest).getItems();
-       
-        if (items.size() == 0) {
-        	logger.info("Found zero results in product retrieval");
-        	throw new Exception();
-        	
-        }
-        
-        Item item = items.get(0);
+		GetAttributesRequest request = new GetAttributesRequest();
+		request.setDomainName(catalogDomain);
+		request.setItemName(productID);
+		GetAttributesResult result = sdb.getAttributes(request);
+		
         Catalog.Products.Product product = new Catalog.Products.Product();
-        for (Attribute attribute : item.getAttributes()) {
+        for (Attribute attribute : result.getAttributes()) {
         	if (attribute.getName().equals(UID_STRING)) {
         		product.setUid(attribute.getValue());
         	}
