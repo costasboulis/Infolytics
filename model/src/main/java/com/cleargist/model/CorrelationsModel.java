@@ -85,7 +85,7 @@ public class CorrelationsModel extends Model {
 		return STATS_BASE_BUCKETNAME + "correlations" + tenantID;
 	}
 	
-	public List<Catalog.Products.Product> getRecommendedProducts(List<String> productIDs, String tenantID, Filter filter) throws Exception {
+	protected List<Catalog.Products.Product> getRecommendedProductsInternal(List<String> productIDs, String tenantID, Filter filter) throws Exception {
 		double weight = (double)productIDs.size();
 		List<AttributeObject> productIDsInternal = new LinkedList<AttributeObject>();
 		for (String productID : productIDs) {
@@ -93,10 +93,10 @@ public class CorrelationsModel extends Model {
 			weight -= 1.0;
 		}
 		
-		return getRecommendedProductsInternal(productIDsInternal, tenantID, filter);
+		return getRecommendedProductsList(productIDsInternal, tenantID, filter);
 	}
 	
-	private List<Catalog.Products.Product> getRecommendedProductsInternal(List<AttributeObject> productIds, String tenantID, Filter filter) throws Exception {
+	private List<Catalog.Products.Product> getRecommendedProductsList(List<AttributeObject> productIds, String tenantID, Filter filter) throws Exception {
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
     	
@@ -153,10 +153,10 @@ public class CorrelationsModel extends Model {
 	
 	
 	
-	public List<Catalog.Products.Product> getPersonalizedRecommendedProducts(String userID, String tenantID, Filter filter) throws Exception {
+	protected List<Catalog.Products.Product> getPersonalizedRecommendedProductsInternal(String userID, String tenantID, Filter filter) throws Exception {
 		// Retrieve the user profile
 		List<AttributeObject> sourceIDs = getUserProfile(userID, tenantID);
-		return getRecommendedProductsInternal(sourceIDs, tenantID, filter);
+		return getRecommendedProductsList(sourceIDs, tenantID, filter);
 	}
 	
 	public void mergeSufficientStatistics(String statsBucketName, String mergedStatsFilename, String tenantID) 

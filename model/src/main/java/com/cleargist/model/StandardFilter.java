@@ -21,6 +21,10 @@ public class StandardFilter implements Filter {
 		this.allowOutOfStock = false;
 	}
 	
+	public String getName() {
+		return "Standard";
+	}
+	
 	public void setShowOnlyFromSameCategory(boolean b) {
 		this.showOnlyFromSameCategory = b;
 	}

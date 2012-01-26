@@ -1,9 +1,16 @@
 package com.cleargist.model;
 
+
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+
+import net.spy.memcached.MemcachedClient;
+import net.spy.memcached.OperationTimeoutException;
+import net.spy.memcached.internal.OperationFuture;
 
 import org.apache.log4j.Logger;
 
@@ -26,11 +33,16 @@ import com.cleargist.catalog.entity.jaxb.Catalog;
 public abstract class Model {
 	private static final String AWS_CREDENTIALS = "/AwsCredentials.properties";
 	private Logger logger = Logger.getLogger(getClass());
+	public static String newline = System.getProperty("line.separator");
 	protected static final String STATS_BASE_BUCKETNAME = "tmpstats";      // Base name of the S3 bucket name
 	private static final String MERGED_STATS_FILENAME = "merged.txt";    // Name of the merged suff. stats file in S3 and local file system
 	private static final String STATS_BASE_FILENAME = "partialStats";    // Base name of the suff. stats file in S3 and local file system 
 	private static final String MODEL_STATES_DOMAIN = "MODEL_STATES";    // SimpleDB domain where model states are stored
-	
+	// Cache parameters
+	private static final String MEMCACHED_SERVER = "127.0.0.1";
+    private static final int MEMCACHED_PORT = 11211;
+    private int TTL_CACHE = 60 * 60 * 24;   // This must be the same as the model update rate
+    
 	public void createModel(String tenantID) 
 	throws AmazonServiceException, AmazonClientException, Exception {
 		
@@ -42,7 +54,27 @@ public abstract class Model {
 		
 		estimateModelParameters(bucketName, MERGED_STATS_FILENAME, tenantID);
 		
+		// Now that the new model is ready swap the domain names
     	swapModelDomainNames(getDomainBasename(), tenantID);
+    	
+    	// Clear cache
+    	MemcachedClient client = null;
+    	try {
+        	client = new MemcachedClient(new InetSocketAddress(MEMCACHED_SERVER, MEMCACHED_PORT));
+    	}
+    	catch (IOException ex) {
+        	logger.warn("Cannot insantiate memcached client");
+        }
+    	OperationFuture<Boolean> success = client.flush();
+
+    	try {
+    	    if (!success.get()) {
+    	        logger.warn("Delete failed!");
+    	    }
+    	}
+    	catch (Exception e) {
+    	    logger.warn("Failed to delete " + e);
+    	}
 	}
 	
 	protected abstract void calculateSufficientStatistics(String bucketName, String baseFilename, String tenantID) throws Exception;
@@ -51,9 +83,98 @@ public abstract class Model {
 	
 	protected abstract void estimateModelParameters(String bucketName, String filename, String tenantID) throws Exception;
 	
-	public abstract List<Catalog.Products.Product> getRecommendedProducts(List<String> productIds, String tenantID, Filter filter) throws Exception;
+	public List<Catalog.Products.Product> getRecommendedProducts(List<String> productIds, String tenantID, Filter filter) throws Exception {
+		
+		String sourceItemId = null;
+		MemcachedClient client = null;
+    	try {
+        	client = new MemcachedClient(new InetSocketAddress(MEMCACHED_SERVER, MEMCACHED_PORT));
+        	Object cacheCollection = null;
+        	try {
+        		StringBuffer sb = new StringBuffer();
+        		sb.append(filter.getName()); sb.append("_"); sb.append(getDomainBasename()); sb.append(tenantID);
+        		for (String p : productIds) {
+        			sb.append("_"); sb.append(p);
+        		}
+        		sourceItemId = sb.toString();
+        		cacheCollection = client.get(sourceItemId);
+        		if (cacheCollection != null) {
+        			logger.debug("Cache Hit.");
+                	return (List<Catalog.Products.Product>) cacheCollection;
+                } 
+        	}
+        	catch (OperationTimeoutException ex) {
+        		logger.warn("Timeout accessing memcached.");
+        	}
+            
+        }
+        catch (IOException ex) {
+        	logger.warn("Cannot insantiate memcached client");
+        }
+        
+        logger.debug("Cache Miss.");
+        
+        List<Catalog.Products.Product> recommendedProducts = getRecommendedProductsInternal(productIds, tenantID, filter);
+        
+        if (client != null) {
+        	try {
+        		client.set(sourceItemId, TTL_CACHE, recommendedProducts);
+        		client.shutdown(10, TimeUnit.SECONDS);
+        	}
+        	catch (Exception ex) {
+        		logger.warn("Cannot write to memcached " + MEMCACHED_SERVER + " port " + MEMCACHED_PORT);
+        	}
+        }
+        
+        return recommendedProducts;
+	}
 	
-	public abstract List<Catalog.Products.Product> getPersonalizedRecommendedProducts(String userId, String tenantID, Filter filter) throws Exception;
+	public List<Catalog.Products.Product> getPersonalizedRecommendedProducts(String userId, String tenantID, Filter filter) throws Exception {
+		String sourceItemId = null;
+		MemcachedClient client = null;
+    	try {
+        	client = new MemcachedClient(new InetSocketAddress(MEMCACHED_SERVER, MEMCACHED_PORT));
+        	Object cacheCollection = null;
+        	try {
+        		StringBuffer sb = new StringBuffer();
+        		sb.append(filter.getName()); sb.append("_"); sb.append(getDomainBasename()); sb.append(tenantID);
+        		sb.append("_USER_"); sb.append(userId);
+        		sourceItemId = sb.toString();
+        		cacheCollection = client.get(sourceItemId);
+        		if (cacheCollection != null) {
+        			logger.debug("Cache Hit.");
+                	return (List<Catalog.Products.Product>) cacheCollection;
+                } 
+        	}
+        	catch (OperationTimeoutException ex) {
+        		logger.warn("Timeout accessing memcached.");
+        	}
+            
+        }
+        catch (IOException ex) {
+        	logger.warn("Cannot insantiate memcached client");
+        }
+        
+        logger.debug("Cache Miss.");
+        
+        List<Catalog.Products.Product> recommendedProducts = getPersonalizedRecommendedProductsInternal(userId, tenantID, filter);
+        
+        if (client != null) {
+        	try {
+        		client.set(sourceItemId, TTL_CACHE, recommendedProducts);
+        		client.shutdown(10, TimeUnit.SECONDS);
+        	}
+        	catch (Exception ex) {
+        		logger.warn("Cannot write to memcached " + MEMCACHED_SERVER + " port " + MEMCACHED_PORT);
+        	}
+        }
+        
+        return recommendedProducts;
+	}
+	
+	protected abstract List<Catalog.Products.Product> getRecommendedProductsInternal(List<String> productIds, String tenantID, Filter filter) throws Exception;
+	
+	protected abstract List<Catalog.Products.Product> getPersonalizedRecommendedProductsInternal(String userId, String tenantID, Filter filter) throws Exception;
 	
     protected abstract String getDomainBasename();
     

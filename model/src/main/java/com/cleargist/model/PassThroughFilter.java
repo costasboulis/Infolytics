@@ -17,6 +17,10 @@ public class PassThroughFilter implements Filter {
 		catalog = new DummyCatalog();
 	}
 	
+	public String getName() {
+		return "PassThrough";
+	}
+	
 	public List<Catalog.Products.Product> applyFiltering(List<String> unfilteredIds, String tenantID) {
 		List<Catalog.Products.Product> filteredProducts = new ArrayList<Catalog.Products.Product>();
 		Catalog.Products.Product product = null;

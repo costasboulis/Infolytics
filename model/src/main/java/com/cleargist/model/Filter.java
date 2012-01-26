@@ -5,5 +5,6 @@ import java.util.List;
 import com.cleargist.catalog.entity.jaxb.Catalog;
 
 public interface Filter {
+	public String getName();
 	public List<Catalog.Products.Product> applyFiltering(List<String> unfilteredIds, String tenantID);
 }
