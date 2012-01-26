@@ -58,6 +58,7 @@ import com.amazonaws.services.simpledb.model.NumberSubmittedItemsExceededExcepti
 import com.amazonaws.services.simpledb.model.ReplaceableAttribute;
 import com.amazonaws.services.simpledb.model.ReplaceableItem;
 import com.amazonaws.services.simpledb.model.SelectRequest;
+import com.amazonaws.services.simpledb.model.SelectResult;
 import com.cleargist.catalog.entity.jaxb.Catalog;
 
 
@@ -621,71 +622,92 @@ public class CatalogDAOImpl implements CatalogDAO {
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				CatalogDAOImpl.class.getResourceAsStream(AWS_CREDENTIALS)));
 		String catalogDomain = getCatalogName(catalogID, tenantID);
-    	String selectExpression = "select * from `" + catalogDomain + "`";
+    	String selectExpression = "select * from `" + catalogDomain + "` limit 2500";
+    	String resultNextToken = null;
         SelectRequest selectRequest = new SelectRequest(selectExpression);
-        List<Item> items = sdb.select(selectRequest).getItems();
-        
         List<Catalog.Products.Product> products = new LinkedList<Catalog.Products.Product>();
-        for (Item item : items) {
-        	Catalog.Products.Product product = new Catalog.Products.Product();
-            for (Attribute attribute : item.getAttributes()) {
-            	if (attribute.getName().equals(UID_STRING)) {
-            		product.setUid(attribute.getValue());
-            	}
-            	else if (attribute.getName().equals(NAME_STRING)) {
-            		product.setName(attribute.getValue());
-            	}
-            	else if (attribute.getName().equals(LINK_STRING)) {
-            		product.setLink(attribute.getValue());
-            	}
-            	else if (attribute.getName().equals(IMAGE_STRING)) {
-            		product.setImage(attribute.getValue());
-            	}
-            	else if (attribute.getName().equals(PRICE_STRING)) {
-            		if (attribute.getValue() != null) {
-            			product.setPrice(BigDecimal.valueOf(Double.parseDouble(attribute.getValue())));
-            		}
-            	}
-            	else if (attribute.getName().equals(CATEGORY_STRING)) {
-            		product.setCategory(attribute.getValue());
-            	}
-            	else if (attribute.getName().equals(CATEGORYID_STRING)) {
-            		if (attribute.getValue() != null) {
-            			product.setCategoryId(BigInteger.valueOf(Integer.parseInt(attribute.getValue())));
-            		}
-            	}
-            	else if (attribute.getName().equals(DESCRIPTION_STRING)) {
-            		product.setDescription(attribute.getValue());
-            	}
-            	else if (attribute.getName().equals(WEIGHT_STRING)) {
-            		if (attribute.getValue() != null) {
-            			product.setWeight(BigInteger.valueOf(Integer.parseInt(attribute.getValue())));
-            		}
-            	}
-            	else if (attribute.getName().equals(MANUFACTURER_STRING)) {
-            		product.setManufacturer(attribute.getValue());
-            	}
-            	else if (attribute.getName().equals(MPN_STRING)) {
-            		product.setMpn(attribute.getValue());
-            	}
-            	else if (attribute.getName().equals(SHIPPING_STRING)) {
-            		if (attribute.getValue() != null) {
-            			product.setShipping(BigDecimal.valueOf(Double.parseDouble(attribute.getValue())));
-            		}
-            	}
-            	else if (attribute.getName().equals(AVAILABILITY_STRING)) {
-            		product.setAvailability(attribute.getValue());
-            	}
-            	else if (attribute.getName().equals(INSTOCK_STRING)) {
-            		product.setInstock(attribute.getValue());
-            	}
-            	else if (attribute.getName().equals(ISBN_STRING)) {
-            		product.setIsbn(attribute.getValue());
-            	}
-            }
-            
-            products.add(product);
-        }
+        
+        do {
+		    if (resultNextToken != null) {
+		    	selectRequest.setNextToken(resultNextToken);
+		    }
+		    
+		    SelectResult selectResult = sdb.select(selectRequest);
+		    
+		    String newToken = selectResult.getNextToken();
+		    if (newToken != null && !newToken.equals(resultNextToken)) {
+		    	resultNextToken = selectResult.getNextToken();
+		    }
+		    else {
+		    	resultNextToken = null;
+		    }
+		    
+		    List<Item> items = selectResult.getItems();
+	        for (Item item : items) {
+	        	Catalog.Products.Product product = new Catalog.Products.Product();
+	            for (Attribute attribute : item.getAttributes()) {
+	            	if (attribute.getName().equals(UID_STRING)) {
+	            		product.setUid(attribute.getValue());
+	            	}
+	            	else if (attribute.getName().equals(NAME_STRING)) {
+	            		product.setName(attribute.getValue());
+	            	}
+	            	else if (attribute.getName().equals(LINK_STRING)) {
+	            		product.setLink(attribute.getValue());
+	            	}
+	            	else if (attribute.getName().equals(IMAGE_STRING)) {
+	            		product.setImage(attribute.getValue());
+	            	}
+	            	else if (attribute.getName().equals(PRICE_STRING)) {
+	            		if (attribute.getValue() != null) {
+	            			product.setPrice(BigDecimal.valueOf(Double.parseDouble(attribute.getValue())));
+	            		}
+	            	}
+	            	else if (attribute.getName().equals(CATEGORY_STRING)) {
+	            		product.setCategory(attribute.getValue());
+	            	}
+	            	else if (attribute.getName().equals(CATEGORYID_STRING)) {
+	            		if (attribute.getValue() != null) {
+	            			product.setCategoryId(BigInteger.valueOf(Integer.parseInt(attribute.getValue())));
+	            		}
+	            	}
+	            	else if (attribute.getName().equals(DESCRIPTION_STRING)) {
+	            		product.setDescription(attribute.getValue());
+	            	}
+	            	else if (attribute.getName().equals(WEIGHT_STRING)) {
+	            		if (attribute.getValue() != null) {
+	            			product.setWeight(BigInteger.valueOf(Integer.parseInt(attribute.getValue())));
+	            		}
+	            	}
+	            	else if (attribute.getName().equals(MANUFACTURER_STRING)) {
+	            		product.setManufacturer(attribute.getValue());
+	            	}
+	            	else if (attribute.getName().equals(MPN_STRING)) {
+	            		product.setMpn(attribute.getValue());
+	            	}
+	            	else if (attribute.getName().equals(SHIPPING_STRING)) {
+	            		if (attribute.getValue() != null) {
+	            			product.setShipping(BigDecimal.valueOf(Double.parseDouble(attribute.getValue())));
+	            		}
+	            	}
+	            	else if (attribute.getName().equals(AVAILABILITY_STRING)) {
+	            		product.setAvailability(attribute.getValue());
+	            	}
+	            	else if (attribute.getName().equals(INSTOCK_STRING)) {
+	            		product.setInstock(attribute.getValue());
+	            	}
+	            	else if (attribute.getName().equals(ISBN_STRING)) {
+	            		product.setIsbn(attribute.getValue());
+	            	}
+	            }
+	            
+	            products.add(product);
+	        }
+	        
+		    
+        } while (resultNextToken != null);
+        
+        
         
         return products;
 	}
