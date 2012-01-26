@@ -124,7 +124,7 @@ public class CatalogDAOImplTest {
         }
         
         assertTrue(product.getUid().equals("322233"));
-        assertTrue(product.getCategory().equals("ÁèëçôéêÜ > Extreme Sports"));
+        assertTrue(product.getCategory().equals("Î‘Î¸Î»Î·Ï„Î¹ÎºÎ¬ > Extreme Sports"));
     }
     
     @Test
