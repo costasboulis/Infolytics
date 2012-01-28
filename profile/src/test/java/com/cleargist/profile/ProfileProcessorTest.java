@@ -23,16 +23,16 @@ import com.amazonaws.services.simpledb.model.Attribute;
 import com.amazonaws.services.simpledb.model.BatchPutAttributesRequest;
 import com.amazonaws.services.simpledb.model.CreateDomainRequest;
 import com.amazonaws.services.simpledb.model.DeleteDomainRequest;
-import com.amazonaws.services.simpledb.model.Item;
+import com.amazonaws.services.simpledb.model.GetAttributesRequest;
+import com.amazonaws.services.simpledb.model.GetAttributesResult;
 import com.amazonaws.services.simpledb.model.ReplaceableAttribute;
 import com.amazonaws.services.simpledb.model.ReplaceableItem;
-import com.amazonaws.services.simpledb.model.SelectRequest;
 
 
 public class ProfileProcessorTest {
 	private static final String AWS_CREDENTIALS = "/AwsCredentials.properties";
 	private Logger logger = Logger.getLogger(getClass());
-	private String rawDataDomain = "DATA_TEST";
+	private String rawDataDomain = "ACTIVITY_TEST";
 	private String profileDomain = "PROFILE_TEST";
 	private SimpleDateFormat dateFormatter = new SimpleDateFormat("yyMMddHHmmssSSSZ");
 	
@@ -163,7 +163,6 @@ public class ProfileProcessorTest {
     	// Add existing profiles
     	List<ReplaceableItem> existingProfiles = new ArrayList<ReplaceableItem>();
     	existingProfiles.add(new ReplaceableItem("John").withAttributes(
-    						new ReplaceableAttribute("USER_ID", "John", true),
     						new ReplaceableAttribute("Attribute_1", "1;1.0", true),
     						new ReplaceableAttribute("Attribute_3", "3;1.0", true)));
     	try {
@@ -224,16 +223,16 @@ public class ProfileProcessorTest {
     		logger.error(errorMessage);
     		return null;
     	}
-		String selectExpression = "select * from `" + profileDomain + "` where USER_ID = '" + userID + "' limit 1";
-		SelectRequest selectRequest = new SelectRequest(selectExpression);
-		List<Item> items = sdb.select(selectRequest).getItems();
-		if (items == null || items.size() == 0) {
+    	GetAttributesRequest request = new GetAttributesRequest();
+		request.setDomainName(profileDomain);
+		request.setItemName(userID);
+		GetAttributesResult result = sdb.getAttributes(request);
+		if (result.getAttributes().size() == 0) {
 			return null;
 		}
-		Item item = items.get(0);
 		Profile profile = new Profile();
-		profile.setUserID(item.getName());
-		for (Attribute attribute : item.getAttributes()) {
+		profile.setUserID(userID);
+		for (Attribute attribute : result.getAttributes()) {
 			if (attribute.getName().startsWith("Attribute")) {
 				String value = attribute.getValue();
 				String[] parsedValue = value.split(";");
@@ -439,7 +438,6 @@ public class ProfileProcessorTest {
     	// Create existing profiles
     	List<ReplaceableItem> existingProfiles = new ArrayList<ReplaceableItem>();
     	ReplaceableItem existingProfile = new ReplaceableItem("John").withAttributes(
-                new ReplaceableAttribute("USER_ID", "John", true),
                 new ReplaceableAttribute("Attribute_1", "1;1.0", true),
                 new ReplaceableAttribute("Attribute_10", "10;1.0", true), 
                 new ReplaceableAttribute("Attribute_3", "3;1.0", true));

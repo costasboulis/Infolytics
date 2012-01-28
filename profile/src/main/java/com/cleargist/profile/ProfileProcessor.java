@@ -24,6 +24,8 @@ import com.amazonaws.services.simpledb.model.AttributeDoesNotExistException;
 import com.amazonaws.services.simpledb.model.BatchPutAttributesRequest;
 import com.amazonaws.services.simpledb.model.DeleteAttributesRequest;
 import com.amazonaws.services.simpledb.model.DuplicateItemNameException;
+import com.amazonaws.services.simpledb.model.GetAttributesRequest;
+import com.amazonaws.services.simpledb.model.GetAttributesResult;
 import com.amazonaws.services.simpledb.model.InvalidParameterValueException;
 import com.amazonaws.services.simpledb.model.Item;
 import com.amazonaws.services.simpledb.model.MissingParameterException;
@@ -40,7 +42,7 @@ import com.amazonaws.services.simpledb.model.SelectRequest;
 
 public abstract class ProfileProcessor {
 	private static final String AWS_CREDENTIALS = "/AwsCredentials.properties";
-	private static final String DATE_PATTERN = "yyMMddHHmmssSSSz";
+	private static final String DATE_PATTERN = "yyMMddHHmmssSSSZ";
 	private Logger logger = Logger.getLogger(getClass());
 	
 	protected List<List<Item>> getDataSinceLastUpdate(String tenantID) throws Exception {
@@ -71,7 +73,7 @@ public abstract class ProfileProcessor {
 		
 		
 		// Now form the SELECT statement for incremental data
-		String userActivityDomain = "DATA_" + tenantID;
+		String userActivityDomain = "ACTIVITY_" + tenantID;
 		String selectExpression = "select * from `" + userActivityDomain + "` where DATE > '" + formatter.format(lastUpdate.getTime()) + "'";
         SelectRequest selectRequest = new SelectRequest(selectExpression);
         List<Item> incrementalData = sdb.select(selectRequest).getItems();
@@ -101,64 +103,52 @@ public abstract class ProfileProcessor {
 		List<Profile> decrementalProfiles = createProfile(decrementalData);
 		
 		// Retrieve existing profiles and merge / write to SimpleDB
-		AmazonSimpleDB sdb = null;
-    	try {
-    		sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
-    				ProfileProcessor.class.getResourceAsStream(AWS_CREDENTIALS)));
-    	}
-    	catch (IOException ex) {
-    		String errorMessage = "Cannot connect to Amazon SimpleDB, check credentials";
-    		logger.error(errorMessage);
-    		throw new Exception();
-    	}
+		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
+				ProfileProcessor.class.getResourceAsStream(AWS_CREDENTIALS)));
+    	
     	String profileDomain = "PROFILE_" + tenantID;
     	
     	// Do the incremental profiles
 		for (Profile incrementalProfile : incrementalProfiles) {
 			String userID = incrementalProfile.getUserID();
-			boolean newUser = true;
 			
 			List<ReplaceableAttribute> attributes = new LinkedList<ReplaceableAttribute>();
 			HashSet<String> productIDs = new HashSet<String>();
 			
-			String selectExpression = "select * from `" + profileDomain + "` where USER_ID = '" + userID + "' limit 1";
-			SelectRequest selectRequest = new SelectRequest(selectExpression);
-			List<Item> items = sdb.select(selectRequest).getItems();
-			if (items != null && items.size() > 0) {
-				newUser = false;
-				Item existingItem = items.get(0);
-				for (Attribute attribute : existingItem.getAttributes()) {
-					if (attribute.getName().startsWith("Attribute")) {
-						String value = attribute.getValue();
-						String[] parsedValue = value.split(";");
-						String productID = parsedValue[0];
-						float score = Float.parseFloat(parsedValue[1]);
-		            	
-						productIDs.add(productID);
-		            		
-						Float incrementalScore = incrementalProfile.getAttributes().get(productID);
-						if (incrementalScore == null) {
-							continue;   // Nothing to add in this attribute
-						}
-						else {
-							// Update the score of the attribute
-							float updatedScore = score + incrementalScore.floatValue();
-							StringBuffer sb = new StringBuffer();
-							sb.append(productID); sb.append(";"); sb.append(updatedScore);
-		            			
-							ReplaceableAttribute att = new ReplaceableAttribute(attribute.getName(), sb.toString(), true);
-							attributes.add(att);
-						}
-					}
+			GetAttributesRequest request = new GetAttributesRequest();
+			request.setDomainName(profileDomain);
+			request.setItemName(userID);
+			GetAttributesResult result = sdb.getAttributes(request);
+			boolean newUser = result.getAttributes().size() > 0 ? false : true;
+			for (Attribute attribute : result.getAttributes()) {
+				String value = attribute.getValue();
+				String[] parsedValue = value.split(";");
+				String productID = parsedValue[0];
+				float score = Float.parseFloat(parsedValue[1]);
+            	
+				productIDs.add(productID);
+            		
+				Float incrementalScore = incrementalProfile.getAttributes().get(productID);
+				if (incrementalScore == null) {
+					continue;   // Nothing to add in this attribute
+				}
+				else {
+					// Update the score of the attribute
+					float updatedScore = score + incrementalScore.floatValue();
+					StringBuffer sb = new StringBuffer();
+					sb.append(productID); sb.append(";"); sb.append(updatedScore);
+            			
+					ReplaceableAttribute att = new ReplaceableAttribute(attribute.getName(), sb.toString(), true);
+					attributes.add(att);
 				}
 			}
+			
+			
 			
 			if (newUser) {
 				// Add new user
 				ReplaceableItem item = new ReplaceableItem();
 				item.setName(userID);
-				ReplaceableAttribute nameAttribute = new ReplaceableAttribute("USER_ID", userID, true);
-				attributes.add(nameAttribute);
 				for (Map.Entry<String, Float> incrementalProfileAttributes : incrementalProfile.getAttributes().entrySet()) {
 					String productID = incrementalProfileAttributes.getKey();
 					float score = incrementalProfileAttributes.getValue().floatValue();
@@ -201,36 +191,35 @@ public abstract class ProfileProcessor {
 			List<ReplaceableAttribute> attributes = new LinkedList<ReplaceableAttribute>();
 			List<Attribute> deleteAttributes = new LinkedList<Attribute>();
 			
-			String selectExpression = "select * from `" + profileDomain + "` where USER_ID = '" + userID + "' limit 1";
-			SelectRequest selectRequest = new SelectRequest(selectExpression);
-			Item existingItem = sdb.select(selectRequest).getItems().get(0);
-			for (Attribute attribute : existingItem.getAttributes()) {
-				if (attribute.getName().startsWith("Attribute")) {
-					String value = attribute.getValue();
-					String[] parsedValue = value.split(";");
-					String productID = parsedValue[0];
-					float score = Float.parseFloat(parsedValue[1]);
-	            		
-					Float decrementalScore = decrementalProfile.getAttributes().get(productID);
-					if (decrementalScore == null) {
-						continue;  
+			GetAttributesRequest request = new GetAttributesRequest();
+			request.setDomainName(profileDomain);
+			request.setItemName(userID);
+			GetAttributesResult result = sdb.getAttributes(request);
+			for (Attribute attribute : result.getAttributes()) {
+				String value = attribute.getValue();
+				String[] parsedValue = value.split(";");
+				String productID = parsedValue[0];
+				float score = Float.parseFloat(parsedValue[1]);
+            		
+				Float decrementalScore = decrementalProfile.getAttributes().get(productID);
+				if (decrementalScore == null) {
+					continue;  
+				}
+				else {
+					// Update the score of the attribute
+					float updatedScore = score - decrementalScore.floatValue();
+					if (updatedScore <= 0.0f) {
+						// delete attribute
+						deleteAttributes.add(attribute);
 					}
 					else {
-						// Update the score of the attribute
-						float updatedScore = score - decrementalScore.floatValue();
-						if (updatedScore <= 0.0f) {
-							// delete attribute
-							deleteAttributes.add(attribute);
-						}
-						else {
-							StringBuffer sb = new StringBuffer();
-							sb.append(productID); sb.append(";"); sb.append(updatedScore);
-		            			
-							ReplaceableAttribute att = new ReplaceableAttribute(attribute.getName(), sb.toString(), true);
-							attributes.add(att);
-						}
-						
+						StringBuffer sb = new StringBuffer();
+						sb.append(productID); sb.append(";"); sb.append(updatedScore);
+	            			
+						ReplaceableAttribute att = new ReplaceableAttribute(attribute.getName(), sb.toString(), true);
+						attributes.add(att);
 					}
+					
 				}
 			}
 			
