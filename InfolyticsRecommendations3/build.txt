@@ -1,0 +1,12 @@
+REQUIREMENTS:
+
+To use the TravelLog application you will need the following:
+1) JDK 1.5
+2) Tomcat 6.x
+3) Maven 2.x
+
+
+BUILDING:
+
+RUNNING:
+
