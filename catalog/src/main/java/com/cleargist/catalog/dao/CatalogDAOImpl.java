@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 
 import javax.xml.bind.JAXBContext;
 import javax.xml.bind.JAXBException;
@@ -67,6 +68,7 @@ import com.cleargist.catalog.entity.jaxb.Catalog;
 public class CatalogDAOImpl implements CatalogDAO {
 	private static final String AWS_CREDENTIALS = "/AwsCredentials.properties";
 	private Logger logger = Logger.getLogger(getClass());
+	private Locale locale = new Locale("el", "GR");
 	public static String newline = System.getProperty("line.separator");
 	private static final String UID_STRING = "UID";
 	private static final String NAME_STRING = "NAME";
@@ -85,6 +87,9 @@ public class CatalogDAOImpl implements CatalogDAO {
 	private static final String ISBN_STRING = "ISBN";
 	
 
+	public CatalogDAOImpl() {
+		Locale.setDefault(this.locale);
+	}
 	
 	public static String getCatalogName(String catalogID, String tenantID) {
 		return catalogID == null || catalogID.isEmpty() ? "CATALOG_" + tenantID : "CATALOG_" + catalogID + "_" + tenantID;
@@ -176,7 +181,6 @@ public class CatalogDAOImpl implements CatalogDAO {
 			logger.error("Could not write to " + localCatalogFile.getAbsolutePath());
 			throw new Exception();
 		}
-    	
 		
 		// Now copy the marshalled local file to S3
 		if (!s3.doesBucketExist(bucketName)) {
@@ -185,8 +189,9 @@ public class CatalogDAOImpl implements CatalogDAO {
     	PutObjectRequest r = new PutObjectRequest(bucketName, filename, localCatalogFile);
     	r.setStorageClass(StorageClass.ReducedRedundancy);
     	s3.putObject(r);
-    	localCatalogFile.delete();
+    	
     	localSchemaFile.delete();
+    	localCatalogFile.delete();
 	}
 	
 	private Catalog unmarshallCatalog(String bucket, String filename) throws JAXBException, IOException, Exception {

@@ -124,7 +124,8 @@ public class CatalogDAOImplTest {
         }
         
         assertTrue(product.getUid().equals("322233"));
-        assertTrue(product.getCategory().equals("Αθλητικά > Extreme Sports"));
+        String category = product.getCategory();
+        assertTrue(category.equals("Αθλητικά > Extreme Sports"));
     }
     
     @Test
