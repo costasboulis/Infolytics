@@ -57,11 +57,15 @@ public class SemanticModel extends Model {
 	private static final String TFIDF_FILENAME = "tfidf.txt";
 	private static final String ASSOCIATIONS_FILENAME = "semantic_associations_";
 	private static final float THRESHOLD = 0.01f;
-	private static final int TOP_N = 10;
+	private int topCorrelations;
 	public static String newline = System.getProperty("line.separator");
 	protected static final Locale locale = new Locale("el", "GR"); 
 	private Logger logger = Logger.getLogger(getClass());
 	private CatalogDAO catalog;
+	
+	public SemanticModel() {
+		this.topCorrelations = 10;
+	}
 	
 	protected String getDomainBasename() {
 		return "MODEL_SEMANTIC_";
@@ -71,6 +75,10 @@ public class SemanticModel extends Model {
 		return STATS_BASE_BUCKETNAME + "semantic" + tenantID;
 	}
 	
+	public void setTopCorrelations(int n) {
+		this.topCorrelations = n > 0 ? n : 10;
+	}
+
 	private String removeSpecialChars(String in) {
 		String out = in.replaceAll("\\d+\\.\\d+", "NUMBER");
 		out = out.replaceAll("\\d+", "NUMBER");
@@ -208,7 +216,7 @@ public class SemanticModel extends Model {
     	
 	}
 	
-	public void mergeSufficientStatistics(String bucketName, String mergedStatsFilename, String tenantID) throws Exception {
+	protected void mergeSufficientStatistics(String bucketName, String mergedStatsFilename, String tenantID) throws Exception {
 		// Nothing for now, this is not MapReducable for the moment
 	}
 	
@@ -290,7 +298,7 @@ public class SemanticModel extends Model {
 			if (topN.size() == 0) {
 				continue;
 			}
-			List<AttributeObject> l = topN.size() < TOP_N ? topN : topN.subList(0, TOP_N);
+			List<AttributeObject> l = topN.size() < this.topCorrelations ? topN : topN.subList(0, this.topCorrelations);
 			StringBuffer sb = new StringBuffer();
 			sb.append(itemNames.get(i));
 			for (AttributeObject attObject : l) {

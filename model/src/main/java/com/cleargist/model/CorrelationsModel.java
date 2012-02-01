@@ -59,7 +59,7 @@ public class CorrelationsModel extends Model {
 	private static final String AWS_CREDENTIALS = "/AwsCredentials.properties";
 	private static final float COOCCURRENCE_THRESHOLD = 2.0f;
 	private static final double CORRELATION_THRESHOLD = 0.05;
-	private static final int TOP_CORRELATIONS = 10;
+	private int topCorrelations;
 	private Logger logger = Logger.getLogger(getClass());
 	public static String newline = System.getProperty("line.separator");
 	
@@ -70,11 +70,16 @@ public class CorrelationsModel extends Model {
 	
 	public CorrelationsModel() {
 		this.profilesPerChunk = 25000;
+		this.topCorrelations = 10;
 	}
 	
 	
 	public void setProfilesPerChunk(int n) {
 		this.profilesPerChunk = n < 2500 ? 2500 : n;
+	}
+	
+	public void setTopCorrelations(int n) {
+		this.topCorrelations = n > 0 ? n : 10;
 	}
 	
 	protected  String getDomainBasename() {
@@ -669,7 +674,7 @@ public class CorrelationsModel extends Model {
 			Collections.sort(itemsList);
 			
 			// Now write to SimpleDB domain that holds the model parameters
-			List<AttributeObject> l = itemsList.size() < TOP_CORRELATIONS ? itemsList : itemsList.subList(0, TOP_CORRELATIONS);
+			List<AttributeObject> l = itemsList.size() < this.topCorrelations ? itemsList : itemsList.subList(0, this.topCorrelations);
 			
 			List<ReplaceableAttribute> attributes = new ArrayList<ReplaceableAttribute>();
 			for (AttributeObject attObject : l) {

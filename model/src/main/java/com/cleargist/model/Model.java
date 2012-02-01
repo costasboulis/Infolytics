@@ -10,7 +10,6 @@ import java.util.concurrent.TimeUnit;
 
 import net.spy.memcached.MemcachedClient;
 import net.spy.memcached.OperationTimeoutException;
-import net.spy.memcached.internal.OperationFuture;
 
 import org.apache.log4j.Logger;
 
@@ -29,6 +28,7 @@ import com.amazonaws.services.simpledb.model.SelectRequest;
 import com.amazonaws.services.simpledb.model.SelectResult;
 import com.cleargist.catalog.entity.jaxb.Catalog;
 
+// TODO: Set the TTL_CACHE according to the update schedule of each model. Need to access account table 
 
 public abstract class Model {
 	private static final String AWS_CREDENTIALS = "/AwsCredentials.properties";
@@ -57,6 +57,7 @@ public abstract class Model {
 		// Now that the new model is ready swap the domain names
     	swapModelDomainNames(getDomainBasename(), tenantID);
     	
+  /* Don't clear cache since it holds responses from all tenants. Better set the expiration time of each new entry  	
     	// Clear cache
     	MemcachedClient client = null;
     	try {
@@ -77,6 +78,7 @@ public abstract class Model {
     	}
     	
     	resetHealthCounters(tenantID);
+    	*/
 	}
 	
 	protected abstract void calculateSufficientStatistics(String bucketName, String baseFilename, String tenantID) throws Exception;
