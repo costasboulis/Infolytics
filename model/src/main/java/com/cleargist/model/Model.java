@@ -75,6 +75,8 @@ public abstract class Model {
     	catch (Exception e) {
     	    logger.warn("Failed to delete " + e);
     	}
+    	
+    	resetHealthCounters(tenantID);
 	}
 	
 	protected abstract void calculateSufficientStatistics(String bucketName, String baseFilename, String tenantID) throws Exception;
@@ -82,6 +84,41 @@ public abstract class Model {
 	protected abstract void mergeSufficientStatistics(String bucketName, String mergedStatsFilename, String tenantID) throws Exception;
 	
 	protected abstract void estimateModelParameters(String bucketName, String filename, String tenantID) throws Exception;
+	
+	private String getHealthMetricKey(String eventID, String tenantID, String serviceID) {
+		StringBuffer sb = new StringBuffer();
+		sb.append(eventID); sb.append("_"); sb.append(tenantID); sb.append("_"); sb.append(serviceID);
+		return sb.toString();
+	}
+	
+	private void resetHealthCounters(String tenantID) {
+		MemcachedClient client = null;
+    	try {
+        	client = new MemcachedClient(new InetSocketAddress(MEMCACHED_SERVER, MEMCACHED_PORT));
+    	}
+    	catch (IOException ex) {
+        	logger.warn("Cannot insantiate memcached client");
+        }
+		String healthMetricKey = getHealthMetricKey("OK", tenantID, "RECS");
+    	client.set(healthMetricKey, 0, 0);
+    	healthMetricKey = getHealthMetricKey("FAILED", tenantID, "RECS");
+    	client.set(healthMetricKey, 0, 0);
+    	healthMetricKey = getHealthMetricKey("EMPTY", tenantID, "RECS");
+    	client.set(healthMetricKey, 0, 0);
+	}
+	
+	public long getHealthCounter(String eventID, String tenantID, String serviceID) {
+		MemcachedClient client = null;
+    	try {
+        	client = new MemcachedClient(new InetSocketAddress(MEMCACHED_SERVER, MEMCACHED_PORT));
+    	}
+    	catch (IOException ex) {
+        	logger.warn("Cannot insantiate memcached client");
+        	return -1;
+        }
+    	String key = getHealthMetricKey(eventID, tenantID, serviceID);
+		return client.incr(key, 0);
+	}
 	
 	public List<Catalog.Products.Product> getRecommendedProducts(List<String> productIds, String tenantID, Filter filter) throws Exception {
 		
@@ -100,13 +137,21 @@ public abstract class Model {
         		cacheCollection = client.get(sourceItemId);
         		if (cacheCollection != null) {
         			logger.debug("Cache Hit.");
-                	return (List<Catalog.Products.Product>) cacheCollection;
+        			
+        			List<Catalog.Products.Product> productList = (List<Catalog.Products.Product>) cacheCollection;
+        			
+        			// Update health metric
+        			String eventID = productList.size() > 0 ? "OK" : "EMPTY";
+        			String key = getHealthMetricKey(eventID, tenantID, "RECS");
+        			client.incr(key, 1);
+        			
+        			
+                	return productList;
                 } 
         	}
         	catch (OperationTimeoutException ex) {
         		logger.warn("Timeout accessing memcached.");
         	}
-            
         }
         catch (IOException ex) {
         	logger.warn("Cannot insantiate memcached client");
@@ -114,7 +159,17 @@ public abstract class Model {
         
         logger.debug("Cache Miss.");
         
-        List<Catalog.Products.Product> recommendedProducts = getRecommendedProductsInternal(productIds, tenantID, filter);
+        List<Catalog.Products.Product> recommendedProducts = null;
+        try {
+        	recommendedProducts = getRecommendedProductsInternal(productIds, tenantID, filter);
+        }
+        catch (Exception ex) {
+        	// Update health metric
+    		String key = getHealthMetricKey("FAILED", tenantID, "RECS");
+    		client.incr(key, 1);
+    		
+        	throw new Exception();
+        }
         
         if (client != null) {
         	try {
@@ -126,6 +181,11 @@ public abstract class Model {
         	}
         }
         
+        // Update health metric
+		String eventID = recommendedProducts.size() > 0 ? "OK" : "EMPTY";
+		String key = getHealthMetricKey(eventID, tenantID, "RECS");
+		client.incr(key, 1);
+		
         return recommendedProducts;
 	}
 	
@@ -172,9 +232,9 @@ public abstract class Model {
         return recommendedProducts;
 	}
 	
-	protected abstract List<Catalog.Products.Product> getRecommendedProductsInternal(List<String> productIds, String tenantID, Filter filter) throws Exception;
+	public abstract List<Catalog.Products.Product> getRecommendedProductsInternal(List<String> productIds, String tenantID, Filter filter) throws Exception;
 	
-	protected abstract List<Catalog.Products.Product> getPersonalizedRecommendedProductsInternal(String userId, String tenantID, Filter filter) throws Exception;
+	public abstract List<Catalog.Products.Product> getPersonalizedRecommendedProductsInternal(String userId, String tenantID, Filter filter) throws Exception;
 	
     protected abstract String getDomainBasename();
     

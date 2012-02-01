@@ -85,7 +85,7 @@ public class CorrelationsModel extends Model {
 		return STATS_BASE_BUCKETNAME + "correlations" + tenantID;
 	}
 	
-	protected List<Catalog.Products.Product> getRecommendedProductsInternal(List<String> productIDs, String tenantID, Filter filter) throws Exception {
+	public List<Catalog.Products.Product> getRecommendedProductsInternal(List<String> productIDs, String tenantID, Filter filter) throws Exception {
 		double weight = (double)productIDs.size();
 		List<AttributeObject> productIDsInternal = new LinkedList<AttributeObject>();
 		for (String productID : productIDs) {
@@ -153,7 +153,7 @@ public class CorrelationsModel extends Model {
 	
 	
 	
-	protected List<Catalog.Products.Product> getPersonalizedRecommendedProductsInternal(String userID, String tenantID, Filter filter) throws Exception {
+	public List<Catalog.Products.Product> getPersonalizedRecommendedProductsInternal(String userID, String tenantID, Filter filter) throws Exception {
 		// Retrieve the user profile
 		List<AttributeObject> sourceIDs = getUserProfile(userID, tenantID);
 		return getRecommendedProductsList(sourceIDs, tenantID, filter);

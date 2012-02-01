@@ -76,13 +76,13 @@ public class SemanticModel extends Model {
 		out = out.replaceAll("\\d+", "NUMBER");
 		out = out.toLowerCase(locale);
 		out = out.replaceAll("[\\.,\\(\\)\\?;!:\\[\\]\\{\\}\"%&\\*'\\+/>-]", "");
-		out = out.replace('‹', '·');
-		out = out.replace('›', 'Â');
-		out = out.replace('ﬂ', 'È');
-		out = out.replace('¸', 'Ô');
-		out = out.replace('˝', 'ı');
-		out = out.replace('˛', '˘');
-		out = out.replace('ﬁ', 'Á');
+		out = out.replace('Œ¨', 'Œ±');
+		out = out.replace('œå', 'Œø');
+		out = out.replace('ŒÆ', 'Œ∑');
+		out = out.replace('œé', 'œâ');
+		out = out.replace('œç', 'œÖ');
+		out = out.replace('Œ≠', 'Œµ');
+		out = out.replace('ŒØ', 'Œπ');
 		out = out.replaceAll("\\s+", " ");
 		out = out.trim();
 		
@@ -313,7 +313,7 @@ public class SemanticModel extends Model {
     	loadFromS3File2Domain(bucketName, associationsFilename, getBackupModelDomainName(getDomainBasename(), tenantID));
 	}
 
-	protected List<Catalog.Products.Product> getRecommendedProductsInternal(List<String> productIDs, String tenantID, Filter filter) throws Exception {
+	public List<Catalog.Products.Product> getRecommendedProductsInternal(List<String> productIDs, String tenantID, Filter filter) throws Exception {
 		double weight = (double)productIDs.size();
 		List<AttributeObject> productIDsInternal = new LinkedList<AttributeObject>();
 		for (String productID : productIDs) {
@@ -381,7 +381,7 @@ public class SemanticModel extends Model {
 	
 	
 	
-	protected List<Catalog.Products.Product> getPersonalizedRecommendedProductsInternal(String userID, String tenantID, Filter filter) throws Exception {
+	public List<Catalog.Products.Product> getPersonalizedRecommendedProductsInternal(String userID, String tenantID, Filter filter) throws Exception {
 		// Retrieve the user profile
 		List<AttributeObject> sourceIDs = getUserProfile(userID, tenantID);
 		return getRecommendedProductsList(sourceIDs, tenantID, filter);
