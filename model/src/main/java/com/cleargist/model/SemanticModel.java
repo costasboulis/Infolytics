@@ -55,7 +55,9 @@ public class SemanticModel extends Model {
 	private static final String AWS_CREDENTIALS = "/AwsCredentials.properties";
 	private static final String RAW_PROFILES_FILENAME = "raw_profiles.txt";
 	private static final String TFIDF_FILENAME = "tfidf.txt";
+	private static final String IDF_FILENAME = "idf.txt";
 	private static final String ASSOCIATIONS_FILENAME = "semantic_associations_";
+	private static final String INCREMENTAL_ASSOCIATIONS_FILENAME = "incremental_semantic_associations_";
 	private static final float THRESHOLD = 0.01f;
 	private int topCorrelations;
 	public static String newline = System.getProperty("line.separator");
@@ -119,7 +121,7 @@ public class SemanticModel extends Model {
 		
 		
 		// Compute the inverse document frequency
-		HashMap<String, Float> df = new HashMap<String, Float>();
+		HashMap<String, Float> idf = new HashMap<String, Float>();
 		S3Object rawProfilesFile = s3.getObject(bucketName, RAW_PROFILES_FILENAME);
 		BufferedReader reader = new BufferedReader(new InputStreamReader(rawProfilesFile.getObjectContent()));
 		String line = null;
@@ -139,28 +141,29 @@ public class SemanticModel extends Model {
 				uniqueTerms.add(fields[i]);
 			}
 			for (String uniqueTerm : uniqueTerms) {
-				Float cnt = df.get(uniqueTerm);
+				Float cnt = idf.get(uniqueTerm);
 				if (cnt == null) {
-					df.put(uniqueTerm, 1.0f);
+					idf.put(uniqueTerm, 1.0f);
 				}
 				else {
-					df.put(uniqueTerm, cnt.floatValue() + 1.0f);
+					idf.put(uniqueTerm, cnt.floatValue() + 1.0f);
 				}
 			}
 			
 			totalItems += 1.0;
 		}
 		reader.close();
-		Set<String> keys = df.keySet();
+		Set<String> keys = idf.keySet();
 		for (String term : keys) {
-			Float cnt = df.get(term);
+			Float cnt = idf.get(term);
 			
 			float f = (float)Math.log(totalItems / (double)cnt.floatValue());
 			
-			df.put(term, f);
+			idf.put(term, f);
 		}
-		
+		idf.put("_NEW_TERM_", (float)Math.log(totalItems));
     	
+		
 		// For each item, create the tfidf representation and persist it
 		rawProfilesFile = s3.getObject(bucketName, RAW_PROFILES_FILENAME);
 		reader = new BufferedReader(new InputStreamReader(rawProfilesFile.getObjectContent()));
@@ -176,28 +179,13 @@ public class SemanticModel extends Model {
 			topFields[0] = topFields[0].replaceAll("\"", "");
 			String itemName = topFields[0];
 			topFields[1] = removeSpecialChars(topFields[1]);
-			String[] fields = topFields[1].split(" ");
 			
-			HashMap<String, Float> hm = new HashMap<String, Float>();
-			for (int i = 0; i < fields.length; i ++) {
-				Float cnt = hm.get(fields[i]);
-				if (cnt == null) {
-					hm.put(fields[i], 1.0f);
-				}
-				else {
-					hm.put(fields[i], cnt + 1.0f);
-				}
-			}
+			HashMap<String, Float> hm = createTfIdf(topFields[1], idf);
 			
-			keys = hm.keySet();
 			StringBuffer sb = new StringBuffer();
 			sb.append(itemName);
-			for (String term : keys) {
-				Float cnt = df.get(term);
-				
-				float f = cnt / (float)fields.length;
-				
-				sb.append(";"); sb.append(term); sb.append(";"); sb.append(f);
+			for (Map.Entry<String, Float> me : hm.entrySet()) {
+				sb.append(";"); sb.append(me.getKey()); sb.append(";"); sb.append(me.getValue());
 			}
 			sb.append(newline);
 			out.write(sb.toString());
@@ -205,7 +193,6 @@ public class SemanticModel extends Model {
 		}
 		reader.close();
 		out.close();
-		df = null;
 		
 		
 		// Now copy the local tfidf file to S3
@@ -214,49 +201,81 @@ public class SemanticModel extends Model {
     	s3.putObject(r);
     	localTfidfFile.delete();
     	
+    	
+    	// Persist the idf file
+    	File localIdfFile = new File(IDF_FILENAME);
+    	out = new BufferedWriter(new FileWriter(localIdfFile));
+    	StringBuffer sb = new StringBuffer();
+    	for (Map.Entry<String, Float> me : idf.entrySet()) {
+    		sb.append(me.getKey()); sb.append(";"); sb.append(me.getValue()); sb.append(newline);
+    	}
+    	out.write(sb.toString());
+    	out.flush();
+    	out.close();
+    	
+    	// Now copy the local tfidf file to S3
+    	r = new PutObjectRequest(bucketName, IDF_FILENAME, localIdfFile);
+    	r.setStorageClass(StorageClass.ReducedRedundancy);
+    	s3.putObject(r);
+    	localIdfFile.delete();
+	}
+	
+	private HashMap<String, Float> createTfIdf(String rawProfile, HashMap<String, Float> idf) {
+		
+		String[] fields = rawProfile.split(" ");
+		
+		HashMap<String, Float> hm = new HashMap<String, Float>();
+		for (int i = 0; i < fields.length; i ++) {
+			Float cnt = hm.get(fields[i]);
+			if (cnt == null) {
+				hm.put(fields[i], 1.0f);
+			}
+			else {
+				hm.put(fields[i], cnt + 1.0f);
+			}
+		}
+	
+		Set<String> keys = hm.keySet();
+		for (String term : keys) {
+			Float v = idf.get(term);
+			float idfValue = v == null ? idf.get("_NEW_TERM_").floatValue() : v.floatValue();
+			
+			float tf = hm.get(term).floatValue() / (float)fields.length;
+			
+			float tfidf = tf * idfValue;
+			
+			hm.put(term, tfidf);
+		}
+		
+		return hm;
 	}
 	
 	protected void mergeSufficientStatistics(String bucketName, String mergedStatsFilename, String tenantID) throws Exception {
 		// Nothing for now, this is not MapReducable for the moment
 	}
 	
-	protected void estimateModelParameters(String bucketName, String filename, String tenantID) throws Exception {
-		// Compute cosine similarity for each pair of items and persist the top-N both in S3 and in SimpleDB
-		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
-				SemanticModel.class.getResourceAsStream(AWS_CREDENTIALS)));
-		List<HashMap<String, Float>> vectors = new ArrayList<HashMap<String, Float>>();
+	/*
+	 *  Compute cosine similarity for each pair of items and persist the top-N both in S3 and in SimpleDB
+	 */
+	private void estimateModelParameters(List<HashMap<String, Float>> vectors, HashMap<Integer, String> itemNames, int k, 
+			String bucketName, String filename, String tenantID) throws Exception {
+		
+		// First compute the denominators
 		List<Double> denom = new ArrayList<Double>();
-		HashMap<Integer, String> itemNames = new HashMap<Integer, String>();
-		S3Object tfidfFile = s3.getObject(bucketName, filename);
-		BufferedReader reader = new BufferedReader(new InputStreamReader(tfidfFile.getObjectContent()));
-		int k = 0;
-		String line = null;
-		while ((line = reader.readLine()) != null) {
-			String[] fields = line.split(";");
-			
-			itemNames.put(k, fields[0]);
-			HashMap<String, Float> hm = new HashMap<String, Float>();
+		for (HashMap<String, Float> hm : vectors) {
 			double d = 0.0;
-			for (int i = 1; i < fields.length; i = i + 2) {
-				float f = Float.parseFloat(fields[i+1]);
-				hm.put(fields[i], f);
-				
+			for (Float f : hm.values()) {
 				d += f * f;
 			}
 			denom.add(Math.sqrt(d));
-			vectors.add(hm);
-			
-			k ++;
 		}
-		reader.close();
 		
-		
-		
+		// Now compute the cosine similarity
 		String associationsFilename = ASSOCIATIONS_FILENAME + tenantID;
 		File localAssociationsFile = new File(associationsFilename);
 		BufferedWriter out = new BufferedWriter(new FileWriter(localAssociationsFile));
-		for (int i = 0; i < vectors.size(); i ++) {
-			if (i % 1000 == 0) {
+		for (int i = 0; i < k; i ++) {
+			if ((i+1) % 1000 == 0) {
 				logger.info("Processed " + i + " items");
 			}
 			List<AttributeObject> topN = new ArrayList<AttributeObject>();
@@ -311,14 +330,44 @@ public class SemanticModel extends Model {
 		}
 		out.close();
 		
-		
+		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
+				SemanticModel.class.getResourceAsStream(AWS_CREDENTIALS)));
 		PutObjectRequest r = new PutObjectRequest(bucketName, associationsFilename, localAssociationsFile);
     	r.setStorageClass(StorageClass.ReducedRedundancy);
     	s3.putObject(r);
     	localAssociationsFile.delete();
-		
+    	
     	// Load into domain
     	loadFromS3File2Domain(bucketName, associationsFilename, getBackupModelDomainName(getDomainBasename(), tenantID));
+	}
+	
+	protected void estimateModelParameters(String bucketName, String filename, String tenantID) throws Exception {
+		
+		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
+				SemanticModel.class.getResourceAsStream(AWS_CREDENTIALS)));
+		List<HashMap<String, Float>> vectors = new ArrayList<HashMap<String, Float>>();
+		HashMap<Integer, String> itemNames = new HashMap<Integer, String>();
+		S3Object tfidfFile = s3.getObject(bucketName, filename);
+		BufferedReader reader = new BufferedReader(new InputStreamReader(tfidfFile.getObjectContent()));
+		int k = 0;
+		String line = null;
+		while ((line = reader.readLine()) != null) {
+			String[] fields = line.split(";");
+			
+			itemNames.put(k, fields[0]);
+			HashMap<String, Float> hm = new HashMap<String, Float>();
+			for (int i = 1; i < fields.length; i = i + 2) {
+				float f = Float.parseFloat(fields[i+1]);
+				hm.put(fields[i], f);
+			}
+			vectors.add(hm);
+			
+			k ++;
+		}
+		reader.close();
+		
+		
+		estimateModelParameters(vectors, itemNames, vectors.size(), bucketName, filename, tenantID);
 	}
 
 	public List<Catalog.Products.Product> getRecommendedProductsInternal(List<String> productIDs, String tenantID, Filter filter) throws Exception {
@@ -541,16 +590,181 @@ public class SemanticModel extends Model {
     		throw new Exception();
     	}
     }
-	
+	/* 
+	 * This is used to incrementally update the model. Reduces calculations from N^2 to N. Valid only for small changes (insertions / deletions) 
+	 * of catalog
+	 */
 	public void updateModel(String tenantID) throws Exception {
-		// Determine the items that will be removed
 		
-		// Create the raw data for the new items
+		List<Catalog.Products.Product> newProducts = catalog.getAllProducts("", tenantID);
 		
-		// Create the tfidf representation for the new items and persist them
+		List<HashMap<String, Float>> vectors = new ArrayList<HashMap<String, Float>>();
+		HashMap<Integer, String> itemNames = new HashMap<Integer, String>();
 		
-		// Compute cosine similarity for the new items only and delete the similarities of deleted items
+		// Load the old tfidf file in memory
+		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
+				SemanticModel.class.getResourceAsStream(AWS_CREDENTIALS)));
+		String oldTfidfFilename = TFIDF_FILENAME;
+		S3Object olfTfIdfFile = s3.getObject(getStatsBucketName(tenantID), oldTfidfFilename);
+		BufferedReader reader = new BufferedReader(new InputStreamReader(olfTfIdfFile.getObjectContent()));
+		String line = null;
+		HashMap<String, HashMap<String, Float>> oldProfiles = new HashMap<String, HashMap<String, Float>>();
+		while ((line = reader.readLine()) != null) {
+			String[] fields = line.split(";");
+			HashMap<String, Float> hm = new HashMap<String, Float>();
+			for (int i = 1; i < fields.length; i = i + 2) {
+				String item = fields[i];
+				Float value = Float.parseFloat(fields[i+1]);
+				
+				hm.put(item, value);
+			}
+			oldProfiles.put(fields[0], hm);
+		}
+		reader.close();
+		int numberOfOriginalProducts = oldProfiles.size();
 		
+		
+		// Load the old idf in memory
+		HashMap<String, Float> idf = new HashMap<String, Float>();
+		String idfFilename = IDF_FILENAME;
+		S3Object oldIdfFile = s3.getObject(getStatsBucketName(tenantID), idfFilename);
+		reader = new BufferedReader(new InputStreamReader(oldIdfFile.getObjectContent()));
+		while ((line = reader.readLine()) != null) {
+			String[] fields = line.split(";");
+			String oldProductId = fields[0];
+			float value = Float.parseFloat(fields[1]);
+			
+			idf.put(oldProductId, value);
+		}
+		reader.close();
+		
+		// Find the new items
+		int indx = 0;
+		HashSet<String> newProductsId = new HashSet<String>();
+		for (Catalog.Products.Product newProduct : newProducts) {
+			newProductsId.add(newProduct.getUid());
+			if (!oldProfiles.containsKey(newProduct.getUid())) {
+				vectors.add(createTfIdf(newProduct.getDescription(), idf));
+				itemNames.put(indx, newProduct.getUid());
+				
+				indx ++;
+			}
+		}
+		int numberOfNewItems = indx;
+		
+		
+		// Determine the items that will be deleted
+		HashSet<String> deletedProducts = new HashSet<String>();
+		Set<String> keys = oldProfiles.keySet();
+		for (String oldProductId : keys) {
+			if (!newProductsId.contains(oldProductId)) {
+				
+				oldProfiles.remove(oldProductId);
+				
+				deletedProducts.add(oldProductId);
+			}
+		}
+		
+		int numDiffProducts = numberOfNewItems + deletedProducts.size();
+		if (((float)numDiffProducts / (float)numberOfOriginalProducts) > 0.05f) {
+			logger.warn("Too big of a change between incremental updates of semantic model...skipping update");
+			throw new Exception();
+		}
+		
+		indx = vectors.size();
+		keys = oldProfiles.keySet();
+		for (String key : keys) {
+			vectors.add(oldProfiles.get(key));
+			itemNames.put(indx, key);
+			oldProfiles.remove(key);
+			
+			indx ++;
+		}
+		
+		// Now compute the cosine similarity between newProfiles <-> oldProfiles
+		estimateModelParameters(vectors, itemNames, numberOfNewItems, getStatsBucketName(tenantID), INCREMENTAL_ASSOCIATIONS_FILENAME, tenantID);
+		HashMap<String, HashMap<String, Float>> newAssociations = new HashMap<String, HashMap<String, Float>>();
+		S3Object incrementalAssociationsFile = s3.getObject(getStatsBucketName(tenantID), INCREMENTAL_ASSOCIATIONS_FILENAME);
+		reader = new BufferedReader(new InputStreamReader(incrementalAssociationsFile.getObjectContent()));
+		while ((line = reader.readLine()) != null) {
+			String[] fields = line.split(";");
+			
+			String productID = fields[0];
+			HashMap<String, Float> hm = new HashMap<String, Float>();
+			for (int i = 1; i < fields.length; i = i + 2) {
+				String targetProductId = fields[i];
+				float value = Float.parseFloat(fields[i+1]);
+				
+				hm.put(targetProductId, value);
+			}
+			newAssociations.put(productID, hm);
+		}
+		reader.close();
+		
+		
+		// Delete from the old associations file the deleted items and merge with new ones
+		File localAssociationsFile = new File(ASSOCIATIONS_FILENAME);
+		BufferedWriter out = new BufferedWriter(new FileWriter(localAssociationsFile));
+		S3Object oldAssociationsFile = s3.getObject(getStatsBucketName(tenantID), ASSOCIATIONS_FILENAME);
+		reader = new BufferedReader(new InputStreamReader(oldAssociationsFile.getObjectContent()));
+		while ((line = reader.readLine()) != null) {
+			String[] fields = line.split(";");
+			
+			String productID = fields[0];
+			if (deletedProducts.contains(productID)) {
+				continue;
+			}
+			
+			List<AttributeObject> rankedList = new ArrayList<AttributeObject>();
+			for (int i = 1; i < fields.length; i = i + 2) {
+				String targetProductId = fields[i];
+				float value = Float.parseFloat(fields[i+1]);
+				
+				if (deletedProducts.contains(targetProductId)) {
+					continue;
+				}
+				
+				rankedList.add(new AttributeObject(targetProductId, value));
+			}
+			HashMap<String, Float> hm = newAssociations.get(productID);
+			if (hm != null && hm.size() > 0) {
+				for (Map.Entry<String, Float> me : hm.entrySet()) {
+					rankedList.add(new AttributeObject(me.getKey(), me.getValue()));
+				}
+				Collections.sort(rankedList);
+				if (rankedList.size() > this.topCorrelations) {
+					rankedList = rankedList.subList(0, this.topCorrelations);
+				}
+			}
+			
+			
+			StringBuffer sb = new StringBuffer();
+			sb.append(productID);
+			for (AttributeObject attObject : rankedList) {
+				sb.append(";"); sb.append(attObject.getUID()); sb.append(";"); sb.append(attObject.getScore());
+			}
+			sb.append(newline);
+			
+			out.write(sb.toString());
+			out.flush();
+		}
+		reader.close();
+		out.close();
+		
+		// Now copy the local associations file to S3
+    	PutObjectRequest r = new PutObjectRequest(getStatsBucketName(tenantID), ASSOCIATIONS_FILENAME, localAssociationsFile);
+    	r.setStorageClass(StorageClass.ReducedRedundancy);
+    	s3.putObject(r);
+    	localAssociationsFile.delete();
+    	
+		// Load into domain
+    	loadFromS3File2Domain(getStatsBucketName(tenantID), ASSOCIATIONS_FILENAME, getBackupModelDomainName(getDomainBasename(), tenantID));
+    	
+		// Write the new tfidf file
+		
+		// Write the new idf file
+    	
 		// Swap models
+    	swapModelDomainNames(getDomainBasename(), tenantID);
 	}
 }
