@@ -398,15 +398,9 @@ public class CatalogDAOImpl implements CatalogDAO {
 		// First, unmarshall the catalog
 		Catalog catalog = unmarshallCatalog(bucket, filename);
 		
-		AmazonSimpleDB sdb = null;
-    	try {
-    		sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
-    				CatalogDAOImpl.class.getResourceAsStream(AWS_CREDENTIALS)));
-    	}
-    	catch (IOException ex) {
-    		logger.error("Cannot initiate SimpleDB client");
-    		throw new IOException();
-    	}
+		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
+				CatalogDAOImpl.class.getResourceAsStream(AWS_CREDENTIALS)));
+    	
         String catalogDomain = getCatalogName(catalogID, tenantID);
         
 		// Insert catalog items
@@ -548,28 +542,36 @@ public class CatalogDAOImpl implements CatalogDAO {
     	}
 	}
 	
-	public Catalog.Products.Product getProductByID(String productID, String catalogID, String tenantID) throws Exception {
-		AmazonSimpleDB sdb = null;
-    	try {
-    		sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
-    				CatalogDAOImpl.class.getResourceAsStream(AWS_CREDENTIALS)));
-    	}
-    	catch (IOException ex) {
-    		logger.error("Cannot initiate SimpleDB client");
-    		throw new Exception();
-    	}
+	public boolean doesProductExist(String productID, String catalogID, String tenantID)  throws Exception {
+		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
+				CatalogDAOImpl.class.getResourceAsStream(AWS_CREDENTIALS)));
+		
 		String catalogDomain = getCatalogName(catalogID, tenantID);
 		GetAttributesRequest request = new GetAttributesRequest();
 		request.setDomainName(catalogDomain);
 		request.setItemName(productID);
 		GetAttributesResult result = sdb.getAttributes(request);
 		
+		return result.getAttributes().size() == 0 ? false : true;
+	}
+	
+	public Catalog.Products.Product getProductByID(String productID, String catalogID, String tenantID) throws Exception {
+		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
+				CatalogDAOImpl.class.getResourceAsStream(AWS_CREDENTIALS)));
+		
+		String catalogDomain = getCatalogName(catalogID, tenantID);
+		GetAttributesRequest request = new GetAttributesRequest();
+		request.setDomainName(catalogDomain);
+		request.setItemName(productID);
+		GetAttributesResult result = sdb.getAttributes(request);
+		if (result.getAttributes().size() == 0) {
+			return null;
+		}
+		
         Catalog.Products.Product product = new Catalog.Products.Product();
+        product.setUid(productID);
         for (Attribute attribute : result.getAttributes()) {
-        	if (attribute.getName().equals(UID_STRING)) {
-        		product.setUid(attribute.getValue());
-        	}
-        	else if (attribute.getName().equals(NAME_STRING)) {
+        	if (attribute.getName().equals(NAME_STRING)) {
         		product.setName(attribute.getValue());
         	}
         	else if (attribute.getName().equals(LINK_STRING)) {
@@ -718,7 +720,76 @@ public class CatalogDAOImpl implements CatalogDAO {
 	}
 	
 	public void addProduct(Catalog.Products.Product product, String catalogID, String tenantID) throws Exception {
+		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
+				CatalogDAOImpl.class.getResourceAsStream(AWS_CREDENTIALS)));
 		
-        
+		List<ReplaceableAttribute> attributes = new ArrayList<ReplaceableAttribute>();
+		ReplaceableAttribute attributeUID = new ReplaceableAttribute(UID_STRING, product.getUid(), true);
+		attributes.add(attributeUID);
+		if (product.getName() != null) {
+			ReplaceableAttribute attributeName = new ReplaceableAttribute(NAME_STRING, product.getName(), true);
+			attributes.add(attributeName);
+		}
+		if (product.getLink() != null) {
+			ReplaceableAttribute attributeLink = new ReplaceableAttribute(LINK_STRING, product.getLink(), true);
+			attributes.add(attributeLink);
+		}
+		if (product.getImage() != null) {
+			ReplaceableAttribute attributeImage = new ReplaceableAttribute(IMAGE_STRING, product.getImage(), true);
+			attributes.add(attributeImage);
+		}
+		if (product.getPrice() != null) {
+			ReplaceableAttribute attributePrice = new ReplaceableAttribute(LINK_STRING, product.getPrice().toString(), true);
+			attributes.add(attributePrice);
+		}
+		if (product.getCategory() != null) {
+			ReplaceableAttribute attributeCategory = new ReplaceableAttribute(CATEGORY_STRING, product.getCategory(), true);
+			attributes.add(attributeCategory);
+		}
+		if (product.getCategoryId() != null) {
+			ReplaceableAttribute attributeCategoryId = new ReplaceableAttribute(CATEGORYID_STRING, product.getCategoryId().toString(), true);
+			attributes.add(attributeCategoryId);
+		}
+		if (product.getDescription() != null) {
+			ReplaceableAttribute attributeDescription = new ReplaceableAttribute(DESCRIPTION_STRING, product.getDescription(), true);
+			attributes.add(attributeDescription);
+		}
+		if (product.getWeight() != null) {
+			ReplaceableAttribute attributeWeight = new ReplaceableAttribute(WEIGHT_STRING, product.getWeight().toString(), true);
+			attributes.add(attributeWeight);
+		}
+		if (product.getManufacturer() != null) {
+			ReplaceableAttribute attributeManufacturer = new ReplaceableAttribute(MANUFACTURER_STRING, product.getManufacturer(), true);
+			attributes.add(attributeManufacturer);
+		}
+		if (product.getMpn() != null) {
+			ReplaceableAttribute attributeMpn = new ReplaceableAttribute(MPN_STRING, product.getMpn(), true);
+			attributes.add(attributeMpn);
+		}
+		if (product.getShipping() != null) {
+			ReplaceableAttribute attributeShipping = new ReplaceableAttribute(SHIPPING_STRING, product.getShipping().toString(), true);
+			attributes.add(attributeShipping);
+		}
+		if (product.getAvailability() != null) {
+			ReplaceableAttribute attributeAvailability = new ReplaceableAttribute(AVAILABILITY_STRING, product.getAvailability(), true);
+			attributes.add(attributeAvailability);
+		}
+		if (product.getInstock() != null) {
+			ReplaceableAttribute attributeInstock = new ReplaceableAttribute(INSTOCK_STRING, product.getInstock(), true);
+			attributes.add(attributeInstock);
+		}
+		if (product.getIsbn() != null) {
+			ReplaceableAttribute attributeIsbn = new ReplaceableAttribute(ISBN_STRING, product.getIsbn(), true);
+			attributes.add(attributeIsbn);
+		}
+		
+		
+		ReplaceableItem item = new ReplaceableItem();
+		item.setName(product.getUid());
+		item.setAttributes(attributes);
+		List<ReplaceableItem> items = new ArrayList<ReplaceableItem>();
+		items.add(item);
+		
+		writeSimpleDB(sdb, getCatalogName(catalogID, tenantID), items);
 	}
 }

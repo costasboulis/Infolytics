@@ -18,6 +18,10 @@ public class DummyCatalog implements CatalogDAO {
 		return product;
 	}
 	
+	public boolean doesProductExist(String productID, String catalogID, String tenantID)  throws Exception {
+		return true;
+	}
+	
 	public void deleteProduct(String productID, String catalogID, String tenantID) throws Exception {
 		
 	}

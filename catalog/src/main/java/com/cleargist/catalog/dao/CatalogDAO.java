@@ -32,6 +32,8 @@ public interface CatalogDAO {
 	NumberDomainAttributesExceededException, NumberItemAttributesExceededException, NoSuchDomainException, 
 	AmazonServiceException, AmazonClientException, IOException, Exception;
 	
+	public boolean doesProductExist(String productID, String catalogID, String tenantID)  throws Exception;
+	
 	public Catalog.Products.Product getProductByID(String productID, String catalogID, String tenantID) throws Exception;
 	
 	public List<Catalog.Products.Product> getAllProducts(String catalogID, String tenantID) throws Exception;
