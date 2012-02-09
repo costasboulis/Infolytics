@@ -32,14 +32,15 @@ public class SemanticModelTest {
 	public void loadCatalog() throws Exception {
 		createXMLCatalog();
 		CatalogDAO catalog = new CatalogDAOImpl();
-		catalog.insertCatalog("cleargist", "recipesTexts.xml", "", "test");
+		catalog.insertCatalog("cleargist", "recipesTextsSample.xml", "", "test");
 	}
 	
 	public void createXMLCatalog() throws Exception {
 		
 		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
 				SemanticModelTest.class.getResourceAsStream(AWS_CREDENTIALS)));
-		S3Object rawProfilesFile = s3.getObject("sintagespareas", "recipesTexts.txt");
+//		S3Object rawProfilesFile = s3.getObject("sintagespareas", "recipesTexts.txt");
+		S3Object rawProfilesFile = s3.getObject("cleargist", "recipesTextsSample.txt");
 		BufferedReader reader = new BufferedReader(new InputStreamReader(rawProfilesFile.getObjectContent()));
 		String line = null;
 		
@@ -64,13 +65,14 @@ public class SemanticModelTest {
 			product.setImage(topFields[0]);
 			product.setPrice(new BigDecimal(0.0f));
 			product.setCategory("FOOD");
-			product.setDescription(topFields[1]);
+			String choppedDescription = topFields[1].length() > 200 ? topFields[1].substring(0, 200) : topFields[1];
+			product.setDescription(choppedDescription);
 			
 			productList.add(product);
 		}
 		reader.close();
 		
-		catalogWriter.marshallCatalog(catalog, "cleargist", "catalog.xsd", "cleargist", "recipesTexts.xml", "test");
+		catalogWriter.marshallCatalog(catalog, "cleargist", "catalog.xsd", "cleargist", "recipesTextsSample.xml", "test");
 	}
 	
 	@After
@@ -85,6 +87,17 @@ public class SemanticModelTest {
 				SemanticModelTest.class.getResourceAsStream(AWS_CREDENTIALS)));
 		
 		String bucketName = "profilessemanticmodeltest";
+		if (s3.doesBucketExist(bucketName)) {
+			List<S3ObjectSummary> objSummaries = s3.listObjects(bucketName).getObjectSummaries();
+			int i = 0;
+	    	while (i < objSummaries.size()) {
+	    		s3.deleteObject(bucketName, objSummaries.get(i).getKey());
+	    		i ++;
+	    	}
+	    	s3.deleteBucket(bucketName);
+		}
+		
+		bucketName = "tmpstatssemantictest";
 		if (s3.doesBucketExist(bucketName)) {
 			List<S3ObjectSummary> objSummaries = s3.listObjects(bucketName).getObjectSummaries();
 			int i = 0;

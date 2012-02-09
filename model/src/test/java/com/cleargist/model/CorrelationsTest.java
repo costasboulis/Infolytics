@@ -316,8 +316,8 @@ public class CorrelationsTest {
 	
 	@Test
 	public void testMerging() {
-		String filename = "smallSintagesPareasProfiles.csv";
-//		String filename = "fewProfiles.txt";
+//		String filename = "smallSintagesPareasProfiles.csv";
+		String filename = "fewProfiles.txt";
 		String profiles = System.getProperty("user.dir") + File.separator + "src" + File.separator + "test" + File.separator 
 		+ "resources" + File.separator + filename;
 		try {

@@ -11,7 +11,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -60,8 +59,7 @@ public class SemanticModel extends Model {
 	private static final String INCREMENTAL_ASSOCIATIONS_FILENAME = "incremental_semantic_associations_";
 	private static final float THRESHOLD = 0.01f;
 	private int topCorrelations;
-	public static String newline = System.getProperty("line.separator");
-	protected static final Locale locale = new Locale("el", "GR"); 
+	public static String newline = System.getProperty("line.separator"); 
 	private Logger logger = Logger.getLogger(getClass());
 	private CatalogDAO catalog;
 	
@@ -79,24 +77,6 @@ public class SemanticModel extends Model {
 	
 	public void setTopCorrelations(int n) {
 		this.topCorrelations = n > 0 ? n : 10;
-	}
-
-	private String removeSpecialChars(String in) {
-		String out = in.replaceAll("\\d+\\.\\d+", "NUMBER");
-		out = out.replaceAll("\\d+", "NUMBER");
-		out = out.toLowerCase(locale);
-		out = out.replaceAll("[\\.,\\(\\)\\?;!:\\[\\]\\{\\}\"%&\\*'\\+/>-]", "");
-		out = out.replace('ά', 'α');
-		out = out.replace('ό', 'ο');
-		out = out.replace('ή', 'η');
-		out = out.replace('ώ', 'ω');
-		out = out.replace('ύ', 'υ');
-		out = out.replace('έ', 'ε');
-		out = out.replace('ί', 'ι');
-		out = out.replaceAll("\\s+", " ");
-		out = out.trim();
-		
-		return out;
 	}
 	
 	protected void calculateSufficientStatistics(String bucketName, String baseFilename, String tenantID) throws Exception {
@@ -133,7 +113,7 @@ public class SemanticModel extends Model {
 				continue;
 			}
 			topFields[1] = topFields[1].replaceAll("\"", "");
-			topFields[1] = removeSpecialChars(topFields[1]);
+//			topFields[1] = removeSpecialChars(topFields[1]);
 			String[] fields = topFields[1].split(" ");
 			
 			HashSet<String> uniqueTerms = new HashSet<String>();
@@ -178,7 +158,7 @@ public class SemanticModel extends Model {
 			}
 			topFields[0] = topFields[0].replaceAll("\"", "");
 			String itemName = topFields[0];
-			topFields[1] = removeSpecialChars(topFields[1]);
+//			topFields[1] = removeSpecialChars(topFields[1]);
 			
 			HashMap<String, Float> hm = createTfIdf(topFields[1], idf);
 			
@@ -213,7 +193,7 @@ public class SemanticModel extends Model {
     	out.flush();
     	out.close();
     	
-    	// Now copy the local tfidf file to S3
+    	// Now copy the local idf file to S3
     	r = new PutObjectRequest(bucketName, IDF_FILENAME, localIdfFile);
     	r.setStorageClass(StorageClass.ReducedRedundancy);
     	s3.putObject(r);
@@ -251,7 +231,10 @@ public class SemanticModel extends Model {
 	}
 	
 	protected void mergeSufficientStatistics(String bucketName, String mergedStatsFilename, String tenantID) throws Exception {
-		// Nothing for now, this is not MapReducable for the moment
+		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
+				SemanticModel.class.getResourceAsStream(AWS_CREDENTIALS)));
+		String tfidfBucket = getStatsBucketName(tenantID);
+		s3.copyObject(tfidfBucket, TFIDF_FILENAME, bucketName, mergedStatsFilename);
 	}
 	
 	/*
