@@ -2,7 +2,11 @@ package com.cleargist.profile;
 
 
 
-import java.io.IOException;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -46,19 +50,59 @@ public abstract class ProfileProcessor {
 	private Logger logger = Logger.getLogger(getClass());
 	
 	protected List<List<Item>> getDataSinceLastUpdate(String tenantID) throws Exception {
-		AmazonSimpleDB sdb = null;
-    	try {
-    		sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
-    				ProfileProcessor.class.getResourceAsStream(AWS_CREDENTIALS)));
-    	}
-    	catch (IOException ex) {
-    		String errorMessage = "Cannot connect to Amazon SimpleDB, check credentials";
-    		logger.error(errorMessage);
-    		throw new Exception();
-    	}
+		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
+				ProfileProcessor.class.getResourceAsStream(AWS_CREDENTIALS)));
+    	
     	SimpleDateFormat formatter = new SimpleDateFormat(DATE_PATTERN);
     	
 		// Retrieve the date of the last profile update
+    	Connection conn = null;
+    	Statement stmt = null;
+    	ResultSet rs = null;
+    	try {
+    	    conn =
+    	       DriverManager.getConnection("jdbc:mysql://176.34.191.239:3306/sample",
+    	                                   "root", "");
+
+    	    stmt = conn.createStatement();
+    	    rs = stmt.executeQuery("SELECT * FROM example_timestamp");
+    	    while (rs.next()) {
+    	    	String message = rs.getString(2);
+        	    Date date = rs.getDate(3);
+    	    }
+    	    
+
+    	   
+    	} catch (SQLException ex) {
+    	    // handle any errors
+    	    logger.error("SQLException: " + ex.getMessage());
+    	    logger.error("SQLState: " + ex.getSQLState());
+    	    logger.error("VendorError: " + ex.getErrorCode());
+    	}
+    	finally {
+    	    // it is a good idea to release
+    	    // resources in a finally{} block
+    	    // in reverse-order of their creation
+    	    // if they are no-longer needed
+
+    	    if (rs != null) {
+    	        try {
+    	            rs.close();
+    	        } catch (SQLException sqlEx) { } // ignore
+
+    	        rs = null;
+    	    }
+
+    	    if (stmt != null) {
+    	        try {
+    	            stmt.close();
+    	        } catch (SQLException sqlEx) { } // ignore
+
+    	        stmt = null;
+    	    }
+    	}
+    	
+    	// dummy last update
     	Calendar lastUpdate = Calendar.getInstance();
     	lastUpdate.set(2012, 0, 6, 16, 56, 20);       // Last update, retrieve this from tenant profile
 		

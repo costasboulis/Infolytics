@@ -1,0 +1,84 @@
+<classpath>
+  <classpathentry kind="src" path="src/main/java" including="**/*.java"/>
+  <classpathentry kind="src" path="src/main/resources" excluding="**/*.java"/>
+  <classpathentry kind="output" path="target/classes"/>
+  <classpathentry kind="var" path="M2_REPO/javax/activation/activation/1.1/activation-1.1.jar" sourcepath="M2_REPO/javax/activation/activation/1.1/activation-1.1-sources.jar"/>
+  <classpathentry kind="var" path="M2_REPO/javax/xml/bind/jaxb-api/2.2.2/jaxb-api-2.2.2.jar" sourcepath="M2_REPO/javax/xml/bind/jaxb-api/2.2.2/jaxb-api-2.2.2-sources.jar">
+    <attributes>
+      <attribute value="jar:file:/C:/Users/kboulis/.m2/repository/javax/xml/bind/jaxb-api/2.2.2/jaxb-api-2.2.2-javadoc.jar!/" name="javadoc_location"/>
+    </attributes>
+  </classpathentry>
+  <classpathentry kind="var" path="M2_REPO/javax/mail/mail/1.4.5-SNAPSHOT/mail-1.4.5-SNAPSHOT.jar" sourcepath="M2_REPO/javax/mail/mail/1.4.5-SNAPSHOT/mail-1.4.5-SNAPSHOT-sources.jar"/>
+  <classpathentry kind="var" path="M2_REPO/javax/xml/stream/stax-api/1.0-2/stax-api-1.0-2.jar" sourcepath="M2_REPO/javax/xml/stream/stax-api/1.0-2/stax-api-1.0-2-sources.jar"/>
+  <classpathentry kind="var" path="M2_REPO/asm/asm/3.1/asm-3.1.jar"/>
+  <classpathentry kind="var" path="M2_REPO/com/amazonaws/aws-java-sdk/1.2.12/aws-java-sdk-1.2.12.jar" sourcepath="M2_REPO/com/amazonaws/aws-java-sdk/1.2.12/aws-java-sdk-1.2.12-sources.jar">
+    <attributes>
+      <attribute value="jar:file:/C:/Users/kboulis/.m2/repository/com/amazonaws/aws-java-sdk/1.2.12/aws-java-sdk-1.2.12-javadoc.jar!/" name="javadoc_location"/>
+    </attributes>
+  </classpathentry>
+  <classpathentry kind="var" path="M2_REPO/commons-codec/commons-codec/1.3/commons-codec-1.3.jar" sourcepath="M2_REPO/commons-codec/commons-codec/1.3/commons-codec-1.3-sources.jar">
+    <attributes>
+      <attribute value="jar:file:/C:/Users/kboulis/.m2/repository/commons-codec/commons-codec/1.3/commons-codec-1.3-javadoc.jar!/" name="javadoc_location"/>
+    </attributes>
+  </classpathentry>
+  <classpathentry kind="var" path="M2_REPO/commons-logging/commons-logging/1.1.1/commons-logging-1.1.1.jar" sourcepath="M2_REPO/commons-logging/commons-logging/1.1.1/commons-logging-1.1.1-sources.jar">
+    <attributes>
+      <attribute value="jar:file:/C:/Users/kboulis/.m2/repository/commons-logging/commons-logging/1.1.1/commons-logging-1.1.1-javadoc.jar!/" name="javadoc_location"/>
+    </attributes>
+  </classpathentry>
+  <classpathentry kind="var" path="M2_REPO/org/glassfish/api/dtds/9.0.2/dtds-9.0.2-resources.jar"/>
+  <classpathentry kind="var" path="M2_REPO/org/glassfish/embedded/gf-embedded-api/1.0-alpha-4/gf-embedded-api-1.0-alpha-4.jar" sourcepath="M2_REPO/org/glassfish/embedded/gf-embedded-api/1.0-alpha-4/gf-embedded-api-1.0-alpha-4-sources.jar">
+    <attributes>
+      <attribute value="jar:file:/C:/Users/kboulis/.m2/repository/org/glassfish/embedded/gf-embedded-api/1.0-alpha-4/gf-embedded-api-1.0-alpha-4-javadoc.jar!/" name="javadoc_location"/>
+    </attributes>
+  </classpathentry>
+  <classpathentry kind="var" path="M2_REPO/org/hamcrest/hamcrest-core/1.1/hamcrest-core-1.1.jar" sourcepath="M2_REPO/org/hamcrest/hamcrest-core/1.1/hamcrest-core-1.1-sources.jar"/>
+  <classpathentry kind="var" path="M2_REPO/org/apache/httpcomponents/httpclient/4.2-alpha1/httpclient-4.2-alpha1.jar" sourcepath="M2_REPO/org/apache/httpcomponents/httpclient/4.2-alpha1/httpclient-4.2-alpha1-sources.jar"/>
+  <classpathentry kind="var" path="M2_REPO/org/apache/httpcomponents/httpcore/4.2-alpha2/httpcore-4.2-alpha2.jar" sourcepath="M2_REPO/org/apache/httpcomponents/httpcore/4.2-alpha2/httpcore-4.2-alpha2-sources.jar"/>
+  <classpathentry kind="var" path="M2_REPO/org/codehaus/jackson/jackson-core-asl/1.7.1/jackson-core-asl-1.7.1.jar" sourcepath="M2_REPO/org/codehaus/jackson/jackson-core-asl/1.7.1/jackson-core-asl-1.7.1-sources.jar"/>
+  <classpathentry kind="var" path="M2_REPO/org/codehaus/jackson/jackson-jaxrs/1.7.1/jackson-jaxrs-1.7.1.jar" sourcepath="M2_REPO/org/codehaus/jackson/jackson-jaxrs/1.7.1/jackson-jaxrs-1.7.1-sources.jar"/>
+  <classpathentry kind="var" path="M2_REPO/org/codehaus/jackson/jackson-mapper-asl/1.7.1/jackson-mapper-asl-1.7.1.jar" sourcepath="M2_REPO/org/codehaus/jackson/jackson-mapper-asl/1.7.1/jackson-mapper-asl-1.7.1-sources.jar"/>
+  <classpathentry kind="var" path="M2_REPO/org/codehaus/jackson/jackson-xc/1.7.1/jackson-xc-1.7.1.jar" sourcepath="M2_REPO/org/codehaus/jackson/jackson-xc/1.7.1/jackson-xc-1.7.1-sources.jar"/>
+  <classpathentry kind="var" path="M2_REPO/com/sun/xml/bind/jaxb-impl/2.2.3-1/jaxb-impl-2.2.3-1.jar" sourcepath="M2_REPO/com/sun/xml/bind/jaxb-impl/2.2.3-1/jaxb-impl-2.2.3-1-sources.jar"/>
+  <classpathentry kind="var" path="M2_REPO/com/sun/jersey/jersey-client/1.8/jersey-client-1.8.jar" sourcepath="M2_REPO/com/sun/jersey/jersey-client/1.8/jersey-client-1.8-sources.jar">
+    <attributes>
+      <attribute value="jar:file:/C:/Users/kboulis/.m2/repository/com/sun/jersey/jersey-client/1.8/jersey-client-1.8-javadoc.jar!/" name="javadoc_location"/>
+    </attributes>
+  </classpathentry>
+  <classpathentry kind="var" path="M2_REPO/com/sun/jersey/jersey-core/1.8/jersey-core-1.8.jar" sourcepath="M2_REPO/com/sun/jersey/jersey-core/1.8/jersey-core-1.8-sources.jar">
+    <attributes>
+      <attribute value="jar:file:/C:/Users/kboulis/.m2/repository/com/sun/jersey/jersey-core/1.8/jersey-core-1.8-javadoc.jar!/" name="javadoc_location"/>
+    </attributes>
+  </classpathentry>
+  <classpathentry kind="var" path="M2_REPO/com/sun/jersey/jersey-json/1.8/jersey-json-1.8.jar" sourcepath="M2_REPO/com/sun/jersey/jersey-json/1.8/jersey-json-1.8-sources.jar">
+    <attributes>
+      <attribute value="jar:file:/C:/Users/kboulis/.m2/repository/com/sun/jersey/jersey-json/1.8/jersey-json-1.8-javadoc.jar!/" name="javadoc_location"/>
+    </attributes>
+  </classpathentry>
+  <classpathentry kind="var" path="M2_REPO/com/sun/jersey/jersey-server/1.8/jersey-server-1.8.jar" sourcepath="M2_REPO/com/sun/jersey/jersey-server/1.8/jersey-server-1.8-sources.jar">
+    <attributes>
+      <attribute value="jar:file:/C:/Users/kboulis/.m2/repository/com/sun/jersey/jersey-server/1.8/jersey-server-1.8-javadoc.jar!/" name="javadoc_location"/>
+    </attributes>
+  </classpathentry>
+  <classpathentry kind="var" path="M2_REPO/org/codehaus/jettison/jettison/1.1/jettison-1.1.jar" sourcepath="M2_REPO/org/codehaus/jettison/jettison/1.1/jettison-1.1-sources.jar">
+    <attributes>
+      <attribute value="jar:file:/C:/Users/kboulis/.m2/repository/org/codehaus/jettison/jettison/1.1/jettison-1.1-javadoc.jar!/" name="javadoc_location"/>
+    </attributes>
+  </classpathentry>
+  <classpathentry kind="var" path="M2_REPO/junit/junit/4.9/junit-4.9.jar" sourcepath="M2_REPO/junit/junit/4.9/junit-4.9-sources.jar">
+    <attributes>
+      <attribute value="jar:file:/C:/Users/kboulis/.m2/repository/junit/junit/4.9/junit-4.9-javadoc.jar!/" name="javadoc_location"/>
+    </attributes>
+  </classpathentry>
+  <classpathentry kind="var" path="M2_REPO/log4j/log4j/1.2.16/log4j-1.2.16.jar" sourcepath="M2_REPO/log4j/log4j/1.2.16/log4j-1.2.16-sources.jar">
+    <attributes>
+      <attribute value="jar:file:/C:/Users/kboulis/.m2/repository/log4j/log4j/1.2.16/log4j-1.2.16-javadoc.jar!/" name="javadoc_location"/>
+    </attributes>
+  </classpathentry>
+  <classpathentry kind="var" path="M2_REPO/org/jboss/netty/netty/3.2.0.Final/netty-3.2.0.Final.jar" sourcepath="M2_REPO/org/jboss/netty/netty/3.2.0.Final/netty-3.2.0.Final-sources.jar"/>
+  <classpathentry kind="var" path="M2_REPO/org/glassfish/api/schemas/9.0.2/schemas-9.0.2-resources.jar"/>
+  <classpathentry kind="var" path="M2_REPO/spy/spymemcached/2.7.3/spymemcached-2.7.3.jar"/>
+  <classpathentry kind="var" path="M2_REPO/stax/stax-api/1.0.1/stax-api-1.0.1.jar"/>
+  <classpathentry kind="var" path="M2_REPO/org/glassfish/distributions/web-all/10.0-build-20080430/web-all-10.0-build-20080430.jar"/>
+  <classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+</classpath>
