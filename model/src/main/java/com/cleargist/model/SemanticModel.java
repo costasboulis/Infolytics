@@ -50,7 +50,7 @@ import com.cleargist.catalog.dao.CatalogDAOImpl;
 import com.cleargist.catalog.entity.jaxb.Catalog;
 
 
-public class SemanticModel extends Model {
+public class SemanticModel extends BaseModel {
 	private static final String AWS_CREDENTIALS = "/AwsCredentials.properties";
 	private static final String RAW_PROFILES_FILENAME = "raw_profiles.txt";
 	private static final String TFIDF_FILENAME = "tfidf.txt";

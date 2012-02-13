@@ -55,7 +55,7 @@ import com.amazonaws.services.simpledb.model.SelectRequest;
 import com.amazonaws.services.simpledb.model.SelectResult;
 import com.cleargist.catalog.entity.jaxb.Catalog;
 
-public class CorrelationsModel extends Model {
+public class CorrelationsModel extends BaseModel {
 	private static final String AWS_CREDENTIALS = "/AwsCredentials.properties";
 	private static final float COOCCURRENCE_THRESHOLD = 2.0f;
 	private static final double CORRELATION_THRESHOLD = 0.05;

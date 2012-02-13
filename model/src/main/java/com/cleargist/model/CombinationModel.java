@@ -6,7 +6,7 @@ import java.util.List;
 
 import com.cleargist.catalog.entity.jaxb.Catalog;
 
-public class CombinationModel extends Model {
+public class CombinationModel extends BaseModel {
 	private int TOP_N_SEMANTIC = 300;
 	private int TOP_N_CORRELATIONS = 30;
 	private SemanticModel semanticModel;
