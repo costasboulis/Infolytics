@@ -173,7 +173,7 @@ public class CorrelationsModel extends BaseModel {
     	List<S3ObjectSummary> objSummaries = objectListing.getObjectSummaries();
     	
     	if (objSummaries.size() == 0) {
-    		logger.error("No stats files found for tenant " + tenantID + " in bucket " + statsBucketName);
+    		logger.warn("No stats files found for tenant " + tenantID + " in bucket " + statsBucketName);
     		return;
     	}
     	
@@ -485,6 +485,7 @@ public class CorrelationsModel extends BaseModel {
 		SelectRequest selectRequest = new SelectRequest(selectExpression);
 		int chunk = 1;
 		int profilesInChunk = 0;
+		boolean statsCreated =  false;
 		do {
 		    if (resultNextToken != null) {
 		    	selectRequest.setNextToken(resultNextToken);
@@ -506,6 +507,7 @@ public class CorrelationsModel extends BaseModel {
 		    profilesInChunk += items.size();
 		    
 		    if (profilesInChunk >= this.profilesPerChunk) {
+		    	statsCreated = true;
 		    	writeSufficientStatistics(tenantID, bucketName, baseFilename, profilesInChunk, SS1, SS0, Integer.toString(chunk));
 		    	SS1 = new HashMap<String, HashMap<String, Float>>();
 		    	SS0 = new HashMap<String, Float>();
@@ -516,12 +518,17 @@ public class CorrelationsModel extends BaseModel {
 		} while (resultNextToken != null);
 		
 		if (profilesInChunk > 0) {
+			statsCreated = true;
 	    	writeSufficientStatistics(tenantID, bucketName, baseFilename, profilesInChunk, SS1, SS0, Integer.toString(chunk));
 	    	SS1 = new HashMap<String, HashMap<String, Float>>();
 	    	SS0 = new HashMap<String, Float>();
 	    	profilesInChunk = 0;
 	    	chunk ++;
 	    }
+		
+		if (! statsCreated) {
+			logger.warn("No statistics files were created, because no new data have been found since last update");
+		}
 	}
 	
 	private void writeSufficientStatistics(String tenantID, String bucketName, String baseFilename, float numberOfProfiles,
