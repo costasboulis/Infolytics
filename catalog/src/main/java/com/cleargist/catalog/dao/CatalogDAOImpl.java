@@ -739,7 +739,7 @@ public class CatalogDAOImpl implements CatalogDAO {
 			attributes.add(attributeImage);
 		}
 		if (product.getPrice() != null) {
-			ReplaceableAttribute attributePrice = new ReplaceableAttribute(LINK_STRING, product.getPrice().toString(), true);
+			ReplaceableAttribute attributePrice = new ReplaceableAttribute(PRICE_STRING, product.getPrice().toString(), true);
 			attributes.add(attributePrice);
 		}
 		if (product.getCategory() != null) {
