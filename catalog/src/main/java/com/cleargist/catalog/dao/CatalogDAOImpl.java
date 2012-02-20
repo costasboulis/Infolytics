@@ -10,8 +10,11 @@ import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -229,6 +232,20 @@ public class CatalogDAOImpl implements CatalogDAO {
         return catalog;
 	}
 	
+	private boolean isValidURL(String url) {
+		try {
+			URL u = new URL ( url ); 
+			HttpURLConnection huc =  ( HttpURLConnection )  u.openConnection (); 
+			huc.setRequestMethod ("HEAD"); 
+			huc.connect () ; 
+			return (huc.getResponseCode() == HttpURLConnection.HTTP_OK);
+		}
+		catch (Exception ex) {
+			return false;
+		}
+		
+	}
+	
 	private void insertItems(AmazonSimpleDB sdb, Catalog catalog, String catalogDomain) 
 	throws DuplicateItemNameException, InvalidParameterValueException, NumberDomainBytesExceededException, NumberSubmittedItemsExceededException, 
 	NumberSubmittedAttributesExceededException, NumberDomainAttributesExceededException, NumberItemAttributesExceededException, 
@@ -250,17 +267,17 @@ public class CatalogDAOImpl implements CatalogDAO {
     		}
     		
     		String name = product.getName();
-    		if (name != null && !name.isEmpty()) {
+    		if (name != null && !name.isEmpty() && name.getBytes("UTF-8").length < 1024) {
     			attributes.add(new ReplaceableAttribute(NAME_STRING, name, true));
     		}
     		
     		String link = product.getLink();
-    		if (link != null && !link.isEmpty()) {
+    		if (link != null && !link.isEmpty() && link.getBytes("UTF-8").length < 1024 && isValidURL(link)) {
     			attributes.add(new ReplaceableAttribute(LINK_STRING, link, true));
     		}
     		
     		String image = product.getImage();
-    		if (image != null && !image.isEmpty()) {
+    		if (image != null && !image.isEmpty() && image.getBytes("UTF-8").length < 1024 && isValidURL(image)) {
     			attributes.add(new ReplaceableAttribute(IMAGE_STRING, image, true));
     		}
     		
@@ -270,7 +287,7 @@ public class CatalogDAOImpl implements CatalogDAO {
     		}
     		
     		String category = product.getCategory();
-    		if (category != null && !category.isEmpty()) {
+    		if (category != null && !category.isEmpty() && category.getBytes("UTF-8").length < 1024) {
     			attributes.add(new ReplaceableAttribute(CATEGORY_STRING, category, true));
     		}
     		
@@ -280,7 +297,7 @@ public class CatalogDAOImpl implements CatalogDAO {
     		}
     		
     		String description = product.getDescription();
-    		if (description != null && !description.isEmpty()) {
+    		if (description != null && !description.isEmpty() && description.getBytes("UTF-8").length < 1024) {
     			attributes.add(new ReplaceableAttribute(DESCRIPTION_STRING, description, true));
     		}
     		
