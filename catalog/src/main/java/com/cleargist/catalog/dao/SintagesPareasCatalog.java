@@ -3,6 +3,8 @@ package com.cleargist.catalog.dao;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Attribute;
@@ -18,6 +20,8 @@ public class SintagesPareasCatalog extends CatalogDAOImpl {
 	private Logger logger = LoggerFactory.getLogger(getClass());
 	private static String USER_AGENT = "ClearGist_bot";
 	private static final Locale locale = new Locale("el", "GR"); 
+	private String hrefPatternString = ".+ href=\"(.+)\".+";
+	private Pattern hrefPattern = Pattern.compile(hrefPatternString);
 	
 	private String removeSpecialChars(String in) {
 		String out = in.replaceAll("\\d+\\.\\d+", "NUMBER");
@@ -45,7 +49,6 @@ public class SintagesPareasCatalog extends CatalogDAOImpl {
 		
 		// Now extract the metatags and the ingredients, create the new product and insert in the catalog
 		Catalog.Products.Product product = new Catalog.Products.Product();
-		product.setUid(url);
 		Document doc = Jsoup.connect(url).userAgent(USER_AGENT).get();
 		Elements openGraphTags = doc.getElementsByTag("meta");
 		for (int i = 0; i < openGraphTags.size(); i ++) {
@@ -82,7 +85,19 @@ public class SintagesPareasCatalog extends CatalogDAOImpl {
 			
 		}
 		
+		// Get canonical ID
+		Element el = doc.select("link[rel=canonical]").get(0);
+		String elText = el.toString();
+		Matcher canonicalMatcher = this.hrefPattern.matcher(elText);
+		if (canonicalMatcher.matches()) {
+			String canonical = canonicalMatcher.group(1);
+			product.setUid(canonical);
+		}
+		else {
+			product.setUid(url);
+		}
 		
+		// Get ingredients
 		Elements tmpElements = doc.getElementsByClass("rr_ingredients");
 		if (tmpElements == null || tmpElements.size() == 0) {
 			logger.info("No ingredients found for " + url);
