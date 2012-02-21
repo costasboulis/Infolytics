@@ -27,6 +27,10 @@ import com.amazonaws.services.simpledb.model.GetAttributesRequest;
 import com.amazonaws.services.simpledb.model.GetAttributesResult;
 import com.amazonaws.services.simpledb.model.ReplaceableAttribute;
 import com.amazonaws.services.simpledb.model.ReplaceableItem;
+import com.cleargist.recommendations.dao.RecommendationsDAO;
+import com.cleargist.recommendations.dao.RecommendationsDAOImpl;
+import com.cleargist.recommendations.entity.CatalogStatus;
+import com.cleargist.recommendations.entity.Tenant;
 
 
 public class ProfileProcessorTest {
@@ -58,6 +62,27 @@ public class ProfileProcessorTest {
     		return;
     	}
     	
+    	
+    	Tenant t = new Tenant();
+    	t.setFirstName("Γιώργος");
+    	t.setLastName("Παπαδογιάννης");
+    	t.setActive(0);
+    	t.setCatalogStatus(CatalogStatus.WAITING);
+    	t.setCompany("Τέστ");
+    	t.setEmail("papado_ge@hotmail.com");
+    	t.setId("TEST");
+    	t.setToken(1060101);
+    	t.setUsername("testX");
+    	t.setPassword("testX");
+    	Calendar lastUpdate = Calendar.getInstance();
+    	lastUpdate.set(2012, 0, 6, 16, 56, 20);   
+		t.setLatestProfile(lastUpdate.getTime());
+		t.setProfileHorizon(-6);
+		RecommendationsDAO dao = new RecommendationsDAOImpl();
+    	dao.saveTenant(t);
+    	
+    	
+		
     	// Add dummy data here
     	List<ReplaceableItem> recsPairs = new ArrayList<ReplaceableItem>();
     	Calendar date = Calendar.getInstance();
@@ -209,6 +234,9 @@ public class ProfileProcessorTest {
     		return;
     	}
     	
+  //TODO : Add deleteTenant  	
+ //   	RecommendationsDAO dao = new RecommendationsDAOImpl();
+ //   	dao.deleteTenantByID("TEST");
     	
 	}
 	

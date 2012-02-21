@@ -2,11 +2,7 @@ package com.cleargist.profile;
 
 
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
+
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -43,10 +39,14 @@ import com.amazonaws.services.simpledb.model.PutAttributesRequest;
 import com.amazonaws.services.simpledb.model.ReplaceableAttribute;
 import com.amazonaws.services.simpledb.model.ReplaceableItem;
 import com.amazonaws.services.simpledb.model.SelectRequest;
+import com.cleargist.recommendations.dao.RecommendationsDAO;
+import com.cleargist.recommendations.dao.RecommendationsDAOImpl;
+import com.cleargist.recommendations.entity.Tenant;
 
 public abstract class ProfileProcessor {
 	private static final String AWS_CREDENTIALS = "/AwsCredentials.properties";
 	private static final String DATE_PATTERN = "yyMMddHHmmssSSSZ";
+	private Date currentDate;
 	private Logger logger = Logger.getLogger(getClass());
 	
 	protected List<List<Item>> getDataSinceLastUpdate(String tenantID) throws Exception {
@@ -55,6 +55,25 @@ public abstract class ProfileProcessor {
     	
     	SimpleDateFormat formatter = new SimpleDateFormat(DATE_PATTERN);
     	
+    	RecommendationsDAO recsDAO = new RecommendationsDAOImpl();
+    	Tenant tenant = recsDAO.getTenantById(tenantID);
+    	if (tenant == null) {
+    		logger.error("Could not find tenant with ID " + tenantID);
+    		throw new Exception();
+    	}
+    	Calendar lastUpdate = Calendar.getInstance();
+    	lastUpdate.setTime(tenant.getLatestProfile()  == null ? new Date() : tenant.getLatestProfile());
+    	
+    	Calendar lastUpdateFrom = Calendar.getInstance();
+		lastUpdateFrom.setTime(lastUpdate.getTime());     
+		lastUpdateFrom.add(Calendar.MONTH, tenant.getProfileHorizon());      // Profile horizon, retrieve this from tenant profile
+    	
+		Calendar currentDateFrom = Calendar.getInstance();
+		this.currentDate = new Date();
+		currentDateFrom.setTime(this.currentDate);     
+		currentDateFrom.add(Calendar.MONTH, tenant.getProfileHorizon());      // Profile horizon, retrieve this from tenant profile
+		
+    	/*
 		// Retrieve the date of the last profile update
     	Connection conn = null;
     	Statement stmt = null;
@@ -101,7 +120,9 @@ public abstract class ProfileProcessor {
     	        stmt = null;
     	    }
     	}
+    	*/
     	
+    	/*
     	// dummy last update
     	Calendar lastUpdate = Calendar.getInstance();
     	lastUpdate.set(2012, 0, 6, 16, 56, 20);       // Last update, retrieve this from tenant profile
@@ -114,7 +135,7 @@ public abstract class ProfileProcessor {
 		Date currentDate = new Date();
 		currentDateFrom.setTime(currentDate);     
 		currentDateFrom.add(Calendar.MONTH, -6);      // Retrieve this from tenant profile
-		
+		*/
 		
 		// Now form the SELECT statement for incremental data
 		String userActivityDomain = "ACTIVITY_" + tenantID;
@@ -315,6 +336,15 @@ public abstract class ProfileProcessor {
 			}
 			
 		}
+		
+		// Profile is updated
+		RecommendationsDAO recsDAO = new RecommendationsDAOImpl();
+    	Tenant tenant = recsDAO.getTenantById(tenantID);
+    	if (tenant == null) {
+    		logger.error("Could not find tenant with ID " + tenantID);
+    		throw new Exception();
+    	}
+		tenant.setLatestProfile(this.currentDate);
 	}
 	
 	private void updateAttributes(AmazonSimpleDB sdb, String profileDomain, String userID, List<ReplaceableAttribute> attributes) throws Exception {
