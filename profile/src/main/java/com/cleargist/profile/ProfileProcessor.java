@@ -55,6 +55,7 @@ public abstract class ProfileProcessor {
     	
     	SimpleDateFormat formatter = new SimpleDateFormat(DATE_PATTERN);
     	
+    	/*
     	RecommendationsDAO recsDAO = new RecommendationsDAOImpl();
     	Tenant tenant = recsDAO.getTenantById(tenantID);
     	if (tenant == null) {
@@ -72,7 +73,8 @@ public abstract class ProfileProcessor {
 		this.currentDate = new Date();
 		currentDateFrom.setTime(this.currentDate);     
 		currentDateFrom.add(Calendar.MONTH, tenant.getProfileHorizon());      // Profile horizon, retrieve this from tenant profile
-		
+		*/
+    	
     	/*
 		// Retrieve the date of the last profile update
     	Connection conn = null;
@@ -122,20 +124,22 @@ public abstract class ProfileProcessor {
     	}
     	*/
     	
-    	/*
+    	
     	// dummy last update
-    	Calendar lastUpdate = Calendar.getInstance();
-    	lastUpdate.set(2012, 0, 6, 16, 56, 20);       // Last update, retrieve this from tenant profile
+		Calendar currentDateFrom = Calendar.getInstance();
+		Date currentDate = new Date();
+		currentDateFrom.setTime(currentDate);     
+		currentDateFrom.add(Calendar.MONTH, -6);      // Profile horizon, retrieve this from tenant profile
+		
+		Calendar lastUpdate = Calendar.getInstance();
+ //   	lastUpdate.set(2012, 0, 6, 16, 56, 20);       // Last update, retrieve this from tenant profile
+		lastUpdate.setTime(currentDate); 
 		
 		Calendar lastUpdateFrom = Calendar.getInstance();
 		lastUpdateFrom.setTime(lastUpdate.getTime());     
 		lastUpdateFrom.add(Calendar.MONTH, -6);      // Profile horizon, retrieve this from tenant profile
 		
-		Calendar currentDateFrom = Calendar.getInstance();
-		Date currentDate = new Date();
-		currentDateFrom.setTime(currentDate);     
-		currentDateFrom.add(Calendar.MONTH, -6);      // Retrieve this from tenant profile
-		*/
+		
 		
 		// Now form the SELECT statement for incremental data
 		String userActivityDomain = "ACTIVITY_" + tenantID;
