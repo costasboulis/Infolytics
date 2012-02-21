@@ -743,18 +743,25 @@ public class CatalogDAOImpl implements CatalogDAO {
 		List<ReplaceableAttribute> attributes = new ArrayList<ReplaceableAttribute>();
 		ReplaceableAttribute attributeUID = new ReplaceableAttribute(UID_STRING, product.getUid(), true);
 		attributes.add(attributeUID);
-		if (product.getName() != null) {
-			ReplaceableAttribute attributeName = new ReplaceableAttribute(NAME_STRING, product.getName(), true);
+		
+		String name = product.getName();
+		if (name != null && !name.isEmpty() && name.getBytes("UTF-8").length < 1024) {
+			ReplaceableAttribute attributeName = new ReplaceableAttribute(NAME_STRING, name, true);
 			attributes.add(attributeName);
 		}
-		if (product.getLink() != null) {
-			ReplaceableAttribute attributeLink = new ReplaceableAttribute(LINK_STRING, product.getLink(), true);
+		
+		String link = product.getLink();
+		if (link != null && !link.isEmpty() && link.getBytes("UTF-8").length < 1024 && isValidURL(link)) {
+			ReplaceableAttribute attributeLink = new ReplaceableAttribute(LINK_STRING, link, true);
 			attributes.add(attributeLink);
 		}
-		if (product.getImage() != null) {
-			ReplaceableAttribute attributeImage = new ReplaceableAttribute(IMAGE_STRING, product.getImage(), true);
+		
+		String image = product.getImage();
+		if (image != null && !image.isEmpty() && image.getBytes("UTF-8").length < 1024 && isValidURL(image)) {
+			ReplaceableAttribute attributeImage = new ReplaceableAttribute(IMAGE_STRING, image, true);
 			attributes.add(attributeImage);
 		}
+		
 		if (product.getPrice() != null) {
 			ReplaceableAttribute attributePrice = new ReplaceableAttribute(PRICE_STRING, product.getPrice().toString(), true);
 			attributes.add(attributePrice);
@@ -767,10 +774,13 @@ public class CatalogDAOImpl implements CatalogDAO {
 			ReplaceableAttribute attributeCategoryId = new ReplaceableAttribute(CATEGORYID_STRING, product.getCategoryId().toString(), true);
 			attributes.add(attributeCategoryId);
 		}
-		if (product.getDescription() != null) {
-			ReplaceableAttribute attributeDescription = new ReplaceableAttribute(DESCRIPTION_STRING, product.getDescription(), true);
+		
+		String description = product.getDescription();
+		if (description != null && !description.isEmpty() && description.getBytes("UTF-8").length < 1024) {
+			ReplaceableAttribute attributeDescription = new ReplaceableAttribute(DESCRIPTION_STRING, description, true);
 			attributes.add(attributeDescription);
 		}
+		
 		if (product.getWeight() != null) {
 			ReplaceableAttribute attributeWeight = new ReplaceableAttribute(WEIGHT_STRING, product.getWeight().toString(), true);
 			attributes.add(attributeWeight);
