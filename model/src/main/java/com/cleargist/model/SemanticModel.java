@@ -445,6 +445,7 @@ public class SemanticModel extends BaseModel {
 			
 			if (uid != null && description != null && description.length() > 0) {
 				StringBuffer sb = new StringBuffer();
+				description = description.replace(System.getProperty("line.separator"), "");
 				sb.append("\""); sb.append(uid); sb.append("\";\""); sb.append(description); sb.append("\""); sb.append(newline);
 				out.write(sb.toString());
 				

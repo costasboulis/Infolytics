@@ -528,6 +528,7 @@ public class CorrelationsModel extends BaseModel {
 		
 		if (! statsCreated) {
 			logger.warn("No statistics files were created, because no new data have been found since last update");
+			throw new Exception();
 		}
 	}
 	
