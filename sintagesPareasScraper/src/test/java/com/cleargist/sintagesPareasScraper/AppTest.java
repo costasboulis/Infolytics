@@ -1,4 +1,4 @@
-package gr.infolytics.sintagesPareasScraper;
+package com.cleargist.sintagesPareasScraper;
 
 import junit.framework.Test;
 import junit.framework.TestCase;

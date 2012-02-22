@@ -1,4 +1,4 @@
-package gr.infolytics.sintagesPareasScraper;
+package com.cleargist.sintagesPareasScraper;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -26,18 +26,19 @@ public class Tokenizer {
 		out = out.replaceAll("\\d+", "NUMBER");
 		out = out.toLowerCase(locale);
 		out = out.replaceAll("[\\.,\\(\\)\\?;!:\\[\\]\\{\\}\"%&\\*'\\+/>-]", "");
-		out = out.replace('Ü', 'á');
-		out = out.replace('İ', 'å');
-		out = out.replace('ß', 'é');
-		out = out.replace('ü', 'ï');
-		out = out.replace('ı', 'õ');
-		out = out.replace('ş', 'ù');
-		out = out.replace('Ş', 'ç');
+		out = out.replace('Î¬', 'Î±');
+		out = out.replace('ÏŒ', 'Î¿');
+		out = out.replace('Î®', 'Î·');
+		out = out.replace('Ï', 'Ï‰');
+		out = out.replace('Ï', 'Ï…');
+		out = out.replace('Î­', 'Îµ');
+		out = out.replace('Î¯', 'Î¹');
 		out = out.replaceAll("\\s+", " ");
 		out = out.trim();
 		
 		return out;
 	}
+	
 	
 	public void readRawData(File data, String path) {
 		dictionary = new HashMap<String, Integer>();
