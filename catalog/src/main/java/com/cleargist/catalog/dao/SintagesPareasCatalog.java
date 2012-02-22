@@ -58,25 +58,25 @@ public class SintagesPareasCatalog extends CatalogDAOImpl {
 				if (attribute.getKey().equals("property")) {
 					if (attribute.getValue().equals("og:url")) {
 						Attribute nextAttribute = attributes.get(att + 1);
-						if (nextAttribute.equals("content")) {
+						if (nextAttribute.getKey().equals("content")) {
 							product.setLink(nextAttribute.getValue());
 						}
 					}
 					else if (attribute.getValue().equals("og:image")) {
 						Attribute nextAttribute = attributes.get(att + 1);
-						if (nextAttribute.equals("content")) {
+						if (nextAttribute.getKey().equals("content")) {
 							product.setImage(nextAttribute.getValue());
 						}
 					}
 					else if (attribute.getValue().equals("og:title")) {
 						Attribute nextAttribute = attributes.get(att + 1);
-						if (nextAttribute.equals("content")) {
+						if (nextAttribute.getKey().equals("content")) {
 							product.setName(nextAttribute.getValue());
 						}
 					}
 					else if (attribute.getValue().equals("og:description")) {  
 						Attribute nextAttribute = attributes.get(att + 1);
-						if (nextAttribute.equals("content")) {
+						if (nextAttribute.getKey().equals("content")) {
 							product.setDescription(nextAttribute.getValue());
 						}
 					}
