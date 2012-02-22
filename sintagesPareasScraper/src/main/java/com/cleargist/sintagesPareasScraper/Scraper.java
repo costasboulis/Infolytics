@@ -126,7 +126,8 @@ public class Scraper {
 			for (Element e : element.getElementsByTag("li")) {
 				sb.append(" "); sb.append(e.text()); 
 			}
-			String processedText = removeSpecialChars(sb.toString());
+//			String processedText = removeSpecialChars(sb.toString());
+			String processedText = sb.toString();
 			product.setDescription(processedText);
 		}
 		
@@ -177,6 +178,7 @@ public class Scraper {
 		catalog.setProducts(new Catalog.Products());
 		Catalog.Products products = catalog.getProducts();
 		List<Catalog.Products.Product> productList = products.getProduct();
+		int cnt = 1;
 		for (String url : urls) {
 			logger.info(url);
 			try {
@@ -195,6 +197,19 @@ public class Scraper {
 				logger.error("Could not sleep between requests");
 				System.exit(-1);
 			}
+			
+			if (cnt % 1000 == 0) {
+				CatalogDAO dao = new CatalogDAOImpl();
+				try {
+					dao.marshallCatalog(catalog, "cleargist", "catalog.xsd", "cleargist", "sintagesPareas.xml", "sintagesPareas");
+				}
+				catch (Exception ex) {
+					logger.error("Could not marshall catalog");
+					System.exit(-1);
+				}
+			}
+			
+			cnt ++;
 		}
 		
 		CatalogDAO dao = new CatalogDAOImpl();
