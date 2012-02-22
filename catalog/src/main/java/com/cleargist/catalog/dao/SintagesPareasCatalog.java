@@ -86,16 +86,23 @@ public class SintagesPareasCatalog extends CatalogDAOImpl {
 		}
 		
 		// Get canonical ID
-		Element el = doc.select("link[rel=canonical]").get(0);
-		String elText = el.toString();
-		Matcher canonicalMatcher = this.hrefPattern.matcher(elText);
-		if (canonicalMatcher.matches()) {
-			String canonical = canonicalMatcher.group(1);
-			product.setUid(canonical);
+		Elements elmnts = doc.select("link[rel=canonical]");
+		if (elmnts != null && elmnts.size() > 0){
+			Element el = elmnts.get(0);
+			String elText = el.toString();
+			Matcher canonicalMatcher = this.hrefPattern.matcher(elText);
+			if (canonicalMatcher.matches()) {
+				String canonical = canonicalMatcher.group(1);
+				product.setUid(canonical);
+			}
+			else {
+				product.setUid(url);
+			}
 		}
 		else {
 			product.setUid(url);
 		}
+		
 		
 		// Get ingredients
 		Elements tmpElements = doc.getElementsByClass("rr_ingredients");
