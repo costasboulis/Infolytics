@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -58,6 +59,7 @@ public class SemanticModel extends BaseModel {
 	private static final String ASSOCIATIONS_FILENAME = "semantic_associations_";
 	private static final String INCREMENTAL_ASSOCIATIONS_FILENAME = "incremental_semantic_associations_";
 	private static final float THRESHOLD = 0.01f;
+	private static final Locale locale = new Locale("el", "GR"); 
 	private int topCorrelations;
 	public static String newline = System.getProperty("line.separator"); 
 	private Logger logger = Logger.getLogger(getClass());
@@ -77,6 +79,24 @@ public class SemanticModel extends BaseModel {
 	
 	public void setTopCorrelations(int n) {
 		this.topCorrelations = n > 0 ? n : 10;
+	}
+	
+	private String removeSpecialChars(String in) {
+		String out = in.replaceAll("\\d+\\.\\d+", "NUMBER");
+		out = out.replaceAll("\\d+", "NUMBER");
+		out = out.toLowerCase(locale);
+		out = out.replaceAll("[\\.,\\(\\)\\?;!:\\[\\]\\{\\}\"%&\\*'\\+/>-]", "");
+		out = out.replace('ά', 'α');
+		out = out.replace('ό', 'ο');
+		out = out.replace('ή', 'η');
+		out = out.replace('ώ', 'ω');
+		out = out.replace('ύ', 'υ');
+		out = out.replace('έ', 'ε');
+		out = out.replace('ί', 'ι');
+		out = out.replaceAll("\\s+", " ");
+		out = out.trim();
+		
+		return out;
 	}
 	
 	protected void calculateSufficientStatistics(String bucketName, String baseFilename, String tenantID) throws Exception {
@@ -113,7 +133,7 @@ public class SemanticModel extends BaseModel {
 				continue;
 			}
 			topFields[1] = topFields[1].replaceAll("\"", "");
-//			topFields[1] = removeSpecialChars(topFields[1]);
+			topFields[1] = removeSpecialChars(topFields[1]);
 			String[] fields = topFields[1].split(" ");
 			
 			HashSet<String> uniqueTerms = new HashSet<String>();

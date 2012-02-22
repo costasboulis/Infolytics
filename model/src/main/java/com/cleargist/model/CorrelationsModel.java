@@ -473,7 +473,7 @@ public class CorrelationsModel extends BaseModel {
 			}
 		}
 		
-		// Now calcualte new suff stats
+		// Now calculate new suff stats
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
 		String profileDomain = getProfileDomainName(tenantID);
