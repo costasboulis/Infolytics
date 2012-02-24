@@ -59,6 +59,7 @@ public class SemanticModel extends BaseModel {
 	private static final String ASSOCIATIONS_FILENAME = "semantic_associations_";
 	private static final String INCREMENTAL_ASSOCIATIONS_FILENAME = "incremental_semantic_associations_";
 	private static final float THRESHOLD = 0.01f;
+	private static final int MIN_DESCRIPTION_LENGTH = 5;
 	private static final Locale locale = new Locale("el", "GR"); 
 	private int topCorrelations;
 	public static String newline = System.getProperty("line.separator"); 
@@ -100,6 +101,8 @@ public class SemanticModel extends BaseModel {
 	}
 	
 	protected void calculateSufficientStatistics(String bucketName, String baseFilename, String tenantID) throws Exception {
+		
+		logger.info("Initiating calculation of sufficient stats for tenant ID " + tenantID);
 		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
 				SemanticModel.class.getResourceAsStream(AWS_CREDENTIALS)));
 		
@@ -118,7 +121,7 @@ public class SemanticModel extends BaseModel {
 		catalog = new CatalogDAOImpl();
 		String rawProfilesFilename = RAW_PROFILES_FILENAME;
 		extractDescriptionField(catalog.getAllProducts("", tenantID), bucketName, rawProfilesFilename, tenantID);
-		
+		logger.info("Description fields extracted for tenantID " + tenantID);
 		
 		// Compute the inverse document frequency
 		HashMap<String, Float> idf = new HashMap<String, Float>();
@@ -133,7 +136,7 @@ public class SemanticModel extends BaseModel {
 				continue;
 			}
 			topFields[1] = topFields[1].replaceAll("\"", "");
-			topFields[1] = removeSpecialChars(topFields[1]);
+//			topFields[1] = removeSpecialChars(topFields[1]);
 			String[] fields = topFields[1].split(" ");
 			
 			HashSet<String> uniqueTerms = new HashSet<String>();
@@ -162,14 +165,32 @@ public class SemanticModel extends BaseModel {
 			idf.put(term, f);
 		}
 		idf.put("_NEW_TERM_", (float)Math.log(totalItems));
-    	
 		
+		// Persist the idf file
+    	File localIdfFile = new File(IDF_FILENAME);
+    	BufferedWriter out = new BufferedWriter(new FileWriter(localIdfFile));
+    	StringBuffer sb = new StringBuffer();
+    	for (Map.Entry<String, Float> me : idf.entrySet()) {
+    		sb.append(me.getKey()); sb.append(";"); sb.append(me.getValue()); sb.append(newline);
+    	}
+    	out.write(sb.toString());
+    	out.flush();
+    	out.close();
+    	
+    	// Now copy the local idf file to S3
+    	PutObjectRequest r = new PutObjectRequest(bucketName, IDF_FILENAME, localIdfFile);
+    	r.setStorageClass(StorageClass.ReducedRedundancy);
+    	s3.putObject(r);
+    	localIdfFile.delete();
+    	logger.info("Finished with the inverse document frequency part");
+		
+    	
 		// For each item, create the tfidf representation and persist it
 		rawProfilesFile = s3.getObject(bucketName, RAW_PROFILES_FILENAME);
 		reader = new BufferedReader(new InputStreamReader(rawProfilesFile.getObjectContent()));
 		String tmpFilename = TFIDF_FILENAME + tenantID;
 		File localTfidfFile = new File(tmpFilename);
-		BufferedWriter out = new BufferedWriter(new FileWriter(localTfidfFile));
+		out = new BufferedWriter(new FileWriter(localTfidfFile));
 		while ((line = reader.readLine()) != null) {
 			String[] topFields = line.split("\";\"");
 			if (topFields.length != 2) {
@@ -182,7 +203,7 @@ public class SemanticModel extends BaseModel {
 			
 			HashMap<String, Float> hm = createTfIdf(topFields[1], idf);
 			
-			StringBuffer sb = new StringBuffer();
+			sb = new StringBuffer();
 			sb.append(itemName);
 			for (Map.Entry<String, Float> me : hm.entrySet()) {
 				sb.append(";"); sb.append(me.getKey()); sb.append(";"); sb.append(me.getValue());
@@ -196,28 +217,11 @@ public class SemanticModel extends BaseModel {
 		
 		
 		// Now copy the local tfidf file to S3
-    	PutObjectRequest r = new PutObjectRequest(bucketName, TFIDF_FILENAME, localTfidfFile);
+		r = new PutObjectRequest(bucketName, TFIDF_FILENAME, localTfidfFile);
     	r.setStorageClass(StorageClass.ReducedRedundancy);
     	s3.putObject(r);
     	localTfidfFile.delete();
-    	
-    	
-    	// Persist the idf file
-    	File localIdfFile = new File(IDF_FILENAME);
-    	out = new BufferedWriter(new FileWriter(localIdfFile));
-    	StringBuffer sb = new StringBuffer();
-    	for (Map.Entry<String, Float> me : idf.entrySet()) {
-    		sb.append(me.getKey()); sb.append(";"); sb.append(me.getValue()); sb.append(newline);
-    	}
-    	out.write(sb.toString());
-    	out.flush();
-    	out.close();
-    	
-    	// Now copy the local idf file to S3
-    	r = new PutObjectRequest(bucketName, IDF_FILENAME, localIdfFile);
-    	r.setStorageClass(StorageClass.ReducedRedundancy);
-    	s3.putObject(r);
-    	localIdfFile.delete();
+    	logger.info("Finished with the tfidf representation part");
 	}
 	
 	private HashMap<String, Float> createTfIdf(String rawProfile, HashMap<String, Float> idf) {
@@ -466,6 +470,11 @@ public class SemanticModel extends BaseModel {
 			if (uid != null && description != null && description.length() > 0) {
 				StringBuffer sb = new StringBuffer();
 				description = description.replace(System.getProperty("line.separator"), "");
+				description = removeSpecialChars(description);
+				if (description.length() < MIN_DESCRIPTION_LENGTH) {
+					logger.info("Skipping description field for product " + uid + " tenant " + tenantID);
+					continue;
+				}
 				sb.append("\""); sb.append(uid); sb.append("\";\""); sb.append(description); sb.append("\""); sb.append(newline);
 				out.write(sb.toString());
 				

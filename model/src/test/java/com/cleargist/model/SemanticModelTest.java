@@ -30,11 +30,13 @@ public class SemanticModelTest {
 	
 	@Before
 	public void loadCatalog() throws Exception {
-		createXMLCatalog();
+//		createXMLCatalog();
 		CatalogDAO catalog = new CatalogDAOImpl();
-		catalog.insertCatalog("cleargist", "recipesTextsSample.xml", "", "test");
+//		catalog.insertCatalog("cleargist", "recipesTextsSample.xml", "", "test");
+		catalog.insertCatalog("cleargist", "sintagesPareas.xml", "", "test");
 	}
 	
+	/*
 	public void createXMLCatalog() throws Exception {
 		
 		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
@@ -74,12 +76,16 @@ public class SemanticModelTest {
 		
 		catalogWriter.marshallCatalog(catalog, "cleargist", "catalog.xsd", "cleargist", "recipesTextsSample.xml", "test");
 	}
+	*/
+	
 	
 	@After
 	public void cleanUp() throws Exception {
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				SemanticModel.class.getResourceAsStream(AWS_CREDENTIALS)));
 		
+		sdb.deleteDomain(new DeleteDomainRequest("MODEL_SEMANTIC_test_A"));
+		sdb.deleteDomain(new DeleteDomainRequest("MODEL_SEMANTIC_test_B"));
 		sdb.deleteDomain(new DeleteDomainRequest("MODEL_SEMANTIC_test"));
 		sdb.deleteDomain(new DeleteDomainRequest("CATALOG_test"));
 		
