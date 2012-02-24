@@ -164,6 +164,7 @@ public class CatalogDAOImpl implements CatalogDAO {
     			System.exit(-1);
     		}
     		marshaller.setSchema(schema);
+    		marshaller.setEventHandler(new MyValidationEventHandler());
     		marshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, new Boolean(true));
     	}
     	catch (JAXBException ex) {
