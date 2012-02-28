@@ -1,0 +1,50 @@
+<html>
+<body>
+
+<table border="0" width="100%">
+	<tr>
+	<td valign="middle"> 
+	<h3><span style="font-family:Segoe UI,Tahoma,Verdana,Arial,sans-serif;color:#E42E21";>Dear ${tenant.firstName} ${tenant.lastName},</span></h3>
+	</td>
+	<td valign="middle"><img src="http://cleargist.elasticbeanstalk.com/images/logo_front.png" border="0" /></td>
+</tr>
+</table>
+<br /><br />
+                            
+<table border='0' width='100%'>
+<tr>
+<td><span style='color:#444;font-weight:bold;font-size:18px;font-family:Segoe UI,Tahoma,Verdana,Arial,sans-serif'>Your ClearGist password!</span> 
+</td>
+</tr>
+<tr>
+<td><hr style='height: 0px;color: #999;border-style:dashed;border-width:0px 0px 1px 0px;'/> 
+</td>
+</tr>
+</table>
+<table border='0' width='100%'>
+<tr>
+<td><span style='color:#444;font-family:Segoe UI,Tahoma,Verdana,Arial,sans-serif'>
+We would like to inform you that your password has been successfully reset. Your temporary password is <b>${tenant.password}</b>. You are able to change your password at any time from the settings menu.<br /><br />We hope to enjoy our services!<br /><br />
+</span></td>
+</tr>
+<tr>
+<td><hr style='height: 0px;color: #e9e9e9;border-style:dashed;border-width:0px 0px 1px 0px;'/> 
+</td>
+</tr>
+</table>
+<table border='0' width='100%'>
+<tr>
+<td><span style='color:#444;font-family:Segoe UI,Tahoma,Verdana,Arial,sans-serif'>
+Sign in to ClearGist's Administration Menu: <a style='color: #E42E21;text-decoration:none;font-family:Segoe UI,Tahoma,Verdana,Arial,sans-serif' href='http://cleargist.elasticbeanstalk.com/admin/login.do'>http://cleargist.elasticbeanstalk.com/admin/login.do</a>
+</span></td>
+</tr>
+<tr>
+<td><hr style='height: 0px;color: #e9e9e9;border-style:dashed;border-width:0px 0px 1px 0px;'/> 
+</td>
+</tr>
+</table>
+<br />        
+<span style='color:#444;font-family:Segoe UI,Tahoma,Verdana,Arial,sans-serif;'>Thank you for using</span>,<br />
+<span style='color:#444;font-family:Segoe UI,Tahoma,Verdana,Arial,sans-serif;'>ClearGist&trade; Personalization Services</span>
+ </body>
+ </html>
