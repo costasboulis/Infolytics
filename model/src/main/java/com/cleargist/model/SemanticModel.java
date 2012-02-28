@@ -121,6 +121,12 @@ public class SemanticModel extends BaseModel {
 		catalog = new CatalogDAOImpl();
 		String rawProfilesFilename = RAW_PROFILES_FILENAME;
 		extractDescriptionField(catalog.getAllProducts("", tenantID), bucketName, rawProfilesFilename, tenantID);
+		
+		/*
+		PutObjectRequest rTemp = new PutObjectRequest(bucketName, RAW_PROFILES_FILENAME, new File("C:\\Users\\kboulis\\Downloads\\" + rawProfilesFilename));
+		rTemp.setStorageClass(StorageClass.ReducedRedundancy);
+    	s3.putObject(rTemp);
+    	*/
 		logger.info("Description fields extracted for tenantID " + tenantID);
 		
 		// Compute the inverse document frequency

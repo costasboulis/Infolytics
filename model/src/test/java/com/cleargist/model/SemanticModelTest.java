@@ -2,12 +2,9 @@ package com.cleargist.model;
 
 import static org.junit.Assert.assertTrue;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.math.BigDecimal;
+
 import java.util.List;
 
-import org.apache.log4j.Logger;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -15,25 +12,22 @@ import org.junit.Test;
 import com.amazonaws.auth.PropertiesCredentials;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
-import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.services.simpledb.AmazonSimpleDB;
 import com.amazonaws.services.simpledb.AmazonSimpleDBClient;
 import com.amazonaws.services.simpledb.model.DeleteDomainRequest;
 import com.cleargist.catalog.dao.CatalogDAO;
 import com.cleargist.catalog.dao.CatalogDAOImpl;
-import com.cleargist.catalog.entity.jaxb.Catalog;
 
 public class SemanticModelTest {
 	private static final String AWS_CREDENTIALS = "/AwsCredentials.properties";
-	private Logger logger = Logger.getLogger(getClass());
 	
 	@Before
 	public void loadCatalog() throws Exception {
 //		createXMLCatalog();
 		CatalogDAO catalog = new CatalogDAOImpl();
 //		catalog.insertCatalog("cleargist", "recipesTextsSample.xml", "", "test");
-		catalog.insertCatalog("cleargist", "sintagesPareas.xml", "", "test");
+		catalog.insertCatalog("cleargist", "103.xml", "", "test");
 	}
 	
 	/*
