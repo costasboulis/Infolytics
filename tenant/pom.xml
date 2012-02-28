@@ -5,7 +5,8 @@
 	<artifactId>tenant</artifactId>
 	<version>1.0-SNAPSHOT</version>
 	<name>cleargist</name>
-	<packaging>war</packaging>
+<!--	<packaging>war</packaging>   -->
+	<packaging>jar</packaging>
 	<url>http://maven.apache.org</url>
 	
 	<properties>
@@ -31,15 +32,18 @@
 					<sourceEncoding>${project.build.sourceEncoding}</sourceEncoding>
 				</configuration>
 			</plugin>
+			<!--
 			<plugin>
 				<artifactId>maven-war-plugin</artifactId>
 				<configuration>
 					<webappDirectory>WebContent/</webappDirectory>
 				</configuration>
 			</plugin>
+			-->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-source-plugin</artifactId>
+				<version>2.0.4</version>
 				<executions>
 					<execution>
 						<id>attach-sources</id>
@@ -260,9 +264,11 @@
 		<dependency>
 			<groupId>org.directwebremoting</groupId>
 			<artifactId>dwr</artifactId>
-			<version>3.rc1</version>
+			<version>2.0.10</version>
+			<!--
 			<scope>system</scope>
 			<systemPath>${project.basedir}/WebContent/WEB-INF/lib/dwr.jar</systemPath>
+			-->
 		</dependency>
 
 		<!-- other libraries -->
@@ -321,17 +327,9 @@
 			<groupId>com.cleargist.catalog</groupId>
 			<artifactId>catalog</artifactId>
 			<version>1.0-SNAPSHOT</version>
-			<type>jar</type>
-			<scope>compile</scope>
 		</dependency>
 		
-		<dependency>
-			<groupId>com.cleargist.profile</groupId>
-			<artifactId>profile</artifactId>
-			<version>1.0-SNAPSHOT</version>
-			<type>jar</type>
-			<scope>compile</scope>
-		</dependency>
+		
 		
 	</dependencies>
 </project>
