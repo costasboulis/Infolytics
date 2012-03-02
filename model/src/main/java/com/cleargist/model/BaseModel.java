@@ -28,6 +28,7 @@ import com.amazonaws.services.simpledb.model.SelectRequest;
 import com.amazonaws.services.simpledb.model.SelectResult;
 import com.cleargist.catalog.entity.jaxb.Catalog;
 
+
 // TODO: Set the TTL_CACHE according to the update schedule of each model. Need to access account table 
 
 public abstract class BaseModel implements Modelable {
@@ -39,7 +40,7 @@ public abstract class BaseModel implements Modelable {
 	private static final String STATS_BASE_FILENAME = "partialStats";    // Base name of the suff. stats file in S3 and local file system 
 	private static final String MODEL_STATES_DOMAIN = "MODEL_STATES";    // SimpleDB domain where model states are stored
 	// Cache parameters
-	private static final String MEMCACHED_SERVER = "127.0.0.1";
+	private static final String MEMCACHED_SERVER = "176.34.191.239";
     private static final int MEMCACHED_PORT = 11211;
     private int TTL_CACHE = 60 * 60 * 24;   // This must be the same as the model update rate
     
@@ -128,18 +129,20 @@ public abstract class BaseModel implements Modelable {
 		MemcachedClient client = null;
     	try {
         	client = new MemcachedClient(new InetSocketAddress(MEMCACHED_SERVER, MEMCACHED_PORT));
-        	Object cacheCollection = null;
+        	List<Catalog.Products.Product> cacheCollection = new ArrayList<Catalog.Products.Product>();
         	try {
+        		System.out.println("Step 1.");
         		StringBuffer sb = new StringBuffer();
         		sb.append(filter.getName()); sb.append("_"); sb.append(getDomainBasename()); sb.append(tenantID);
         		for (String p : productIds) {
         			sb.append("_"); sb.append(p);
         		}
         		sourceItemId = sb.toString();
-        		cacheCollection = client.get(sourceItemId);
+        		cacheCollection = (List<Catalog.Products.Product>) client.get(sourceItemId);
+        		System.out.println(sourceItemId);
         		if (cacheCollection != null) {
-        			logger.debug("Cache Hit.");
-        			
+        			System.out.println("Cache Hit.");
+        			System.out.println(cacheCollection);
         			List<Catalog.Products.Product> productList = (List<Catalog.Products.Product>) cacheCollection;
         			
         			// Update health metric
@@ -152,18 +155,19 @@ public abstract class BaseModel implements Modelable {
                 } 
         	}
         	catch (OperationTimeoutException ex) {
-        		logger.warn("Timeout accessing memcached.");
+        		System.out.println("Timeout accessing memcached.");
         	}
         }
         catch (IOException ex) {
-        	logger.warn("Cannot insantiate memcached client");
+        	System.out.println("Cannot insantiate memcached client");
         }
         
-        logger.debug("Cache Miss.");
+    	System.out.println("Cache Miss.");
         
-        List<Catalog.Products.Product> recommendedProducts = null;
+        List<Catalog.Products.Product> recommendedProducts = new ArrayList<Catalog.Products.Product>();
         try {
         	recommendedProducts = getRecommendedProductsInternal(productIds, tenantID, filter);
+        	System.out.println(recommendedProducts);
         }
         catch (Exception ex) {
         	// Update health metric
@@ -175,19 +179,30 @@ public abstract class BaseModel implements Modelable {
         
         if (client != null) {
         	try {
-        		client.set(sourceItemId, TTL_CACHE, recommendedProducts);
+        		client.set(sourceItemId, TTL_CACHE, new Integer(1));
+        		//client.set(sourceItemId, TTL_CACHE, (Object)recommendedProducts);
+        		
+        		// Update health metric
+        		String eventID = recommendedProducts.size() > 0 ? "OK" : "EMPTY";
+        		String key = getHealthMetricKey(eventID, tenantID, "RECS");
+        		client.incr(key, 1);
+        		
+        		
         		client.shutdown(10, TimeUnit.SECONDS);
         	}
         	catch (Exception ex) {
-        		logger.warn("Cannot write to memcached " + MEMCACHED_SERVER + " port " + MEMCACHED_PORT);
+        		System.out.println("Cannot write to memcached " + MEMCACHED_SERVER + " port " + MEMCACHED_PORT);
         	}
         }
         
-        // Update health metric
-		String eventID = recommendedProducts.size() > 0 ? "OK" : "EMPTY";
-		String key = getHealthMetricKey(eventID, tenantID, "RECS");
-		client.incr(key, 1);
-		
+        
+        
+    	/*Integer integ = new Integer(288);
+        System.out.println(integ);
+        client.set("myNewKey", 900, integ);
+        Object myObject=client.get("joe");
+        System.out.println(myObject);*/
+        
         return recommendedProducts;
 	}
 	
@@ -223,7 +238,7 @@ public abstract class BaseModel implements Modelable {
         
         if (client != null) {
         	try {
-        		client.set(sourceItemId, TTL_CACHE, recommendedProducts);
+        		client.set(sourceItemId, TTL_CACHE, new Integer(1));
         		client.shutdown(10, TimeUnit.SECONDS);
         	}
         	catch (Exception ex) {

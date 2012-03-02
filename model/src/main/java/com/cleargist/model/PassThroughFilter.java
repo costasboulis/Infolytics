@@ -6,7 +6,8 @@ import java.util.List;
 import org.apache.log4j.Logger;
 
 import com.cleargist.catalog.dao.CatalogDAO;
-import com.cleargist.catalog.dao.DummyCatalog;
+import com.cleargist.catalog.dao.CatalogDAOImpl;
+//import com.cleargist.catalog.dao.DummyCatalog;
 import com.cleargist.catalog.entity.jaxb.Catalog;
 
 public class PassThroughFilter implements Filter {
@@ -14,7 +15,7 @@ public class PassThroughFilter implements Filter {
 	private CatalogDAO catalog;
 	
 	public PassThroughFilter() {
-		catalog = new DummyCatalog();
+		catalog = new CatalogDAOImpl();
 	}
 	
 	public String getName() {

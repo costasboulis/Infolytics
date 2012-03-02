@@ -3,6 +3,7 @@ package com.cleargist.model;
 import static org.junit.Assert.assertTrue;
 
 
+import java.util.LinkedList;
 import java.util.List;
 
 import org.junit.After;
@@ -18,9 +19,11 @@ import com.amazonaws.services.simpledb.AmazonSimpleDBClient;
 import com.amazonaws.services.simpledb.model.DeleteDomainRequest;
 import com.cleargist.catalog.dao.CatalogDAO;
 import com.cleargist.catalog.dao.CatalogDAOImpl;
+import com.cleargist.catalog.entity.jaxb.Catalog;
 
 public class SemanticModelTest {
 	private static final String AWS_CREDENTIALS = "/AwsCredentials.properties";
+	
 	
 	@Before
 	public void loadCatalog() throws Exception {
@@ -116,6 +119,17 @@ public class SemanticModelTest {
 		
 		try {
 			model.createModel("test");
+		}
+		catch (Exception ex) {
+			assertTrue(false);
+		}
+		
+		PassThroughFilter filter = new PassThroughFilter();
+		List<String> productIDs = new LinkedList<String>();
+		productIDs.add("3156");
+		try {
+			List<Catalog.Products.Product> recommendedProducts = model.getRecommendedProductsInternal(productIDs, "103", filter);
+			assertTrue(recommendedProducts.size() > 0);
 		}
 		catch (Exception ex) {
 			assertTrue(false);

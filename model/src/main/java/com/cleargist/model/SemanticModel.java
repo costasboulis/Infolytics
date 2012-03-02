@@ -86,6 +86,7 @@ public class SemanticModel extends BaseModel {
 		String out = in.replaceAll("\\d+\\.\\d+", "NUMBER");
 		out = out.replaceAll("\\d+", "NUMBER");
 		out = out.toLowerCase(locale);
+		out = out.replaceAll("<li>", "");
 		out = out.replaceAll("[\\.,\\(\\)\\?;!:\\[\\]\\{\\}\"%&\\*'\\+/>-]", "");
 		out = out.replace('ά', 'α');
 		out = out.replace('ό', 'ο');
@@ -396,7 +397,7 @@ public class SemanticModel extends BaseModel {
 	
 	private List<Catalog.Products.Product> getRecommendedProductsList(List<AttributeObject> productIds, String tenantID, Filter filter) throws Exception {
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
-				CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
+				SemanticModel.class.getResourceAsStream(AWS_CREDENTIALS)));
     	
 		HashSet<String> sourceIDs = new HashSet<String>();
     	for (AttributeObject attObject : productIds) {
