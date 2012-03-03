@@ -24,7 +24,7 @@ import com.cleargist.catalog.entity.jaxb.Catalog;
 public class SemanticModelTest {
 	private static final String AWS_CREDENTIALS = "/AwsCredentials.properties";
 	
-	
+/*	
 	@Before
 	public void loadCatalog() throws Exception {
 //		createXMLCatalog();
@@ -32,7 +32,7 @@ public class SemanticModelTest {
 //		catalog.insertCatalog("cleargist", "recipesTextsSample.xml", "", "test");
 		catalog.insertCatalog("cleargist", "103.xml", "", "test");
 	}
-	
+	*/
 	/*
 	public void createXMLCatalog() throws Exception {
 		
@@ -79,7 +79,7 @@ public class SemanticModelTest {
 	@After
 	public void cleanUp() throws Exception {
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
-				SemanticModel.class.getResourceAsStream(AWS_CREDENTIALS)));
+				SemanticModelTest.class.getResourceAsStream(AWS_CREDENTIALS)));
 		
 		sdb.deleteDomain(new DeleteDomainRequest("MODEL_SEMANTIC_test_A"));
 		sdb.deleteDomain(new DeleteDomainRequest("MODEL_SEMANTIC_test_B"));
@@ -116,15 +116,15 @@ public class SemanticModelTest {
 	@Test
 	public void testCorrelations() {
 		SemanticModel model = new SemanticModel();
-		
+		/*
 		try {
 			model.createModel("test");
 		}
 		catch (Exception ex) {
 			assertTrue(false);
 		}
-		
-		PassThroughFilter filter = new PassThroughFilter();
+		*/
+		StandardFilter filter = new StandardFilter();
 		List<String> productIDs = new LinkedList<String>();
 		productIDs.add("3156");
 		try {

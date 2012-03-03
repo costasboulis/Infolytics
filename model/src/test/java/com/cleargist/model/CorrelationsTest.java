@@ -8,6 +8,7 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.GregorianCalendar;
@@ -201,6 +202,7 @@ public class CorrelationsTest {
 		product.setImage("image.jpg");
 		product.setLink("www.in.gr");
 		product.setName("1");
+		product.setPrice(new BigDecimal(0.0f));
 		productList.add(product);
 		
 		product = new Catalog.Products.Product();
@@ -209,6 +211,7 @@ public class CorrelationsTest {
 		product.setImage("image.jpg");
 		product.setLink("www.in.gr");
 		product.setName("2");
+		product.setPrice(new BigDecimal(0.0f));
 		productList.add(product);
 		
 		product = new Catalog.Products.Product();
@@ -217,6 +220,7 @@ public class CorrelationsTest {
 		product.setImage("image.jpg");
 		product.setLink("www.in.gr");
 		product.setName("3");
+		product.setPrice(new BigDecimal(0.0f));
 		productList.add(product);
 		
 		product = new Catalog.Products.Product();
@@ -225,6 +229,7 @@ public class CorrelationsTest {
 		product.setImage("image.jpg");
 		product.setLink("www.in.gr");
 		product.setName("4");
+		product.setPrice(new BigDecimal(0.0f));
 		productList.add(product);
 		
 		product = new Catalog.Products.Product();
@@ -233,6 +238,7 @@ public class CorrelationsTest {
 		product.setImage("image.jpg");
 		product.setLink("www.in.gr");
 		product.setName("5");
+		product.setPrice(new BigDecimal(0.0f));
 		productList.add(product);
 		
 		product = new Catalog.Products.Product();
@@ -241,6 +247,7 @@ public class CorrelationsTest {
 		product.setImage("image.jpg");
 		product.setLink("www.in.gr");
 		product.setName("6");
+		product.setPrice(new BigDecimal(0.0f));
 		productList.add(product);
 		
 		CatalogDAO dao = new CatalogDAOImpl();
