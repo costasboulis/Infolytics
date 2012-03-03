@@ -6,6 +6,7 @@ import java.util.List;
 import org.apache.log4j.Logger;
 
 import com.cleargist.catalog.dao.CatalogDAO;
+import com.cleargist.catalog.dao.CatalogDAOImpl;
 import com.cleargist.catalog.entity.jaxb.Catalog;
 
 public class StandardFilter implements Filter {
@@ -16,6 +17,7 @@ public class StandardFilter implements Filter {
 	private boolean allowOutOfStock;
 	
 	public StandardFilter() {
+		this.catalog = new CatalogDAOImpl();
 		this.showOnlyFromSameCategory = false;
 		this.numRecs = 10;
 		this.allowOutOfStock = false;

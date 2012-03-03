@@ -9,11 +9,15 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
+import java.util.Date;
+import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
+
+import javax.xml.datatype.DatatypeFactory;
 
 import org.apache.log4j.Logger;
 import org.junit.After;
@@ -37,6 +41,8 @@ import com.amazonaws.services.simpledb.model.DeleteAttributesRequest;
 import com.amazonaws.services.simpledb.model.DeleteDomainRequest;
 import com.amazonaws.services.simpledb.model.ReplaceableAttribute;
 import com.amazonaws.services.simpledb.model.ReplaceableItem;
+import com.cleargist.catalog.dao.CatalogDAO;
+import com.cleargist.catalog.dao.CatalogDAOImpl;
 import com.cleargist.catalog.entity.jaxb.Catalog;
 
 
@@ -48,6 +54,7 @@ public class CorrelationsTest {
 	private String PROFILE_DOMAIN = "PROFILE_test";
 	private String MODEL_DOMAIN = "MODEL_CORRELATIONS_test_A";
 	private String OTHER_MODEL_DOMAIN = "MODEL_CORRELATIONS_test_B";
+	private String CATALOG_DOMAIN = "CATALOG_test";
 	private String STATS_BUCKET = "tmpstatstest";
 	public static String newline = System.getProperty("line.separator");
 		
@@ -165,6 +172,92 @@ public class CorrelationsTest {
 		ReplaceableItem item = new ReplaceableItem("test", attributes);
 		items.add(item);
 		sdb.batchPutAttributes(new BatchPutAttributesRequest("MODEL_STATES", items));
+		
+		createCatalog();
+	}
+	
+	private void createCatalog() {
+		Catalog catalog = new Catalog();
+		GregorianCalendar gc = new GregorianCalendar();
+		Date date = new Date();
+        gc.setTimeInMillis(date.getTime());
+        DatatypeFactory df = null;
+        try {
+        	df = DatatypeFactory.newInstance();
+        }
+        catch (Exception ex) {
+        	logger.error("Could not configure DatatypeFactory");
+        	System.exit(-1);
+        }
+        
+		catalog.setCreatedAt(df.newXMLGregorianCalendar(gc));
+		catalog.setProducts(new Catalog.Products());
+		Catalog.Products products = catalog.getProducts();
+		List<Catalog.Products.Product> productList = products.getProduct();
+		
+		Catalog.Products.Product product = new Catalog.Products.Product();
+		product.setUid("1");
+		product.setCategory("CATEGORY");
+		product.setImage("image.jpg");
+		product.setLink("www.in.gr");
+		product.setName("1");
+		productList.add(product);
+		
+		product = new Catalog.Products.Product();
+		product.setUid("2");
+		product.setCategory("CATEGORY");
+		product.setImage("image.jpg");
+		product.setLink("www.in.gr");
+		product.setName("2");
+		productList.add(product);
+		
+		product = new Catalog.Products.Product();
+		product.setUid("3");
+		product.setCategory("CATEGORY");
+		product.setImage("image.jpg");
+		product.setLink("www.in.gr");
+		product.setName("3");
+		productList.add(product);
+		
+		product = new Catalog.Products.Product();
+		product.setUid("4");
+		product.setCategory("CATEGORY");
+		product.setImage("image.jpg");
+		product.setLink("www.in.gr");
+		product.setName("4");
+		productList.add(product);
+		
+		product = new Catalog.Products.Product();
+		product.setUid("5");
+		product.setCategory("CATEGORY");
+		product.setImage("image.jpg");
+		product.setLink("www.in.gr");
+		product.setName("5");
+		productList.add(product);
+		
+		product = new Catalog.Products.Product();
+		product.setUid("6");
+		product.setCategory("CATEGORY");
+		product.setImage("image.jpg");
+		product.setLink("www.in.gr");
+		product.setName("6");
+		productList.add(product);
+		
+		CatalogDAO dao = new CatalogDAOImpl();
+		try {
+			dao.marshallCatalog(catalog, "cleargist", "catalog.xsd", "cleargist", "CATALOG_test.xml", "test");
+		}
+		catch (Exception ex) {
+			logger.error("Could not marshall catalog");
+			System.exit(-1);
+		}
+		try {
+			dao.insertCatalog("cleargist", "CATALOG_test.xml", "", "test");
+		}
+		catch (Exception ex) {
+			logger.error("Could not create catalog");
+			System.exit(-1);
+		}
 	}
 	
 	@After
@@ -174,6 +267,7 @@ public class CorrelationsTest {
 		sdb.deleteDomain(new DeleteDomainRequest(PROFILE_DOMAIN));
 		sdb.deleteDomain(new DeleteDomainRequest(MODEL_DOMAIN));
 		sdb.deleteDomain(new DeleteDomainRequest(OTHER_MODEL_DOMAIN));
+		sdb.deleteDomain(new DeleteDomainRequest(CATALOG_DOMAIN));
 		
 		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
 				CorrelationsTest.class.getResourceAsStream(AWS_CREDENTIALS)));
@@ -194,7 +288,7 @@ public class CorrelationsTest {
 	    	}
 	    	s3.deleteBucket(STATS_BUCKET);
 		}
-		
+		s3.deleteObject("cleargist", "CATALOG_test.xml");
     	
         DeleteAttributesRequest deleteAttributesRequest = new DeleteAttributesRequest();
         deleteAttributesRequest.setItemName("test");
@@ -288,10 +382,10 @@ public class CorrelationsTest {
 			assertTrue(false);
 		}
 		
-		PassThroughFilter filter = new PassThroughFilter();
+		StandardFilter filter = new StandardFilter();
 		List<Catalog.Products.Product> recs = null;
 		try {
-			recs = model.getPersonalizedRecommendedProducts("A", "test", filter);
+			recs = model.getPersonalizedRecommendedProductsInternal("A", "test", filter);
 		}
 		catch (Exception ex) {
 			assertTrue(false);
@@ -301,7 +395,7 @@ public class CorrelationsTest {
 		
 		recs = null;
 		try {
-			recs = model.getPersonalizedRecommendedProducts("C", "test", filter);
+			recs = model.getPersonalizedRecommendedProductsInternal("C", "test", filter);
 		}
 		catch (Exception ex) {
 			assertTrue(false);
