@@ -27,6 +27,7 @@ body {
     background-repeat:no-repeat;
     background-attachment:fixed;
     background-position:center; 
+    color:#fff
 }
 
 html, body {
@@ -658,12 +659,12 @@ div.footerRightMenu {
 }
 
 .spanCatalogMainHeaderRight{
-	/* font-size: 10pt; */
+	font-size: 9pt;
 	color: #999999;
 }
 
 .goback{
-	font-size: 10pt;
+	/* font-size: 10pt; */
 }
 
 /* #divRdMainTrans .ui-button-text {

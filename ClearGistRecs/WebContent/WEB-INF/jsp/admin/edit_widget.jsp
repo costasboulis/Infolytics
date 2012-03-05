@@ -31,7 +31,7 @@
 
 </head>
 
-<body onload="getItems();" style="color:#fff">
+<body onload="getItems();">
 	<!--page wrapper-->
 	<div class="wrapper">
 
@@ -992,9 +992,11 @@
 		<div id="previewAreaHidden" style="display: none;">
 			<div id="CGW"
 				style="font-family: Arial, Helvetica, sans-serif; width: 800px; border: 1px solid #000000; overflow: hidden; display: none;" align="center" >
-				<input type="hidden" id="CGWId" name="CGWId" value="${widget.id}" />
+				<input type="hidden" id="CGWToken" name="CGWToken" value="${tenant.token}" />
+				<input type="hidden" id="CGWType" name="CGWType" value="${widget.type}" />
+				<input type="hidden" id="CGWItems" name="CGWItems" value="${widget.noOfItems}" />
 				<div id="CGWHeader"
-					style="color: #333333; font-size: 14px; font-weight: bold; text-align: center; background-color: #ffffff; height: 100%; padding-top: 10px; padding-bottom: 10px;">
+					style="color: #333333; font-size: 14px; font-weight: bold; text-align: center; background-color: #ffffff; padding-top: 10px; padding-bottom: 10px;">
 					<span id="CGWHeaderTxt">People also bought...</span>
 				</div>
 				<div id="CGWMain"
@@ -1008,7 +1010,7 @@
 					style="color: #666666; font-size: 10px; text-align: center; background-color: #ffffff; width: 800px; padding-top: 5px; padding-bottom: 10px;">
 					powered by <br />
 					<a href="http://www.cleargist.com" target="_blank"><img
-						src="http://cleargist.elasticbeanstalk.com/images/logo_small.png" border="0" /></a>
+						src="http://cleargist.elasticbeanstalk.com/images/logo_small.png" border="0" width="60" height="8"/></a>
 				</div>
 			</div>
 		</div>

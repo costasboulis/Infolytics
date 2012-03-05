@@ -50,7 +50,7 @@ import com.amazonaws.services.simpledb.model.ReplaceableAttribute;
 import com.amazonaws.services.simpledb.model.ReplaceableItem;
 import com.amazonaws.services.simpledb.model.SelectRequest;
 import com.amazonaws.services.simpledb.model.SelectResult;
-import com.cleargist.recommendations.entity.Catalog2;
+import com.cleargist.recommendations.entity.Catalog2.Products.Product;
 
 public class CorrelationsModel extends BaseModel {
 	private static final String AWS_CREDENTIALS = "/AwsCredentials.properties";
@@ -87,7 +87,7 @@ public class CorrelationsModel extends BaseModel {
 		return STATS_BASE_BUCKETNAME + "correlations" + tenantID;
 	}
 	
-	public List<Catalog2.Products.Product> getRecommendedProductsInternal(List<String> productIDs, String tenantID, Filter filter) throws Exception {
+	public List<Product> getRecommendedProductsInternal(List<String> productIDs, String tenantID, Filter filter) throws Exception {
 		double weight = (double)productIDs.size();
 		List<AttributeObject> productIDsInternal = new LinkedList<AttributeObject>();
 		for (String productID : productIDs) {
@@ -98,7 +98,7 @@ public class CorrelationsModel extends BaseModel {
 		return getRecommendedProductsList(productIDsInternal, tenantID, filter);
 	}
 	
-	private List<Catalog2.Products.Product> getRecommendedProductsList(List<AttributeObject> productIds, String tenantID, Filter filter) throws Exception {
+	private List<Product> getRecommendedProductsList(List<AttributeObject> productIds, String tenantID, Filter filter) throws Exception {
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
     	
@@ -155,7 +155,7 @@ public class CorrelationsModel extends BaseModel {
 	
 	
 	
-	public List<Catalog2.Products.Product> getPersonalizedRecommendedProductsInternal(String userID, String tenantID, Filter filter) throws Exception {
+	public List<Product> getPersonalizedRecommendedProductsInternal(String userID, String tenantID, Filter filter) throws Exception {
 		// Retrieve the user profile
 		List<AttributeObject> sourceIDs = getUserProfile(userID, tenantID);
 		return getRecommendedProductsList(sourceIDs, tenantID, filter);

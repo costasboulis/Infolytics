@@ -37,8 +37,8 @@
 		<property name="dataSource" ref="dataSource" />
 		<property name="jpaVendorAdapter">
 			<bean class="org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter">
-				<property name="showSql" value="true" /> <!-- Prints used SQL to stdout -->
-				<property name="generateDdl" value="false" /> <!-- Generates tables. -->
+				<property name="showSql" value="false" /> <!-- Prints used SQL to stdout -->
+				<property name="generateDdl" value="true" /> <!-- Generates tables. -->
 				<property name="databasePlatform" value="org.hibernate.dialect.MySQL5Dialect" />
 			</bean>
 		</property>
@@ -129,7 +129,7 @@
 	<bean id="processCatalogTrigger" class="org.springframework.scheduling.quartz.CronTriggerBean">
 		
 		<property name="jobDetail" ref="processCatalogJob" />
-		<property name="cronExpression" value="0/59 * * * * ?" />
+		<property name="cronExpression" value="0 0/3 * * * ?" />
 
 	</bean>
 	

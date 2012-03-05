@@ -8,6 +8,7 @@
 
 package com.cleargist.recommendations.entity;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -83,7 +84,10 @@ import javax.xml.datatype.XMLGregorianCalendar;
 @XmlRootElement(name = "catalog")
 public class Catalog2 {
 
-    @XmlElement(name = "created_at")
+    /**
+	 * 
+	 */
+	@XmlElement(name = "created_at")
     @XmlSchemaType(name = "dateTime")
     protected XMLGregorianCalendar createdAt;
     @XmlElement(required = true)
@@ -187,7 +191,10 @@ public class Catalog2 {
     })
     public static class Products {
 
-        @XmlElement(required = true)
+        /**
+		 * 
+		 */
+		@XmlElement(required = true)
         protected List<Catalog2.Products.Product> product;
 
         /**
@@ -257,9 +264,13 @@ public class Catalog2 {
         @XmlType(name = "", propOrder = {
 
         })
-        public static class Product {
+        public static class Product  implements Serializable {
 
-            @XmlElement(required = true)
+            /**
+			 * 
+			 */
+			private static final long serialVersionUID = 6792202866468374740L;
+			@XmlElement(required = true)
             protected String uid;
             @XmlElement(required = true)
             protected String name;

@@ -6,7 +6,8 @@ import java.util.List;
 import org.apache.log4j.Logger;
 
 import com.cleargist.recommendations.dao.CatalogDAO;
-import com.cleargist.recommendations.entity.Catalog2;
+import com.cleargist.recommendations.dao.CatalogDAOImpl;
+import com.cleargist.recommendations.entity.Catalog2.Products.Product;
 
 
 public class StandardFilter implements Filter {
@@ -17,6 +18,7 @@ public class StandardFilter implements Filter {
 	private boolean allowOutOfStock;
 	
 	public StandardFilter() {
+		this.catalog = new CatalogDAOImpl();
 		this.showOnlyFromSameCategory = false;
 		this.numRecs = 10;
 		this.allowOutOfStock = false;
@@ -50,11 +52,11 @@ public class StandardFilter implements Filter {
 		return this.allowOutOfStock;
 	}
 	
-	public List<Catalog2.Products.Product> applyFiltering(List<String> unfilteredIds, String tenantID) {
-		List<Catalog2.Products.Product> finalList = new ArrayList<Catalog2.Products.Product>();
+	public List<Product> applyFiltering(List<String> unfilteredIds, String tenantID) {
+		List<Product> finalList = new ArrayList<Product>();
     	String category = null;
     	for (String uid : unfilteredIds) {
-    		Catalog2.Products.Product product = null;
+    		Product product = null;
     		try {
     			product = catalog.getProductByID(uid, "", tenantID);
     		}

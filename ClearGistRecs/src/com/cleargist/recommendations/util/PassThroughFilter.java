@@ -6,9 +6,8 @@ import java.util.List;
 import org.apache.log4j.Logger;
 
 import com.cleargist.recommendations.dao.CatalogDAO;
-import com.cleargist.recommendations.dao.DummyCatalog;
-import com.cleargist.recommendations.entity.Catalog;
-import com.cleargist.recommendations.entity.Catalog2;
+import com.cleargist.recommendations.dao.CatalogDAOImpl;
+import com.cleargist.recommendations.entity.Catalog2.Products.Product;
 
 
 public class PassThroughFilter implements Filter {
@@ -16,16 +15,16 @@ public class PassThroughFilter implements Filter {
 	private CatalogDAO catalog;
 	
 	public PassThroughFilter() {
-		catalog = new DummyCatalog();
+		catalog = new CatalogDAOImpl();
 	}
 	
 	public String getName() {
 		return "PassThrough";
 	}
 	
-	public List<Catalog2.Products.Product> applyFiltering(List<String> unfilteredIds, String tenantID) {
-		List<Catalog2.Products.Product> filteredProducts = new ArrayList<Catalog2.Products.Product>();
-		Catalog2.Products.Product product = null;
+	public List<Product> applyFiltering(List<String> unfilteredIds, String tenantID) {
+		List<Product> filteredProducts = new ArrayList<Product>();
+		Product product = null;
 		for (String uid : unfilteredIds) {
 			try {
 				product = catalog.getProductByID(uid, "", tenantID);

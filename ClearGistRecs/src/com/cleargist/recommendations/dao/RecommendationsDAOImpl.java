@@ -1,6 +1,7 @@
 package com.cleargist.recommendations.dao;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -10,6 +11,7 @@ import java.util.Date;
 import java.util.GregorianCalendar;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import javax.persistence.EntityManager;
 import javax.persistence.NoResultException;
@@ -60,6 +62,7 @@ import com.cleargist.recommendations.util.Filter;
 import com.cleargist.recommendations.util.PassThroughFilter;
 import com.cleargist.recommendations.util.PurchaseProfileProcessor;
 import com.cleargist.recommendations.util.SemanticModel;
+import com.cleargist.recommendations.util.StandardFilter;
 
 
 @Repository("RecommendationsDAO")
@@ -95,7 +98,7 @@ public class RecommendationsDAOImpl implements RecommendationsDAO {
 		return entityManager;
 	} 
 
-	private DateFormat df = new SimpleDateFormat("dd/MM/yyyy");
+	private DateFormat df = new SimpleDateFormat("yyMMddHHmmssSSSZ");
 	String simpleDBDomain;
 
 	/**
@@ -996,7 +999,7 @@ public class RecommendationsDAOImpl implements RecommendationsDAO {
 	@Override
 	public JSONArray getActivityStats(Metric metric, StatisticalPeriod period, int token) {
 		JSONArray ar1 = new JSONArray();
-		SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd");
+		SimpleDateFormat df = new SimpleDateFormat("yyMMddHHmmssSSSZ");
 		simpleDBDomain = "ACTIVITY_" + token;
 		double value = 0;
 		double value1 = 0;
@@ -1170,7 +1173,7 @@ public class RecommendationsDAOImpl implements RecommendationsDAO {
 	public String getPerfOfMetrics(StatisticalPeriod period, int token) {
 		
 		String html = "<table width='100%'><tr><td width='60%'><table width='100%'><tr>";
-		SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd");
+		SimpleDateFormat df = new SimpleDateFormat("yyMMddHHmmssSSSZ");
 		simpleDBDomain = "ACTIVITY_" + token;
 		double value = 0;
 		int intValue = 0;
@@ -1611,46 +1614,134 @@ public class RecommendationsDAOImpl implements RecommendationsDAO {
 	}
 
 	@Override
-	public List<Catalog> getRecommendationsByWidget(Widget w, Tenant t, List<String> itemIds) {
+	public List<Product> getRecommendationsByWidget(WidgetType wt, String token, int noOfItems, List<String> itemIds) {
+		//initialize
+		List<Product> products = new ArrayList<Product>();
 		CorrelationsModel corrModel = new CorrelationsModel();
 		SemanticModel semaModel = new SemanticModel();
 		CombinationModel combModel = new CombinationModel();
-		List<Product> products = new ArrayList<Product>();
-		List<Catalog> items = new ArrayList<Catalog>();
-		Filter filter = new PassThroughFilter();
+		StandardFilter filter = new StandardFilter();
+		filter.setNumRecs(noOfItems);
 		try {
-			if (w.getType() == WidgetType.Customers_who_bought_this_also_bought_that)
-				products = semaModel.getRecommendedProducts(itemIds, Integer.toString(t.getToken()), filter);
-			else if (w.getType() == WidgetType.Customers_who_viewed_this_also_viewed_that) 
-				products = semaModel.getRecommendedProducts(itemIds, Integer.toString(t.getToken()), filter);
-			else if (w.getType() == WidgetType.Most_popular_in_category) 
-				products = semaModel.getRecommendedProducts(itemIds, Integer.toString(t.getToken()), filter);
-			else if (w.getType() == WidgetType.Most_popular_overall)
-				products = semaModel.getRecommendedProducts(itemIds, Integer.toString(t.getToken()), filter);
-			else if (w.getType() == WidgetType.Packaged_for_you)
-				products = semaModel.getRecommendedProducts(itemIds, Integer.toString(t.getToken()), filter);
-			else if (w.getType() == WidgetType.Recommended_For_You) 
-				products = semaModel.getRecommendedProducts(itemIds, Integer.toString(t.getToken()), filter);
-			
+			if (wt == WidgetType.Customers_who_bought_this_also_bought_that)
+				products = semaModel.getRecommendedProducts(itemIds, token, filter);
+			else if (wt == WidgetType.Customers_who_viewed_this_also_viewed_that) 
+				products = semaModel.getRecommendedProducts(itemIds, token, filter);
+			else if (wt == WidgetType.Most_popular_in_category) 
+				products = semaModel.getRecommendedProducts(itemIds, token, filter);
+			else if (wt == WidgetType.Most_popular_overall)
+				products = semaModel.getRecommendedProducts(itemIds, token, filter);
+			else if (wt == WidgetType.Packaged_for_you)
+				products = semaModel.getRecommendedProducts(itemIds, token, filter);
+			else if (wt == WidgetType.Recommended_For_You) 
+				products = semaModel.getRecommendedProducts(itemIds, token, filter);
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
+		  
+		/*BigDecimal price = new BigDecimal(90);
+		Product p = new Product();
+		p.setName("test1");
+		p.setImage("test1");
+		p.setLink("test1");
+		p.setCategory("test1");
+		p.setDescription("test1");
+		p.setPrice(price);
+		p.setUid("test1");
 		
-		for (Product p : products) {
-			Catalog c = new Catalog();
-			double price = new Double (p.getPrice().toString());
-			
-			c.setItem(p.getName());
-			c.setUrl(p.getLink());
-			c.setImage(p.getImage());
-			c.setCategory(p.getCategory());
-			c.setPrice(price);
-			
-			items.add(c);
-		}
+		Product p2 = new Product();
+		p2.setName("test1");
+		p2.setImage("test1");
+		p2.setLink("test1");
+		p2.setCategory("test1");
+		p2.setDescription("test1");
+		p2.setPrice(price);
+		p2.setUid("test1");
 		
+		Product p3 = new Product();
+		p3.setName("test1");
+		p3.setImage("test1");
+		p3.setLink("test1");
+		p3.setCategory("test1");
+		p3.setDescription("test1");
+		p3.setPrice(price);
+		p3.setUid("test1");
 		
-		return items;
+		Product p4 = new Product();
+		p.setName("test1");
+		p4.setImage("test1");
+		p4.setLink("test1");
+		p4.setCategory("test1");
+		p4.setDescription("test1");
+		p4.setPrice(price);
+		p4.setUid("test1");
+		
+		Product p5 = new Product();
+		p5.setName("test1");
+		p5.setImage("test1");
+		p5.setLink("test1");
+		p5.setCategory("test1");
+		p5.setDescription("test1");
+		p5.setPrice(price);
+		p5.setUid("test1");
+		
+		Product p6 = new Product();
+		p6.setName("test1");
+		p6.setImage("test1");
+		p6.setLink("test1");
+		p6.setCategory("test1");
+		p6.setDescription("test1");
+		p6.setPrice(price);
+		p6.setUid("test1");
+		
+		Product p7 = new Product();
+		p7.setName("test1");
+		p7.setImage("test1");
+		p7.setLink("test1");
+		p7.setCategory("test1");
+		p7.setDescription("test1");
+		p7.setPrice(price);
+		p7.setUid("test1");
+		
+		Product p8 = new Product();
+		p8.setName("test1");
+		p8.setImage("test1");
+		p8.setLink("test1");
+		p8.setCategory("test1");
+		p8.setDescription("test1");
+		p8.setPrice(price);
+		p8.setUid("test1");
+		
+		Product p9 = new Product();
+		p9.setName("test1");
+		p9.setImage("test1");
+		p9.setLink("test1");
+		p9.setCategory("test1");
+		p9.setDescription("test1");
+		p9.setPrice(price);
+		p9.setUid("test1");
+		
+		Product p10 = new Product();
+		p10.setName("test1");
+		p10.setImage("test1");
+		p10.setLink("test1");
+		p10.setCategory("test1");
+		p10.setDescription("test1");
+		p10.setPrice(price);
+		p10.setUid("test1");
+		
+		products.add(p);
+		products.add(p2);
+		products.add(p3);
+		products.add(p4);
+		products.add(p5);
+		products.add(p6);
+		products.add(p7);
+		products.add(p8);
+		products.add(p9);
+		products.add(p10);*/
+		
+		return products;
 	}
 	
 	@Transactional(readOnly = true)

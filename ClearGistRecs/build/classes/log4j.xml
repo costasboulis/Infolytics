@@ -5,11 +5,16 @@
   <appender name="ConsoleAppender" class="org.apache.log4j.ConsoleAppender">
     <layout class="org.apache.log4j.SimpleLayout"/>
   </appender>
+<!--   <logger name="org.springframework"> 
+  <level value="error"/>  
+</logger>
+<logger name="net.spy"> 
+  <level value="error"/>  
+</logger> -->
   <root>
     <priority value ="info" />
     <appender-ref ref="ConsoleAppender"/>
   </root>
-
 </log4j:configuration>
 
 <!-- <log4j:configuration xmlns:log4j="http://jakarta.apache.org/log4j/">

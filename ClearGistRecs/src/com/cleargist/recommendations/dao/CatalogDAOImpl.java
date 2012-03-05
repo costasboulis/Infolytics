@@ -63,6 +63,7 @@ import com.amazonaws.services.simpledb.model.ReplaceableItem;
 import com.amazonaws.services.simpledb.model.SelectRequest;
 import com.amazonaws.services.simpledb.model.SelectResult;
 import com.cleargist.recommendations.entity.Catalog2;
+import com.cleargist.recommendations.util.MyValidationEventHandler;
 
 
 
@@ -164,6 +165,7 @@ public class CatalogDAOImpl implements CatalogDAO {
     			System.exit(-1);
     		}
     		marshaller.setSchema(schema);
+    		marshaller.setEventHandler(new MyValidationEventHandler());
     		marshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, new Boolean(true));
     	}
     	catch (JAXBException ex) {
@@ -226,7 +228,7 @@ public class CatalogDAOImpl implements CatalogDAO {
     		throw new JAXBException(errorMessage);
     	}
         reader.close();
-        logger.info("Catalog unmarshalled");
+        logger.info("Catalog2 unmarshalled");
         
         return catalog;
 	}

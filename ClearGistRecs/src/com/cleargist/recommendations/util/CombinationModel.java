@@ -4,7 +4,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 
-import com.cleargist.recommendations.entity.Catalog2;
+import com.cleargist.recommendations.entity.Catalog2.Products.Product;
 
 public class CombinationModel extends BaseModel {
 	private int TOP_N_SEMANTIC = 300;
@@ -51,17 +51,17 @@ public class CombinationModel extends BaseModel {
 		return STATS_BASE_BUCKETNAME + "combined" + tenantID;
 	}
 	
-	public List<Catalog2.Products.Product> getRecommendedProductsInternal(List<String> productIDs, String tenantID, Filter filter) throws Exception {
+	public List<Product> getRecommendedProductsInternal(List<String> productIDs, String tenantID, Filter filter) throws Exception {
 		
-		List<Catalog2.Products.Product> semanticProducts = this.semanticModel.getRecommendedProductsInternal(productIDs, tenantID, filter);
+		List<Product> semanticProducts = this.semanticModel.getRecommendedProductsInternal(productIDs, tenantID, filter);
 		HashSet<String> semantics = new HashSet<String>();
-		for (Catalog2.Products.Product product : semanticProducts) {
+		for (Product product : semanticProducts) {
 			semantics.add(product.getUid());
 		}
 		
-		List<Catalog2.Products.Product> products = new LinkedList<Catalog2.Products.Product>();
-		List<Catalog2.Products.Product> correlationProducts = this.correlationsModel.getRecommendedProductsInternal(productIDs, tenantID, filter);
-		for (Catalog2.Products.Product product : correlationProducts) {
+		List<Product> products = new LinkedList<Product>();
+		List<Product> correlationProducts = this.correlationsModel.getRecommendedProductsInternal(productIDs, tenantID, filter);
+		for (Product product : correlationProducts) {
 			if (semantics.contains(product.getUid())) {
 				products.add(product);
 			}
@@ -74,16 +74,16 @@ public class CombinationModel extends BaseModel {
 		return products;
 	}
 	
-	public List<Catalog2.Products.Product> getPersonalizedRecommendedProductsInternal(String userID, String tenantID, Filter filter) throws Exception {
-		List<Catalog2.Products.Product> semanticProducts = this.semanticModel.getPersonalizedRecommendedProductsInternal(userID, tenantID, filter);
+	public List<Product> getPersonalizedRecommendedProductsInternal(String userID, String tenantID, Filter filter) throws Exception {
+		List<Product> semanticProducts = this.semanticModel.getPersonalizedRecommendedProductsInternal(userID, tenantID, filter);
 		HashSet<String> semantics = new HashSet<String>();
-		for (Catalog2.Products.Product product : semanticProducts) {
+		for (Product product : semanticProducts) {
 			semantics.add(product.getUid());
 		}
 		
-		List<Catalog2.Products.Product> products = new LinkedList<Catalog2.Products.Product>();
-		List<Catalog2.Products.Product> correlationProducts = this.correlationsModel.getPersonalizedRecommendedProductsInternal(userID, tenantID, filter);
-		for (Catalog2.Products.Product product : correlationProducts) {
+		List<Product> products = new LinkedList<Product>();
+		List<Product> correlationProducts = this.correlationsModel.getPersonalizedRecommendedProductsInternal(userID, tenantID, filter);
+		for (Product product : correlationProducts) {
 			if (semantics.contains(product.getUid())) {
 				products.add(product);
 			}

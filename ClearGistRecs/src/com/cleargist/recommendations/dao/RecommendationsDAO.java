@@ -10,11 +10,13 @@ import com.amazonaws.services.simpledb.model.ReplaceableItem;
 import com.amazonaws.util.json.JSONArray;
 import com.cleargist.recommendations.entity.Activity;
 import com.cleargist.recommendations.entity.Catalog;
+import com.cleargist.recommendations.entity.Catalog2.Products.Product;
 import com.cleargist.recommendations.entity.ErrorLog;
 import com.cleargist.recommendations.entity.Metric;
 import com.cleargist.recommendations.entity.StatisticalPeriod;
 import com.cleargist.recommendations.entity.Tenant;
 import com.cleargist.recommendations.entity.Widget;
+import com.cleargist.recommendations.entity.WidgetType;
 
 public interface RecommendationsDAO {
 	
@@ -69,6 +71,6 @@ public interface RecommendationsDAO {
 	
 	//facade
 	public void runModelProfilerByWidget (Widget w, Tenant t);
-	public List<Catalog> getRecommendationsByWidget (Widget w, Tenant t, List<String> itemIds);
+	public List<Product> getRecommendationsByWidget (WidgetType wt, String token, int noOfItems, List<String> itemIds);
 
 }

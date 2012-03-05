@@ -1,6 +1,7 @@
 package com.cleargist.recommendations.web;
 
 import java.io.StringWriter;
+import java.math.BigDecimal;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -56,6 +57,7 @@ import com.cleargist.recommendations.dao.RecommendationsDAO;
 import com.cleargist.recommendations.dao.SintagesPareasCatalog;
 import com.cleargist.recommendations.entity.ActivityEvent;
 import com.cleargist.recommendations.entity.Catalog;
+import com.cleargist.recommendations.entity.Catalog2.Products.Product;
 import com.cleargist.recommendations.entity.CatalogStatus;
 import com.cleargist.recommendations.entity.ErrorType;
 import com.cleargist.recommendations.entity.Metric;
@@ -76,11 +78,12 @@ public class RecommendationsController {
 
 	private RecommendationsDAO dao;
 	private NotificationManager notificationManager;
+	private static final String DATE_PATTERN = "yyMMddHHmmssSSSZ";
 	private static final Logger logger=Logger.getLogger(RecommendationsController.class.getName());
 	//private String TENANT_TOKEN = "NONE";
 	//initialize data
 	private Date curDateTime = Calendar.getInstance().getTime();
-    private SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd"); 
+    private SimpleDateFormat dateFormat = new SimpleDateFormat(DATE_PATTERN); 
 	private Integer tenant = 0;
 	//validators
 	private TenantValidator tenantValidator = new TenantValidator();
@@ -536,23 +539,36 @@ public class RecommendationsController {
 	public String getWidgetItems (@RequestParam("limit") int limit, @RequestParam("token") String token, Model model) {
 		
 		String lis="";
+		String lis2="";
 		JSONObject json = new JSONObject();
 		List<Catalog> items = dao.getSampleItems(limit, token);
-		
+		int count=0;
 		for(Catalog item : items){
 			lis += "<li style='overflow:hidden;position:relative;'>" +
 						"<a href='"+item.getUrl()+"'>" +
 						"<span class='clearGistWidgetImgSpan'><img src='"+item.getImage()+"' border='0' width='100' height='auto'/></span>" +
 						"<span class='clearGistWidgetNameSpan'>&nbsp;"+item.getItem()+"</span>" +
 						"<span class='clearGistWidgetCategorySpan'>&nbsp;"+item.getCategory()+"</span>" +
-						"<span class='clearGistWidgetPriceSpan'>&nbsp;&euro;"+item.getPrice()+"</span>" +
+						"<span class='clearGistWidgetPriceSpan'>&nbsp;&euro;"+item.getPrice()+"</span></a>" +
 						/*"<span class='clearGistWidgetStockSpan'>&nbsp;only "+item.getStock()+" left!</span>" +*/
 					"</li>";
+			
+			lis2 += "<li style='overflow:hidden;position:relative;' id='CGWli"+count+"'>" +
+					"<a href='' style='text-decoration:none' onclick=''>"+
+					"<span class='CGWImg'><img width='100' height='auto' border='0' src='' /></span>" +
+					"<span class='CGWName'>&nbsp;</span>" +
+					"<span class='CGWCategory'>&nbsp;</span>" +
+					"<span class='CGWPrice'>&nbsp;</span>" +
+					"</a>"+
+				"</li>";
+			
+			count++;
 		}
 		
 		try {
 			json.put("answer", "true");
 			json.put("lis", lis);
+			json.put("lis2", lis2);
 		} catch (JSONException e) {
 			e.printStackTrace();
 		}
@@ -1238,7 +1254,7 @@ public class RecommendationsController {
 	 */
 	@RequestMapping(value="/activity.do", method={RequestMethod.GET})
 	public @ResponseBody String recordActivity (@RequestParam(value = "userId") String userId, @RequestParam(value="event") String event,
-			@RequestParam(value = "session") String session, @RequestParam(value = "itemId") String itemId, @RequestParam(value = "tenantId") String tenantId) {
+			@RequestParam(value = "session") String session, @RequestParam(value = "itemId") String itemId, @RequestParam(value = "token") String token) {
 		
 		//initialize list of simple db attributes
 		List<ReplaceableItem> simpleDBItems = new ArrayList<ReplaceableItem>();
@@ -1249,7 +1265,7 @@ public class RecommendationsController {
 		//initialize activity data
 		String activityEvent = ActivityEvent.ITEM_PAGE.toString();
 
-		Tenant tenant = dao.getTenantById(tenantId);
+		/*Tenant tenant = dao.getTenantById(tenantId);*/
 
 		//validate requests	- item
 		if(itemId==null || itemId.equals(""))
@@ -1282,7 +1298,6 @@ public class RecommendationsController {
 		}
 		
 		String dt = dateFormat.format(curDateTime.getTime());
-		
 		//record activity or failures
 		if(failures.size()==0){
 			//initialize uuid and add to list of simple db activity attributes	
@@ -1293,9 +1308,9 @@ public class RecommendationsController {
 					new ReplaceableAttribute().withName("ITEM").withValue(itemId),
 					new ReplaceableAttribute().withName("USER").withValue(userId),
 					new ReplaceableAttribute().withName("SESSION").withValue(session),
-					new ReplaceableAttribute().withName("ACTDATE").withValue(dt.toString()))
+					new ReplaceableAttribute().withName("ACTDATE").withValue(dt))
 					);
-			dao.saveActivity(simpleDBItems, Integer.toString(tenant.getToken()));
+			dao.saveActivity(simpleDBItems, token);
 			//logger.log(Level.INFO,"--------------Activity Saved----------------");
 		}else{
 			//add to list of list of simple db error attributes
@@ -1303,10 +1318,10 @@ public class RecommendationsController {
 				//initialize uuid and add to list of simple db error attributes
 				UUID uuId = UUID.randomUUID();
 				simpleDBItems.add(new ReplaceableItem().withName("error"+uuId).withAttributes(
-						new ReplaceableAttribute().withName("ERRDATE").withValue(dt.toString()),
+						new ReplaceableAttribute().withName("ERRDATE").withValue(dt),
 						new ReplaceableAttribute().withName("MESSAGE").withValue(mes),
 						new ReplaceableAttribute().withName("TYPE").withValue(ErrorType.RECORD_ACTIVITY.toString()),
-						new ReplaceableAttribute().withName("TENANT").withValue(Integer.toString(tenant.getToken())))
+						new ReplaceableAttribute().withName("TENANT").withValue(token))
 						);
 			}
 
@@ -1517,7 +1532,7 @@ public class RecommendationsController {
 					new ReplaceableAttribute().withName("USER").withValue(""),
 					new ReplaceableAttribute().withName("SESSION").withValue(""),
 					new ReplaceableAttribute().withName("WIDGETID").withValue(""),
-					new ReplaceableAttribute().withName("ACTDATE").withValue(dt.toString()))
+					new ReplaceableAttribute().withName("ACTDATE").withValue(dt))
 					);
 			i++;
 		}
@@ -1586,16 +1601,15 @@ public class RecommendationsController {
 	
 	@RequestMapping(value="/get_items.do", method={RequestMethod.GET})
 	public String getItems (@RequestParam(value = "userId") String userId, @RequestParam(value="itemId") String itemId, @RequestParam(value="session") String session,
-			@RequestParam(value = "tenantId") String tenantId, @RequestParam(value = "widgetId") String widgetId, @RequestParam(value = "callback") String callback, Model model) {
-
-		//initialize list of simple db attributes
-		List<ReplaceableItem> simpleDBItems = new ArrayList<ReplaceableItem>();
+			@RequestParam(value = "token") String token, @RequestParam(value = "widgetType") String widgetType, @RequestParam(value = "noOfItems") int noOfItems
+			, @RequestParam(value = "callback") String callback, Model model) {
 				
-		String lis="";
+		//String lis="";
 		List<String> itemIds = new ArrayList<String>();
 		JSONObject json = new JSONObject();
-		Tenant t = dao.getTenantById(tenantId);
+		/*Tenant t = dao.getTenantById(tenantId);
 		Widget w = dao.getWidget(t, widgetId);
+		
 		//get widget properties 
 		String mainFontType = w.getFontFamily();
 		String layoutType = w.getLayoutType();
@@ -1624,41 +1638,127 @@ public class RecommendationsController {
 		String disImage = w.getShowImages() == 1 ? "block" : "none";
 		String disName = w.getShowName() == 1 ? listDisplay : "none";
 		String disPrice = w.getShowPrice() == 1 ? listDisplay : "none";
-		String disCat = w.getShowCategory() == 1 ? listDisplay : "none";
+		String disCat = w.getShowCategory() == 1 ? listDisplay : "none";*/
 		
 		//get items
 		itemIds.add(itemId);
-		List<Catalog> items = dao.getRecommendationsByWidget(w, t, itemIds);
+		List<Product> items = dao.getRecommendationsByWidget(WidgetType.valueOf(widgetType), token, noOfItems, itemIds);
 		
-		//record rec_seen event
-		if(items.size()>0){
-			//initialize uuid and add to list of simple db activity attributes	
-			UUID uuId = UUID.randomUUID();
-			simpleDBItems.add(new ReplaceableItem().withName("act"+uuId).withAttributes(
-					new ReplaceableAttribute().withName("ID").withValue(uuId.toString()),
-					new ReplaceableAttribute().withName("EVENT").withValue(ActivityEvent.REC_SEEN.toString()),
-					new ReplaceableAttribute().withName("ITEM").withValue(itemId),
-					new ReplaceableAttribute().withName("USER").withValue(userId),
-					new ReplaceableAttribute().withName("SESSION").withValue(session),
-					new ReplaceableAttribute().withName("ACTDATE").withValue(curDateTime.toString()))
-					);
-			dao.saveActivity(simpleDBItems, Integer.toString(t.getToken()));
-			//logger.log(Level.INFO,"--------------Activity Saved----------------");
-		}
-		
-		for(Catalog item : items) {
+		//for(Product item : items) {
 			
-			String itemStr = item.getItem() != null ? item.getItem() : "";
+			/*String itemStr = item.getName() != null ? item.getName() : "";
 			String catStr = item.getCategory() != null ? item.getCategory() : "";
-			double priceStr = item.getPrice();
-			
-			lis += "<li style='overflow:hidden;position:relative;float:"+liFloat+";padding:"+liPadding+";display:"+liDisplay+"'>" +
-						"<a href='"+item.getUrl()+"'>" +
+			BigDecimal priceStr = item.getPrice();*/
+					
+			//custom fashion plus on click handler -- only for DEMO purposes
+			/*if (t.getToken()==103) {
+				lis += "<li style='overflow:hidden;position:relative;float:"+liFloat+";padding:"+liPadding+";display:"+liDisplay+"'>" +
+						"<a href='#' style='text-decoration:none' onclick='CGEvent(\""+ActivityEvent.REC_CLICK.toString()+"\", \""+item.getUid()+"\", \""+tenantId+"\", \""+userId+"\", \""+session+"\");closeProductPopup();getProduct(\"\",\""+item.getUid()+"\");'>" +
 						"<span class='clearGistWidgetImgSpan' style='display: "+disImage+";'><img src='"+item.getImage()+"' border='0' width='"+imgSize+"' height='"+imgSize2+"' /></span>" +
 						"<span class='clearGistWidgetNameSpan' style='font-family:"+mainFontType+";color:#"+nameColor+";font-size:"+nameFontSize+"px;font-weight:"+nameFontWeight+";text-align:"+nameFontAlign+";display:"+disName+"'>&nbsp;"+itemStr+"</span>" +
 						"<span class='clearGistWidgetCategorySpan' style='font-family:"+mainFontType+";color:#"+catColor+";font-size:"+catFontSize+"px;font-weight:"+catFontWeight+";text-align:"+catFontAlign+";display:"+disCat+"'>&nbsp;"+catStr+"</span>" +
 						"<span class='clearGistWidgetPriceSpan' style='font-family:"+mainFontType+";color:#"+priceColor+";font-size:"+priceFontSize+"px;font-weight:"+priceFontWeight+";text-align:"+priceFontAlign+";display:"+disPrice+"'>&nbsp;&euro;"+priceStr+"</span>" +
 					"</li>";
+				
+			} else {
+			
+				lis += "<li style='overflow:hidden;position:relative;float:"+liFloat+";padding:"+liPadding+";display:"+liDisplay+"'>" +
+						"<a href='"+item.getLink()+"' style='text-decoration:none' onclick='CGEvent(\""+ActivityEvent.REC_CLICK.toString()+"\", \""+item.getUid()+"\", \""+tenantId+"\", \""+userId+"\", \""+session+"\")'>" +
+						"<span class='clearGistWidgetImgSpan' style='display: "+disImage+";'><img src='"+item.getImage()+"' border='0' width='"+imgSize+"' height='"+imgSize2+"' /></span>" +
+						"<span class='clearGistWidgetNameSpan' style='font-family:"+mainFontType+";color:#"+nameColor+";font-size:"+nameFontSize+"px;font-weight:"+nameFontWeight+";text-align:"+nameFontAlign+";display:"+disName+"'>&nbsp;"+itemStr+"</span>" +
+						"<span class='clearGistWidgetCategorySpan' style='font-family:"+mainFontType+";color:#"+catColor+";font-size:"+catFontSize+"px;font-weight:"+catFontWeight+";text-align:"+catFontAlign+";display:"+disCat+"'>&nbsp;"+catStr+"</span>" +
+						"<span class='clearGistWidgetPriceSpan' style='font-family:"+mainFontType+";color:#"+priceColor+";font-size:"+priceFontSize+"px;font-weight:"+priceFontWeight+";text-align:"+priceFontAlign+";display:"+disPrice+"'>&nbsp;&euro;"+priceStr+"</span>" +
+					"</li>";
+			}*/
+			
+		//}
+		
+		try {
+			json.put("items", items);
+		} catch (JSONException e) {
+			e.printStackTrace();
+		}
+
+		model.addAttribute("jsonResponse",callback + "(" + json.toString()+ ")");
+
+		return null;
+	}
+	
+	/*@RequestMapping(value="/get_items.do", method={RequestMethod.GET})
+	public String getItems (@RequestParam(value = "userId") String userId, @RequestParam(value="itemId") String itemId, @RequestParam(value="session") String session,
+			@RequestParam(value = "tenantId") String tenantId, @RequestParam(value = "widgetId") String widgetId, @RequestParam(value = "callback") String callback, Model model) {
+				
+		String lis="";
+		List<String> itemIds = new ArrayList<String>();
+		JSONObject json = new JSONObject();
+		Tenant t = new Tenant();
+		t.setId(tenantId);
+		t.setActive(1);
+		t.setToken(103);
+		
+		Widget w = new Widget();
+		w.setId("6203fc3b-0caa-4d4c-92bf-18dcc2809c62");
+		w.setTenant(t);
+		//get widget properties 
+		String mainFontType = "";
+		String layoutType = "";
+		String imgSize = "";
+		String imgSize2 = "";
+		int listSpaces = 10;
+		int listSpaces2 = 10;
+		String listDisplay = "";
+		
+		String nameColor = "";
+		int nameFontSize = 12;
+		String nameFontWeight = "";
+		String nameFontAlign = "";
+		String priceColor = "";
+		int priceFontSize = 12;
+		String priceFontWeight = "";
+		String priceFontAlign = "";
+		String catColor = "";
+		int catFontSize = 12;
+		String catFontWeight = "bold";
+		String catFontAlign = "";
+
+		String liPadding = listSpaces2 + "px " + listSpaces + "px "; 
+		String liFloat = layoutType == "vertical" ? "" : "left";
+		String liDisplay = layoutType == "vertical" ? "block" : "";
+		String disImage = "block";
+		String disName = "none";
+		String disPrice = "none";
+		String disCat = "none";
+		
+		//get items
+		itemIds.add(itemId);
+		List<Product> items = dao.getRecommendationsByWidget(w, t, itemIds);
+		
+		for(Product item : items) {
+			
+			String itemStr = item.getName() != null ? item.getName() : "";
+			String catStr = item.getCategory() != null ? item.getCategory() : "";
+			BigDecimal priceStr = item.getPrice();
+					
+			//custom fashion plus on click handler -- only for DEMO purposes
+			if (t.getToken()==103) {
+				lis += "<li style='overflow:hidden;position:relative;float:"+liFloat+";padding:"+liPadding+";display:"+liDisplay+"'>" +
+						"<a href='#' style='text-decoration:none' onclick='CGEvent(\""+ActivityEvent.REC_CLICK.toString()+"\", \""+item.getUid()+"\", \""+t.getId()+"\", \""+userId+"\", \""+session+"\");closeProductPopup();getProduct(\"\",\""+item.getUid()+"\");'>" +
+						"<span class='clearGistWidgetImgSpan' style='display: "+disImage+";'><img src='"+item.getImage()+"' border='0' width='"+imgSize+"' height='"+imgSize2+"' /></span>" +
+						"<span class='clearGistWidgetNameSpan' style='font-family:"+mainFontType+";color:#"+nameColor+";font-size:"+nameFontSize+"px;font-weight:"+nameFontWeight+";text-align:"+nameFontAlign+";display:"+disName+"'>&nbsp;"+itemStr+"</span>" +
+						"<span class='clearGistWidgetCategorySpan' style='font-family:"+mainFontType+";color:#"+catColor+";font-size:"+catFontSize+"px;font-weight:"+catFontWeight+";text-align:"+catFontAlign+";display:"+disCat+"'>&nbsp;"+catStr+"</span>" +
+						"<span class='clearGistWidgetPriceSpan' style='font-family:"+mainFontType+";color:#"+priceColor+";font-size:"+priceFontSize+"px;font-weight:"+priceFontWeight+";text-align:"+priceFontAlign+";display:"+disPrice+"'>&nbsp;&euro;"+priceStr+"</span>" +
+					"</li>";
+				
+			} else {
+			
+				lis += "<li style='overflow:hidden;position:relative;float:"+liFloat+";padding:"+liPadding+";display:"+liDisplay+"'>" +
+						"<a href='"+item.getLink()+"' style='text-decoration:none' onclick='CGEvent(\""+ActivityEvent.REC_CLICK.toString()+"\", \""+item.getUid()+"\", \""+t.getId()+"\", \""+userId+"\", \""+session+"\")'>" +
+						"<span class='clearGistWidgetImgSpan' style='display: "+disImage+";'><img src='"+item.getImage()+"' border='0' width='"+imgSize+"' height='"+imgSize2+"' /></span>" +
+						"<span class='clearGistWidgetNameSpan' style='font-family:"+mainFontType+";color:#"+nameColor+";font-size:"+nameFontSize+"px;font-weight:"+nameFontWeight+";text-align:"+nameFontAlign+";display:"+disName+"'>&nbsp;"+itemStr+"</span>" +
+						"<span class='clearGistWidgetCategorySpan' style='font-family:"+mainFontType+";color:#"+catColor+";font-size:"+catFontSize+"px;font-weight:"+catFontWeight+";text-align:"+catFontAlign+";display:"+disCat+"'>&nbsp;"+catStr+"</span>" +
+						"<span class='clearGistWidgetPriceSpan' style='font-family:"+mainFontType+";color:#"+priceColor+";font-size:"+priceFontSize+"px;font-weight:"+priceFontWeight+";text-align:"+priceFontAlign+";display:"+disPrice+"'>&nbsp;&euro;"+priceStr+"</span>" +
+					"</li>";
+			}
 			
 		}
 		
@@ -1671,6 +1771,6 @@ public class RecommendationsController {
 		model.addAttribute("jsonResponse",callback + "(" + json.toString()+ ")");
 
 		return null;
-	}
+	}*/
 
 }

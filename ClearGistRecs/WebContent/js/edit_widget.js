@@ -307,6 +307,7 @@ function getItems() {
         success:function(json){
             if(json.answer=="true"){
             	$('#clearGistWidgetUl').html(json.lis);
+            	$('#CGWUl').html(json.lis2);
             	previewWidget();
             }
         }
@@ -444,15 +445,6 @@ function previewWidget() {
 		display: dispPrice
 	});
 	
-	/*$('.clearGistWidgetStockSpan').css({ 
-		'font-family' : selMainFontType, 
-		color : "#"+hiddenStockColor,
-		'font-size': selStockFontSize+"px",
-		'font-weight': selStockFontWeight,
-		'text-align': selStockFontAlign,
-		display: dispSto
-	});*/
-	
 	$('#clearGistWidgetFooter').css({ 
 		'background-color': hiddenFooterColor,
 		display: dispLog,
@@ -486,8 +478,49 @@ function previewWidget() {
 		width : selListWidth+"%"
 	});
 	
+	$('#CGWMain ul li').css({ 
+		float : liFloat,
+		padding: liPadding,
+		display: liDisplay
+	});
+	
+	$('#CGWMain ul li img').css({ 
+		width : selImageSize,
+		height : selImageSize2
+	});
 	
 	$('#CGWHeaderTxt').html(headerText);
+	
+	$('.CGWImg').css({ 
+		display: dispImg
+	});
+	
+	$('.CGWName').css({ 
+		'font-family' : selMainFontType, 
+		 color : "#"+hiddenNameColor,
+		'font-size': selNameFontSize+"px",
+		'font-weight': selNameFontWeight,
+		'text-align': selNameFontAlign,
+		display: dispName
+	});
+	
+	$('.CGWCategory').css({ 
+		'font-family' : selMainFontType, 
+		color : "#"+hiddenCategoryColor,
+		'font-size': selCategoryFontSize+"px",
+		'font-weight': selCategoryFontWeight,
+		'text-align': selCategoryFontAlign,
+		display: dispCat
+	});
+	
+	$('.CGWPrice').css({ 
+		'font-family' : selMainFontType, 
+		color : "#"+hiddenPriceColor,
+		'font-size': selPriceFontSize+"px",
+		'font-weight': selPriceFontWeight,
+		'text-align': selPriceFontAlign,
+		display: dispPrice
+	});
 	
 	$('#CGWFooter').css({ 
 		'background-color': hiddenFooterColor,

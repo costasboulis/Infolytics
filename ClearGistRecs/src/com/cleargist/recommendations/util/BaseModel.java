@@ -26,7 +26,8 @@ import com.amazonaws.services.simpledb.model.PutAttributesRequest;
 import com.amazonaws.services.simpledb.model.ReplaceableAttribute;
 import com.amazonaws.services.simpledb.model.SelectRequest;
 import com.amazonaws.services.simpledb.model.SelectResult;
-import com.cleargist.recommendations.entity.Catalog2;
+import com.cleargist.recommendations.entity.Catalog;
+import com.cleargist.recommendations.entity.Catalog2.Products.Product;
 
 // TODO: Set the TTL_CACHE according to the update schedule of each model. Need to access account table 
 
@@ -39,7 +40,7 @@ public abstract class BaseModel implements Modelable {
 	private static final String STATS_BASE_FILENAME = "partialStats";    // Base name of the suff. stats file in S3 and local file system 
 	private static final String MODEL_STATES_DOMAIN = "MODEL_STATES";    // SimpleDB domain where model states are stored
 	// Cache parameters
-	private static final String MEMCACHED_SERVER = "127.0.0.1";
+	private static final String MEMCACHED_SERVER = "176.34.191.239";
     private static final int MEMCACHED_PORT = 11211;
     private int TTL_CACHE = 60 * 60 * 24;   // This must be the same as the model update rate
     
@@ -92,7 +93,7 @@ public abstract class BaseModel implements Modelable {
 		sb.append(eventID); sb.append("_"); sb.append(tenantID); sb.append("_"); sb.append(serviceID);
 		return sb.toString();
 	}
-	
+
 	private void resetHealthCounters(String tenantID) {
 		MemcachedClient client = null;
     	try {
@@ -122,13 +123,14 @@ public abstract class BaseModel implements Modelable {
 		return client.incr(key, 0);
 	}
 	
-	public List<Catalog2.Products.Product> getRecommendedProducts(List<String> productIds, String tenantID, Filter filter) throws Exception {
+	@SuppressWarnings("unchecked")
+	public List<Product> getRecommendedProducts(List<String> productIds, String tenantID, Filter filter) throws Exception {
 		
 		String sourceItemId = null;
 		MemcachedClient client = null;
     	try {
         	client = new MemcachedClient(new InetSocketAddress(MEMCACHED_SERVER, MEMCACHED_PORT));
-        	Object cacheCollection = null;
+        	List<Product> cacheCollection = new ArrayList<Product>();
         	try {
         		StringBuffer sb = new StringBuffer();
         		sb.append(filter.getName()); sb.append("_"); sb.append(getDomainBasename()); sb.append(tenantID);
@@ -136,32 +138,31 @@ public abstract class BaseModel implements Modelable {
         			sb.append("_"); sb.append(p);
         		}
         		sourceItemId = sb.toString();
-        		cacheCollection = client.get(sourceItemId);
+        		cacheCollection = (List<Product>) client.get(sourceItemId);
         		if (cacheCollection != null) {
-        			logger.debug("Cache Hit.");
-        			
-        			List<Catalog2.Products.Product> productList = (List<Catalog2.Products.Product>) cacheCollection;
+        			//System.out.println("Cache Hit.");
+        			//client.delete(sourceItemId);
         			
         			// Update health metric
-        			String eventID = productList.size() > 0 ? "OK" : "EMPTY";
+        			String eventID = cacheCollection.size() > 0 ? "OK" : "EMPTY";
         			String key = getHealthMetricKey(eventID, tenantID, "RECS");
         			client.incr(key, 1);
         			
         			
-                	return productList;
+                	return cacheCollection;
                 } 
         	}
         	catch (OperationTimeoutException ex) {
-        		logger.warn("Timeout accessing memcached.");
+        		System.out.println("Timeout accessing memcached.");
         	}
         }
         catch (IOException ex) {
-        	logger.warn("Cannot insantiate memcached client");
+        	System.out.println("Cannot insantiate memcached client");
         }
         
-        logger.debug("Cache Miss.");
+    	//System.out.println("Cache Miss.");
         
-        List<Catalog2.Products.Product> recommendedProducts = null;
+        List<Product> recommendedProducts = new ArrayList<Product>();
         try {
         	recommendedProducts = getRecommendedProductsInternal(productIds, tenantID, filter);
         }
@@ -175,23 +176,28 @@ public abstract class BaseModel implements Modelable {
         
         if (client != null) {
         	try {
+        		
         		client.set(sourceItemId, TTL_CACHE, recommendedProducts);
+        		//client.set(sourceItemId, TTL_CACHE, (Object)recommendedProducts);
+        		
+        		// Update health metric
+        		String eventID = recommendedProducts.size() > 0 ? "OK" : "EMPTY";
+        		String key = getHealthMetricKey(eventID, tenantID, "RECS");
+        		client.incr(key, 1);
+        		
+        		
         		client.shutdown(10, TimeUnit.SECONDS);
         	}
         	catch (Exception ex) {
-        		logger.warn("Cannot write to memcached " + MEMCACHED_SERVER + " port " + MEMCACHED_PORT);
+        		System.out.println("Cannot write to memcached " + MEMCACHED_SERVER + " port " + MEMCACHED_PORT);
         	}
         }
         
-        // Update health metric
-		String eventID = recommendedProducts.size() > 0 ? "OK" : "EMPTY";
-		String key = getHealthMetricKey(eventID, tenantID, "RECS");
-		client.incr(key, 1);
-		
         return recommendedProducts;
+        
 	}
 	
-	public List<Catalog2.Products.Product> getPersonalizedRecommendedProducts(String userId, String tenantID, Filter filter) throws Exception {
+	public List<Product> getPersonalizedRecommendedProducts(String userId, String tenantID, Filter filter) throws Exception {
 		String sourceItemId = null;
 		MemcachedClient client = null;
     	try {
@@ -205,7 +211,7 @@ public abstract class BaseModel implements Modelable {
         		cacheCollection = client.get(sourceItemId);
         		if (cacheCollection != null) {
         			logger.debug("Cache Hit.");
-                	return (List<Catalog2.Products.Product>) cacheCollection;
+                	return (List<Product>) cacheCollection;
                 } 
         	}
         	catch (OperationTimeoutException ex) {
@@ -219,7 +225,7 @@ public abstract class BaseModel implements Modelable {
         
         logger.debug("Cache Miss.");
         
-        List<Catalog2.Products.Product> recommendedProducts = getPersonalizedRecommendedProductsInternal(userId, tenantID, filter);
+        List<Product> recommendedProducts = getPersonalizedRecommendedProductsInternal(userId, tenantID, filter);
         
         if (client != null) {
         	try {
@@ -234,9 +240,9 @@ public abstract class BaseModel implements Modelable {
         return recommendedProducts;
 	}
 	
-	public abstract List<Catalog2.Products.Product> getRecommendedProductsInternal(List<String> productIds, String tenantID, Filter filter) throws Exception;
+	public abstract List<Product> getRecommendedProductsInternal(List<String> productIds, String tenantID, Filter filter) throws Exception;
 	
-	public abstract List<Catalog2.Products.Product> getPersonalizedRecommendedProductsInternal(String userId, String tenantID, Filter filter) throws Exception;
+	public abstract List<Product> getPersonalizedRecommendedProductsInternal(String userId, String tenantID, Filter filter) throws Exception;
 	
     protected abstract String getDomainBasename();
     
@@ -373,4 +379,5 @@ public abstract class BaseModel implements Modelable {
     	String backupDomainName = getBackupModelDomainName(baseModelName, tenantID);
     	setModelDomainName(baseModelName, backupDomainName, tenantID);
     }
+
 }
