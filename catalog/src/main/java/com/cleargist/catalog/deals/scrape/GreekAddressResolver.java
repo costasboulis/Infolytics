@@ -321,7 +321,7 @@ public class GreekAddressResolver {
 
 			addressList.add(address);
 		}
-		if (textLowercase.contains("μαρούσι")) {
+		if (textLowercase.contains("μαρούσι") || textLowercase.contains("mαρούσι")) {
 			AddressType address = new AddressType();
 			address.setGeographicalArea("Athens North Suburbs");
 			address.setCity("Marousi");

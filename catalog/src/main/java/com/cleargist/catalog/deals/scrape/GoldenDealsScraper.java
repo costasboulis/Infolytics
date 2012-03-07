@@ -17,8 +17,6 @@ import java.util.GregorianCalendar;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import javax.xml.bind.JAXBContext;
 import javax.xml.bind.JAXBException;
@@ -45,12 +43,11 @@ public class GoldenDealsScraper {
 	private Logger logger = LoggerFactory.getLogger(getClass());
 	private static final String DATE_PATTERN = "dd/MM/yyyy HH:mm";
 	private SimpleDateFormat formatter;
-	private String dealValidPatternString = ".*η προσφορά ισχύει από (\\d+ \\p{InGreek}+) έως (\\d+ \\p{InGreek}+).*";
-	private Pattern dealValidPattern;
+	private GreekCouponRedemptionResolver couponRedemptionResolver;
 	
 	public GoldenDealsScraper() {
 		this.formatter = new SimpleDateFormat(DATE_PATTERN);
-		this.dealValidPattern = Pattern.compile(dealValidPatternString);
+		this.couponRedemptionResolver = new GreekCouponRedemptionResolver();
 	}
 	
 	private static String readAll(Reader rd) throws IOException {
@@ -122,10 +119,11 @@ public class GoldenDealsScraper {
 			return deal;
 		}
 		
-		
+		/*
 		for (String name : JSONObject.getNames(dealJson)) {
 			System.out.println(name);
 		}
+		*/
 		
 		String merchantName = dealJson.getString("merchantName");
 		
@@ -140,19 +138,25 @@ public class GoldenDealsScraper {
 		String title = dealJson.getString("title");
 		float price = (float)dealJson.getDouble("price");
 		Float initialPrice = (float)dealJson.getDouble("initialPrice");
-		String belongsTo = dealJson.getString("belongsTo");
+		JSONObject belongsToJson = dealJson.getJSONObject("belongsTo");
+		List<String> categories = new LinkedList<String>();
+		for (String category : JSONObject.getNames(belongsToJson)) {
+			if (category.startsWith("athens") || category.equals("all-categories")) {
+				continue;
+			}
+			categories.add(category);
+			logger.info(category);
+		}
 		
 		String[] descriptionParts = description.split("<h2>");
 		String[] terms = html2text(descriptionParts[0]).toLowerCase(locale)
 		.replaceAll("<\\\\/strong>", "")
 		.replaceAll("<\\\\/li>", "")
 		.replaceAll("<\\\\/ul>","")
+		.replaceAll("<\\\\/b>", "")
 		.replaceAll("\\[", "").split("\\\\r\\\\n");
-		Matcher dealValidMatcher = this.dealValidPattern.matcher(terms[1]);
-		if (dealValidMatcher.matches()) {
-			String fromDate = dealValidMatcher.group(1).trim();
-			String toDate = dealValidMatcher.group(2).trim();
-		}
+		
+		
 		
 		deal.setSiteId("Golden Deals");
 		deal.setSiteCity(cityTag);
@@ -177,6 +181,35 @@ public class GoldenDealsScraper {
 		
 		deal.setDealDescription(description);
 		deal.setDealTitle(title);
+		
+		// Process the date terms
+		String dateTerms = null;
+		for (String term : terms) {
+			if (term.length() < 3) {
+				continue;
+			}
+			dateTerms = term;
+			break;
+		}
+		if (dateTerms == null) {
+			logger.error("Could not determine date terms line");
+			return deal;
+		}
+		
+		
+		List<Date> couponRedemptionDates = couponRedemptionResolver.resolve(dateTerms, dueDate.getYear());
+		if (couponRedemptionDates.size() > 0) {
+			GregorianCalendar gcTmp = new GregorianCalendar();
+			gcTmp.setTimeInMillis(couponRedemptionDates.get(0).getTime());
+			
+			deal.setCouponRedemptionStartingDate(df.newXMLGregorianCalendar(gcTmp));
+			
+			if (couponRedemptionDates.size() > 1) {
+				gcTmp.setTimeInMillis(couponRedemptionDates.get(1).getTime());
+				
+				deal.setCouponRedemptionEndDate(df.newXMLGregorianCalendar(gcTmp));
+			}
+		}
 		
 		return deal;
 	}
@@ -224,10 +257,13 @@ public class GoldenDealsScraper {
 		
 		Collection collection = null;
 		try {
-//			DealType deal = scraper.scrape("http://www.goldendeals.gr/deals/json/detailed/8euros-velvet-health.js");
-			String dealURL = "http://www.goldendeals.gr/deals/json/detailed/8euros-volta-fun-park.js";
+			String dealURL1 ="http://www.goldendeals.gr/deals/json/detailed/8euros-velvet-health.js";
+			String dealURL2 = "http://www.goldendeals.gr/deals/json/detailed/8euros-volta-fun-park.js";
+			String dealURL3 = "http://www.goldendeals.gr/deals/json/detailed/35euros-derma-care-center-2.js";
 			List<String> deals = new LinkedList<String>();
-			deals.add(dealURL);
+			deals.add(dealURL1);
+			deals.add(dealURL2);
+			deals.add(dealURL3);
 			
 			collection = scraper.scrape(deals);
 		}
