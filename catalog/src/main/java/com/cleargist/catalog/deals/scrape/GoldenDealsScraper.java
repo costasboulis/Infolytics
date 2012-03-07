@@ -44,10 +44,14 @@ public class GoldenDealsScraper {
 	private static final String DATE_PATTERN = "dd/MM/yyyy HH:mm";
 	private SimpleDateFormat formatter;
 	private GreekCouponRedemptionResolver couponRedemptionResolver;
+	private GreekPhoneReservationResolver phoneReservationResolver;
+	private GreekValidDatesResolver validDatesResolver;
 	
 	public GoldenDealsScraper() {
 		this.formatter = new SimpleDateFormat(DATE_PATTERN);
 		this.couponRedemptionResolver = new GreekCouponRedemptionResolver();
+		this.phoneReservationResolver = new GreekPhoneReservationResolver();
+		this.validDatesResolver = new GreekValidDatesResolver();
 	}
 	
 	private static String readAll(Reader rd) throws IOException {
@@ -139,23 +143,22 @@ public class GoldenDealsScraper {
 		float price = (float)dealJson.getDouble("price");
 		Float initialPrice = (float)dealJson.getDouble("initialPrice");
 		JSONObject belongsToJson = dealJson.getJSONObject("belongsTo");
-		List<String> categories = new LinkedList<String>();
+		List<String> categories = deal.getSiteCategories();
 		for (String category : JSONObject.getNames(belongsToJson)) {
 			if (category.startsWith("athens") || category.equals("all-categories")) {
 				continue;
 			}
 			categories.add(category);
-			logger.info(category);
 		}
 		
 		String[] descriptionParts = description.split("<h2>");
-		String[] terms = html2text(descriptionParts[0]).toLowerCase(locale)
+		String allTerms = html2text(descriptionParts[0]).toLowerCase(locale)
 		.replaceAll("<\\\\/strong>", "")
 		.replaceAll("<\\\\/li>", "")
 		.replaceAll("<\\\\/ul>","")
 		.replaceAll("<\\\\/b>", "")
-		.replaceAll("\\[", "").split("\\\\r\\\\n");
-		
+		.replaceAll("\\[", "");
+		String[] terms = allTerms.split("\\\\r\\\\n");
 		
 		
 		deal.setSiteId("Golden Deals");
@@ -165,7 +168,7 @@ public class GoldenDealsScraper {
 		deal.setDealPrice(new BigDecimal(price));
 		deal.setInitialPrice(new BigDecimal(initialPrice.toString()));
 		deal.setBusinessName(merchantName);
-		AddressListType address = GreekAddressResolver.resolve(location.replaceAll("goldentip.+", ""));
+		AddressListType address = GreekAddressResolver.resolve(location.replaceAll("GoldenTip.+", ""));
 		
 		deal.setBusinessAddress(address);
 		
@@ -210,6 +213,16 @@ public class GoldenDealsScraper {
 				deal.setCouponRedemptionEndDate(df.newXMLGregorianCalendar(gcTmp));
 			}
 		}
+		
+		// Process the valid dates
+		List<String> validDates = deal.getValidDates();
+		List<String> tmpValidDates = validDatesResolver.resolve(dateTerms);
+		validDates.addAll(tmpValidDates);
+		
+		
+		// Process the other terms
+		deal.setRequiresPhoneReservation(this.phoneReservationResolver.resolve(allTerms));
+		
 		
 		return deal;
 	}
@@ -260,10 +273,12 @@ public class GoldenDealsScraper {
 			String dealURL1 ="http://www.goldendeals.gr/deals/json/detailed/8euros-velvet-health.js";
 			String dealURL2 = "http://www.goldendeals.gr/deals/json/detailed/8euros-volta-fun-park.js";
 			String dealURL3 = "http://www.goldendeals.gr/deals/json/detailed/35euros-derma-care-center-2.js";
+			String dealURL4 = "http://www.goldendeals.gr/deals/json/detailed/49euros-the-fitting-room.js";
 			List<String> deals = new LinkedList<String>();
 			deals.add(dealURL1);
 			deals.add(dealURL2);
 			deals.add(dealURL3);
+			deals.add(dealURL4);
 			
 			collection = scraper.scrape(deals);
 		}
