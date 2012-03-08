@@ -17,7 +17,7 @@ public class GreekAddressResolver {
 	private static final Locale locale = new Locale("el", "GR"); 
 	
 	public static AddressListType resolve(String text) {
-		String textLowercase = text.toLowerCase(locale);
+		String textLowercase = text.toLowerCase(locale).replaceAll(",", "");
 		AddressListType addrList = new AddressListType();
 		List<AddressType> addressList = addrList.getAddress() ;
 		if (textLowercase.contains("πειραιάς")) {
@@ -98,6 +98,13 @@ public class GreekAddressResolver {
 			addressList.add(address);
 		}
 		if (textLowercase.contains("ακροπολη")) {
+			AddressType address = new AddressType();
+			address.setGeographicalArea("Athens Center");
+			address.setCity("Athina");
+
+			addressList.add(address);
+		}
+		if (textLowercase.contains("πλάκα")) {
 			AddressType address = new AddressType();
 			address.setGeographicalArea("Athens Center");
 			address.setCity("Athina");
@@ -202,12 +209,46 @@ public class GreekAddressResolver {
 
 			addressList.add(address);
 		}
-		if (textLowercase.contains("αθήνα")) {
+		if (textLowercase.contains("γαλάτσι")) {
 			AddressType address = new AddressType();
 			address.setGeographicalArea("Athens Center");
 			address.setCity("Athina");
 
 			addressList.add(address);
+		}
+		if (textLowercase.contains("γκύζη ")) {
+			AddressType address = new AddressType();
+			address.setGeographicalArea("Athens Center");
+			address.setCity("Athina");
+
+			addressList.add(address);
+		}
+		if (textLowercase.contains("ιλίσια")) {
+			AddressType address = new AddressType();
+			address.setGeographicalArea("Athens Center");
+			address.setCity("Athina");
+
+			addressList.add(address);
+		}
+		if (textLowercase.contains("αθήνα ") || textLowercase.contains("κέντρο αθήνας")) {
+			if (addressList.size() == 1) {
+				AddressType address = addressList.get(0);
+				if (!address.getCity().equals("Athina")) {
+					AddressType address2 = new AddressType();
+					address2.setGeographicalArea("Athens Center");
+					address2.setCity("Athina");
+
+					addressList.add(address2);
+				}
+			}
+			else if (addressList.size() == 0) {
+				AddressType address2 = new AddressType();
+				address2.setGeographicalArea("Athens Center");
+				address2.setCity("Athina");
+
+				addressList.add(address2);
+			}
+			
 		}
 		if (textLowercase.contains("ζωγράφου")) {
 			AddressType address = new AddressType();
@@ -227,6 +268,13 @@ public class GreekAddressResolver {
 			AddressType address = new AddressType();
 			address.setGeographicalArea("Athens South and Center Suburbs");
 			address.setCity("Kallithea");
+
+			addressList.add(address);
+		}
+		if (textLowercase.contains("νέα σμύρνη") || textLowercase.contains("ν. σμύρνη")) {
+			AddressType address = new AddressType();
+			address.setGeographicalArea("Athens South and Center Suburbs");
+			address.setCity("Nea Smirni");
 
 			addressList.add(address);
 		}
@@ -377,10 +425,10 @@ public class GreekAddressResolver {
 
 			addressList.add(address);
 		}
-		if (textLowercase.contains("βριλήσια")) {
+		if (textLowercase.contains("βριλήσια") || textLowercase.contains("βριλήσσια")) {
 			AddressType address = new AddressType();
 			address.setGeographicalArea("Athens North Suburbs");
-			address.setCity("Vrilisia");
+			address.setCity("Vrilissia");
 
 			addressList.add(address);
 		}
@@ -388,6 +436,27 @@ public class GreekAddressResolver {
 			AddressType address = new AddressType();
 			address.setGeographicalArea("Athens North Suburbs");
 			address.setCity("Melisia");
+
+			addressList.add(address);
+		}
+		if (textLowercase.contains("λυκόβρυση ")) {
+			AddressType address = new AddressType();
+			address.setGeographicalArea("Athens North Suburbs");
+			address.setCity("Likovrisi");
+
+			addressList.add(address);
+		}
+		if (textLowercase.contains("θρακομακεδόνες ")) {
+			AddressType address = new AddressType();
+			address.setGeographicalArea("Athens North Suburbs");
+			address.setCity("Thrakomakedones");
+
+			addressList.add(address);
+		}
+		if (textLowercase.contains("άνοιξη ")) {
+			AddressType address = new AddressType();
+			address.setGeographicalArea("Athens North Suburbs");
+			address.setCity("Anoixi");
 
 			addressList.add(address);
 		}
@@ -587,7 +656,7 @@ public class GreekAddressResolver {
 
 			addressList.add(address);
 		}
-		if (textLowercase.contains("ανάβυσσος")) {
+		if (textLowercase.contains("ανάβυσσος") || textLowercase.contains("παραλία ανάβυσσου")) {
 			AddressType address = new AddressType();
 			address.setGeographicalArea("Rest of Attica");
 			address.setCity("Anavisos");
@@ -727,12 +796,21 @@ public class GreekAddressResolver {
 
 			addressList.add(address);
 		}
-		if (textLowercase.contains("θεσσαλονίκη ")) {
+		if (textLowercase.contains("θεσσαλονίκη ") || textLowercase.contains("κέντρο θεσσαλονίκης")) {
 			AddressType address = new AddressType();
 			address.setGeographicalArea("Thessaloniki");
 			address.setCity("Thessaloniki");
 
 			addressList.add(address);
+		}
+		else {
+			if (textLowercase.contains("καλαμαριά ") || textLowercase.contains("ντεπώ") || textLowercase.contains("χαριλάου ")) {
+				AddressType address = new AddressType();
+				address.setGeographicalArea("Thessaloniki");
+				address.setCity("Thessaloniki");
+
+				addressList.add(address);
+			}
 		}
 		if (textLowercase.contains("αίγινα ")) {
 			AddressType address = new AddressType();
@@ -773,6 +851,13 @@ public class GreekAddressResolver {
 			AddressType address = new AddressType();
 			address.setGeographicalArea("Cyclades");
 			address.setCity("Paros");
+
+			addressList.add(address);
+		}
+		if (textLowercase.contains(" ίος")) {
+			AddressType address = new AddressType();
+			address.setGeographicalArea("Cyclades");
+			address.setCity("Ios");
 
 			addressList.add(address);
 		}
@@ -1063,6 +1148,14 @@ public class GreekAddressResolver {
 			address.setGeographicalArea("Foreign destinations");
 			address.setCity("Unknown");
 
+			addressList.add(address);
+		}
+		
+		if (addressList.size() == 0) {
+			AddressType address = new AddressType();
+			address.setCity(textLowercase);
+			address.setGeographicalArea("Unknown");
+			
 			addressList.add(address);
 		}
 		

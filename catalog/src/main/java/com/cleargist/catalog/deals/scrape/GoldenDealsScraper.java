@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -25,14 +26,13 @@ import javax.xml.datatype.DatatypeFactory;
 import javax.xml.validation.Schema;
 import javax.xml.validation.SchemaFactory;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.cleargist.catalog.dao.MyValidationEventHandler;
 import com.cleargist.catalog.deals.entity.jaxb.AddressListType;
 import com.cleargist.catalog.deals.entity.jaxb.Collection;
 import com.cleargist.catalog.deals.entity.jaxb.DealType;
 
+import org.apache.log4j.Logger;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -40,7 +40,7 @@ import org.jsoup.Jsoup;
 
 public class GoldenDealsScraper {
 	private static final Locale locale = new Locale("el", "GR"); 
-	private Logger logger = LoggerFactory.getLogger(getClass());
+	private Logger logger = Logger.getLogger(getClass());
 	private static final String DATE_PATTERN = "dd/MM/yyyy HH:mm";
 	private SimpleDateFormat formatter;
 	private GreekCouponRedemptionResolver couponRedemptionResolver;
@@ -88,6 +88,8 @@ public class GoldenDealsScraper {
 			DealType deal = scrape(url);
 			
 			dealsList.add(deal);
+			
+			logger.info("Processed deal " + url);
 		}
 		return collection;
 	}
@@ -266,20 +268,27 @@ public class GoldenDealsScraper {
 	}
 	
 	public static void main(String[] argv) {
+//		String dealsFilenameString = "c:\\Users\\kboulis\\goldenDeals.txt";
+		String dealsFilenameString = "c:\\Users\\kboulis\\goldenDealsSmall.txt";
 		GoldenDealsScraper scraper = new GoldenDealsScraper();
+		
+		File dealsFile = new File(dealsFilenameString);
+		List<String> deals = new LinkedList<String>();
+		try {
+			BufferedReader br = new BufferedReader(new FileReader(dealsFile));
+			String line = null;
+			while (( line = br.readLine()) != null){
+				deals.add(line + ".js");
+			}
+			br.close();
+		}
+		catch (Exception ex) {
+			System.err.println("Cannot load deals list");
+			System.exit(-1);
+		}
 		
 		Collection collection = null;
 		try {
-			String dealURL1 ="http://www.goldendeals.gr/deals/json/detailed/8euros-velvet-health.js";
-			String dealURL2 = "http://www.goldendeals.gr/deals/json/detailed/8euros-volta-fun-park.js";
-			String dealURL3 = "http://www.goldendeals.gr/deals/json/detailed/35euros-derma-care-center-2.js";
-			String dealURL4 = "http://www.goldendeals.gr/deals/json/detailed/49euros-the-fitting-room.js";
-			List<String> deals = new LinkedList<String>();
-			deals.add(dealURL1);
-			deals.add(dealURL2);
-			deals.add(dealURL3);
-			deals.add(dealURL4);
-			
 			collection = scraper.scrape(deals);
 		}
 		catch (Exception ex) {

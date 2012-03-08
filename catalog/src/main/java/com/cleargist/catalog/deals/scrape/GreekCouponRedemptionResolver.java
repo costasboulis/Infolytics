@@ -9,8 +9,9 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.log4j.Logger;
+
+
 
 /**
  * Resolves the CouponRedemptionStartDate and CouponRedemptionEndDate. The input text must contain as little as possible extraneous information
@@ -18,9 +19,9 @@ import org.slf4j.LoggerFactory;
  *
  */
 public class GreekCouponRedemptionResolver {
-	private Logger logger = LoggerFactory.getLogger(getClass());
-	private String dealValidPatternString2 = ".*ισχύει από (\\d+ \\p{InGreek}+\\s?\\d{0,4}) έως (\\d+ \\p{InGreek}+\\s?\\d{0,4}).*";
-	private String dealValidPatternString1 = ".*ισχύει από (\\d{1,2}/\\d{1,2}/\\d{2,4}) έως [και]{0,3}\\s?(\\d{1,2}/\\d{1,2}/\\d{2,4}).*";
+	private Logger logger = Logger.getLogger(getClass());
+	private String dealValidPatternString2 = ".*[iι]σχύει από (\\d+ \\p{InGreek}+\\s?\\d{0,4}) έως (\\d+ \\p{InGreek}+\\s?\\d{0,4}).*";
+	private String dealValidPatternString1 = ".*[iι]σχύει από (\\d{1,2}/\\d{1,2}/\\d{2,4}) έως [και]{0,3}\\s?(\\d{1,2}/\\d{1,2}/\\d{2,4}).*";
 	private Pattern dealValidPattern1;
 	private Pattern dealValidPattern2;
 	private HashMap<String, Integer> monthsMapper;
