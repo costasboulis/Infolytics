@@ -9,11 +9,13 @@ public class GreekPhoneReservationResolver {
 	private String patternString3 = ".*καλείτε για ραντεβού τουλάχιστον.*";
 	private String patternString4 = ".*απαιτείται επικοινωνία.*";
 	private String patternString5 = ".*απαραίτητη [η] τηλεφωνική επικοινωνία.*";
+	private String patternString6 = ".*με τηλεφωνικό ραντεβού.*";
 	private Pattern pattern1;
 	private Pattern pattern2;
 	private Pattern pattern3;
 	private Pattern pattern4;
 	private Pattern pattern5;
+	private Pattern pattern6;
 	
 	public GreekPhoneReservationResolver(){
 		this.pattern1 = Pattern.compile(patternString1);
@@ -21,6 +23,7 @@ public class GreekPhoneReservationResolver {
 		this.pattern3 = Pattern.compile(patternString3);
 		this.pattern4 = Pattern.compile(patternString4);
 		this.pattern5 = Pattern.compile(patternString5);
+		this.pattern6 = Pattern.compile(patternString6);
 	}
 	
 	public boolean resolve(String text) {
@@ -46,6 +49,11 @@ public class GreekPhoneReservationResolver {
 		
 		Matcher patternMatcher5 = this.pattern5.matcher(text);
 		if (patternMatcher5.matches()) {
+			return true;
+		}
+		
+		Matcher patternMatcher6 = this.pattern6.matcher(text);
+		if (patternMatcher6.matches()) {
 			return true;
 		}
 		

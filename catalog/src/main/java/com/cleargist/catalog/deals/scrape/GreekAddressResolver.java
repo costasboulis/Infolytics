@@ -1092,10 +1092,17 @@ public class GreekAddressResolver {
 
 			addressList.add(address);
 		}
-		if (textLowercase.contains(" εύβοια ")) {
+		if (textLowercase.contains("εύβοια ")) {
 			AddressType address = new AddressType();
 			address.setGeographicalArea("Rest of Greece");
 			address.setCity("Evia");
+
+			addressList.add(address);
+		}
+		if (textLowercase.contains("χαλκίδα ")) {
+			AddressType address = new AddressType();
+			address.setGeographicalArea("Rest of Greece");
+			address.setCity("Halkida");
 
 			addressList.add(address);
 		}
