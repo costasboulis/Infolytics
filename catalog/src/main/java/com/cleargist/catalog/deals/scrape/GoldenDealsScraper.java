@@ -10,6 +10,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.net.URL;
 import java.nio.charset.Charset;
 import java.text.SimpleDateFormat;
@@ -46,12 +47,14 @@ public class GoldenDealsScraper {
 	private GreekCouponRedemptionResolver couponRedemptionResolver;
 	private GreekPhoneReservationResolver phoneReservationResolver;
 	private GreekValidDatesResolver validDatesResolver;
+	private GreekBlockerDatesResolver blockerDatesResolver;
 	
 	public GoldenDealsScraper() {
 		this.formatter = new SimpleDateFormat(DATE_PATTERN);
 		this.couponRedemptionResolver = new GreekCouponRedemptionResolver();
 		this.phoneReservationResolver = new GreekPhoneReservationResolver();
 		this.validDatesResolver = new GreekValidDatesResolver();
+		this.blockerDatesResolver = new GreekBlockerDatesResolver();
 	}
 	
 	private static String readAll(Reader rd) throws IOException {
@@ -94,6 +97,7 @@ public class GoldenDealsScraper {
 		return collection;
 	}
 	
+
 	public DealType scrape(String url) throws Exception {
 		DealType deal = new DealType();
 		JSONObject json = readJsonFromUrl(url);
@@ -125,11 +129,11 @@ public class GoldenDealsScraper {
 			return deal;
 		}
 		
-		/*
-		for (String name : JSONObject.getNames(dealJson)) {
-			System.out.println(name);
-		}
-		*/
+		
+//		for (String name : JSONObject.getNames(dealJson)) {
+//			System.out.println(name);
+//		}
+		
 		
 		String merchantName = dealJson.getString("merchantName");
 		
@@ -222,8 +226,42 @@ public class GoldenDealsScraper {
 		validDates.addAll(tmpValidDates);
 		
 		
+		// Process the blocker dates
+		boolean hasBlockerDates = blockerDatesResolver.resolve(dateTerms);
+		deal.setHasBlockerDates(hasBlockerDates);
+		
+		
 		// Process the other terms
 		deal.setRequiresPhoneReservation(this.phoneReservationResolver.resolve(allTerms));
+		
+		
+		// Process the coupons sold
+		String urlCoupons = "http://dynamic.goldendeals.gr/deals/json/dynamic?city=" + deal.getSiteCity() + "&dealUrl=" + deal.getDealId();
+		JSONObject jsonCoupons = readJsonFromUrl(urlCoupons);
+		
+		String statusCoupons = jsonCoupons.getString("status");
+		if (!statusCoupons.equals("OK")) {
+			logger.warn("Could not get data from URL " + urlCoupons);
+		}
+		else {
+			JSONObject dealJsonCoupons = jsonCoupons.getJSONObject("resultData").getJSONObject(deal.getDealId());
+			Integer numCoupons = dealJsonCoupons.getInt("sales");
+			Integer tippedSales = dealJsonCoupons.getInt("tippedSales");
+			
+			deal.setNumberOfCouponsSold(new BigInteger(numCoupons.toString()));
+			deal.setMinCouponsForActivation(new BigInteger(tippedSales.toString()));
+			
+			try {
+				JSONArray variations = dealJsonCoupons.getJSONArray("variations");
+				deal.setHasMultiplePrices(true);
+			}
+			catch (Exception ex) {
+				deal.setHasMultiplePrices(false);
+			}
+			
+			
+		}
+		
 		
 		
 		return deal;
