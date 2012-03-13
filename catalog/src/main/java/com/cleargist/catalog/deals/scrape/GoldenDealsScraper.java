@@ -48,6 +48,7 @@ public class GoldenDealsScraper {
 	private GreekPhoneReservationResolver phoneReservationResolver;
 	private GreekValidDatesResolver validDatesResolver;
 	private GreekBlockerDatesResolver blockerDatesResolver;
+	private GreekMaxCouponsPerPersonResolver maxCouponsPerPersonResolver;
 	
 	public GoldenDealsScraper() {
 		this.formatter = new SimpleDateFormat(DATE_PATTERN);
@@ -55,6 +56,7 @@ public class GoldenDealsScraper {
 		this.phoneReservationResolver = new GreekPhoneReservationResolver();
 		this.validDatesResolver = new GreekValidDatesResolver();
 		this.blockerDatesResolver = new GreekBlockerDatesResolver();
+		this.maxCouponsPerPersonResolver = new GreekMaxCouponsPerPersonResolver();
 	}
 	
 	private static String readAll(Reader rd) throws IOException {
@@ -148,6 +150,7 @@ public class GoldenDealsScraper {
 		String title = dealJson.getString("title");
 		float price = (float)dealJson.getDouble("price");
 		Float initialPrice = (float)dealJson.getDouble("initialPrice");
+		String nonDiscountString = dealJson.getString("nonDiscountString");
 		JSONObject belongsToJson = dealJson.getJSONObject("belongsTo");
 		List<String> categories = deal.getSiteCategories();
 		for (String category : JSONObject.getNames(belongsToJson)) {
@@ -231,7 +234,7 @@ public class GoldenDealsScraper {
 		deal.setHasBlockerDates(hasBlockerDates);
 		
 		
-		// Process the other terms
+		// Process the phone reservation
 		deal.setRequiresPhoneReservation(this.phoneReservationResolver.resolve(allTerms));
 		
 		
@@ -262,7 +265,11 @@ public class GoldenDealsScraper {
 			
 		}
 		
+		// Process the max coupons per user
+		deal.setMaxCouponsPerPerson(new BigInteger(Integer.toString(this.maxCouponsPerPersonResolver.resolve(allTerms))));
 		
+		// Process has more to pay
+		deal.setRequiresMoreToPay(nonDiscountString == null || nonDiscountString.isEmpty() ? false : true);
 		
 		return deal;
 	}

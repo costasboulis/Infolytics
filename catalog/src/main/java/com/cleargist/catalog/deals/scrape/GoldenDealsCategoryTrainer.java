@@ -23,6 +23,8 @@ import org.apache.log4j.Logger;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import weka.classifiers.Evaluation;
+import weka.classifiers.functions.SMO;
 import weka.core.Attribute;
 import weka.core.FastVector;
 import weka.core.Instance;
@@ -367,10 +369,18 @@ public class GoldenDealsCategoryTrainer {
 		double[] values = new double[hm.size() + 1];
 		int[] indices = new int[hm.size() + 1];
 		
-		int i = 0;
+		List<AttributeObject> attObjs = new ArrayList<AttributeObject>();
 		for (Map.Entry<String, Double> me : hm.entrySet()) {
-			indices[i] = vocabulary.get(me.getKey());
-			values[i] = me.getValue();
+			int indx = vocabulary.get(me.getKey());
+			String val = Double.toString(me.getValue());
+			attObjs.add(new AttributeObject(val, indx));
+		}
+		Collections.sort(attObjs);
+		
+		int i = 0;
+		for (AttributeObject attObject : attObjs) {
+			indices[i] = attObject.getIndx();
+			values[i] = Double.parseDouble(attObject.getName());
 			
 			i ++;
 		}
@@ -428,7 +438,7 @@ public class GoldenDealsCategoryTrainer {
 		out = out.toLowerCase(locale);
 		out = out.replaceAll("<b>", "");
 		out = out.replaceAll("</b>", "");
-		out = out.replaceAll("[\\.,\\(\\)\\?;!:\\[\\]\\{\\}\"%&\\*'\\+/>€-]", "");
+		out = out.replaceAll("[\\.,\\(\\)\\?;!:\\[\\]\\{\\}\"%&\\*'\\+/>€«®-]", "");
 		out = out.replace('ά', 'α');
 		out = out.replace('ό', 'ο');
 		out = out.replace('ή', 'η');
@@ -445,7 +455,7 @@ public class GoldenDealsCategoryTrainer {
 		return out;
 	}
 	
-	public void createModel(File trainingFile) {
+	public void evaluateModel(File trainingFile) throws Exception {
 		Instances instances = null;
 	     try {
 	         Reader reader = new FileReader(trainingFile);
@@ -455,9 +465,23 @@ public class GoldenDealsCategoryTrainer {
 	     }
 	     catch (IOException ex) {
 	         logger.error("Could not read from file " + trainingFile.getAbsolutePath());
+	         throw new Exception();
 	     }
 	     
-//	     SMO classifier = new SMO();
+	     Evaluation eval = new Evaluation(instances);
+	     
+	     SMO classifier = new SMO();
+	     
+		 eval.crossValidateModel(classifier, instances, 10, new java.util.Random());
+		 double[][] d = eval.confusionMatrix();
+		 for (int i = 0 ; i < d.length; i ++) {
+			 StringBuffer sb = new StringBuffer();
+			 for (int j = 0 ; j < d[i].length; j ++) {
+				 sb.append(d[i][j]); sb.append(" ");
+			 }
+			 System.out.println(sb.toString());
+		 }
+		 System.out.println(eval.errorRate());
 	}
 	
 	public static void main(String[] argv) {
@@ -470,7 +494,16 @@ public class GoldenDealsCategoryTrainer {
 		
 		GoldenDealsCategoryTrainer gdct = new GoldenDealsCategoryTrainer();
 		
-		gdct.createDataSet(new File(inFilename), new File(idfFilename), new File(vocabularyFilename), new File(trainingFilename));
+//		gdct.createDataSet(new File(inFilename), new File(idfFilename), new File(vocabularyFilename), new File(trainingFilename));
+		
+		
+		try {
+			gdct.evaluateModel(new File(trainingFilename));
+		}
+		 catch (Exception ex) {
+	         System.err.println("Cannot evaluate model");
+	     }
+		
 		
 	}
 }
