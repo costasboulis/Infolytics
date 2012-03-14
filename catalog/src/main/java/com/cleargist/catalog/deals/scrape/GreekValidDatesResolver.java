@@ -84,9 +84,9 @@ public class GreekValidDatesResolver {
 			datesList.add(daysIndex[indx]);
 		}
 		
-		if (datesList.size() == 0) {
-			datesList.add("Not_mentioned");
-		}
+//		if (datesList.size() == 0) {
+//			datesList.add("Not_mentioned");
+//		}
 		return datesList;
 	}
 	

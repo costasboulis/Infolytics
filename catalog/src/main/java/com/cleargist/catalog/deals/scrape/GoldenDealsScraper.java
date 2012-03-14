@@ -49,6 +49,9 @@ public class GoldenDealsScraper {
 	private GreekValidDatesResolver validDatesResolver;
 	private GreekBlockerDatesResolver blockerDatesResolver;
 	private GreekMaxCouponsPerPersonResolver maxCouponsPerPersonResolver;
+	private GreekOnePersonCouponResolver onePersonCouponResolver;
+	private GreekHasExtraDiscountsResolver hasExtraDiscountsResolver;
+	private GreekHasOptionsResolver hasOptionsResolver;
 	
 	public GoldenDealsScraper() {
 		this.formatter = new SimpleDateFormat(DATE_PATTERN);
@@ -57,6 +60,9 @@ public class GoldenDealsScraper {
 		this.validDatesResolver = new GreekValidDatesResolver();
 		this.blockerDatesResolver = new GreekBlockerDatesResolver();
 		this.maxCouponsPerPersonResolver = new GreekMaxCouponsPerPersonResolver();
+		this.onePersonCouponResolver = new GreekOnePersonCouponResolver();
+		this.hasExtraDiscountsResolver = new GreekHasExtraDiscountsResolver();
+		this.hasOptionsResolver = new GreekHasOptionsResolver();
 	}
 	
 	private static String readAll(Reader rd) throws IOException {
@@ -150,7 +156,13 @@ public class GoldenDealsScraper {
 		String title = dealJson.getString("title");
 		float price = (float)dealJson.getDouble("price");
 		Float initialPrice = (float)dealJson.getDouble("initialPrice");
-		String nonDiscountString = dealJson.getString("nonDiscountString");
+		String nonDiscountString = null;
+		try {
+			nonDiscountString = dealJson.getString("nonDiscountString");
+		}
+		catch (Exception ex) {
+			
+		}
 		JSONObject belongsToJson = dealJson.getJSONObject("belongsTo");
 		List<String> categories = deal.getSiteCategories();
 		for (String category : JSONObject.getNames(belongsToJson)) {
@@ -197,7 +209,7 @@ public class GoldenDealsScraper {
 		// Process the date terms
 		String dateTerms = null;
 		for (String term : terms) {
-			if (term.length() < 3) {
+			if (term.length() < 5) {
 				continue;
 			}
 			dateTerms = term;
@@ -211,6 +223,9 @@ public class GoldenDealsScraper {
 		
 		List<Date> couponRedemptionDates = couponRedemptionResolver.resolve(dateTerms, dueDate.getYear());
 		if (couponRedemptionDates.size() > 0) {
+			if (couponRedemptionDates.get(0).getYear() == 1999) {
+				couponRedemptionDates.set(0, dueDate);
+			}
 			GregorianCalendar gcTmp = new GregorianCalendar();
 			gcTmp.setTimeInMillis(couponRedemptionDates.get(0).getTime());
 			
@@ -226,7 +241,9 @@ public class GoldenDealsScraper {
 		// Process the valid dates
 		List<String> validDates = deal.getValidDates();
 		List<String> tmpValidDates = validDatesResolver.resolve(dateTerms);
-		validDates.addAll(tmpValidDates);
+		if (tmpValidDates != null && tmpValidDates.size() != 0) {
+			validDates.addAll(tmpValidDates);
+		}
 		
 		
 		// Process the blocker dates
@@ -271,6 +288,16 @@ public class GoldenDealsScraper {
 		// Process has more to pay
 		deal.setRequiresMoreToPay(nonDiscountString == null || nonDiscountString.isEmpty() ? false : true);
 		
+		
+		// Process one person coupon
+		deal.setIsOnePersonCoupon(this.onePersonCouponResolver.resolve(allTerms));
+		
+		// Process has extra discounts
+		deal.setHasExtraDiscounts(this.hasExtraDiscountsResolver.resolve(allTerms));
+		
+		// Process has options
+		deal.setHasOptions(this.hasOptionsResolver.resolve(allTerms));
+		
 		return deal;
 	}
 	
@@ -313,8 +340,8 @@ public class GoldenDealsScraper {
 	}
 	
 	public static void main(String[] argv) {
-//		String dealsFilenameString = "c:\\Users\\kboulis\\goldenDeals.txt";
-		String dealsFilenameString = "c:\\Users\\kboulis\\goldenDealsSmall.txt";
+		String dealsFilenameString = "c:\\Users\\kboulis\\goldenDeals.txt";
+//		String dealsFilenameString = "c:\\Users\\kboulis\\goldenDealsSmall.txt";
 		GoldenDealsScraper scraper = new GoldenDealsScraper();
 		
 		File dealsFile = new File(dealsFilenameString);

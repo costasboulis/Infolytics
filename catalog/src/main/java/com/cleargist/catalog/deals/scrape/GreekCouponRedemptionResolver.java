@@ -21,14 +21,17 @@ import org.apache.log4j.Logger;
 public class GreekCouponRedemptionResolver {
 	private Logger logger = Logger.getLogger(getClass());
 	private String dealValidPatternString2 = ".*[iι]σχύει από (\\d+ \\p{InGreek}+\\s?\\d{0,4}) έως (\\d+ \\p{InGreek}+\\s?\\d{0,4}).*";
-	private String dealValidPatternString1 = ".*[iι]σχύει από (\\d{1,2}/\\d{1,2}/\\d{2,4}) έως [και]{0,3}\\s?(\\d{1,2}/\\d{1,2}/\\d{2,4}).*";
+	private String dealValidPatternString1 = ".*[iι]σχύει από (\\d{1,2}/\\d{1,2}/\\d{2,4}) έως [καιτις]{0,7}\\s?(\\d{1,2}/\\d{1,2}/\\d{2,4}).*";
+	private String dealValidPatternString3 = ".*ισχύει από τη μέρα αγοράς του κουπονιού σας έως [καιτις]{0,7}\\s?(\\d{1,2}/\\d{1,2}/\\d{2,4}).*";
 	private Pattern dealValidPattern1;
 	private Pattern dealValidPattern2;
+	private Pattern dealValidPattern3;
 	private HashMap<String, Integer> monthsMapper;
 	
 	public GreekCouponRedemptionResolver() {
 		this.dealValidPattern1 = Pattern.compile(dealValidPatternString1);
 		this.dealValidPattern2 = Pattern.compile(dealValidPatternString2);
+		this.dealValidPattern3 = Pattern.compile(dealValidPatternString3);
 		
 		this.monthsMapper = new HashMap<String, Integer>();
 		monthsMapper.put("ιανουαρίου", 1);
@@ -122,6 +125,21 @@ public class GreekCouponRedemptionResolver {
 					logger.error("Could not create Date from string \"" + toDateString + "\"");
 					return dates;
 				}
+			}
+		}
+		
+		
+		Matcher dealValidMatcher3 = this.dealValidPattern3.matcher(text);
+		if (dealValidMatcher3.matches()) {
+			dates.add(new Date(1999, 1, 1));
+			
+			String toDateString = dealValidMatcher3.group(2).trim();
+			try {
+				dates.add(formatter.parse(toDateString));
+			}
+			catch (ParseException ex) {
+				logger.error("Could not create Date from string \"" + toDateString + "\"");
+				return dates;
 			}
 		}
 		

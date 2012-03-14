@@ -6,9 +6,9 @@ import java.util.regex.Pattern;
 public class GreekPhoneReservationResolver {
 	private String patternString1 = ".*απαιτείται τηλεφωνική κράτηση.*";
 	private String patternString2 = ".*απαιτείται τηλεφωνικό ραντεβού.*";
-	private String patternString3 = ".*καλ[εέ][ίσ]τε (.{0,100})\\s?τουλάχιστον \\p{InGreek}{0,3}\\s?\\d* μέρ.*";
+	private String patternString3 = ".*καλείτε (.{0,100})\\s?τουλάχιστον \\p{InGreek}{0,3}\\s?\\d* μέρ.*";
 	private String patternString4 = ".*απαιτείται επικοινωνία.*";
-	private String patternString5 = ".*απαραίτητη [η]?\\s?τηλεφωνική επικοινωνία.*";
+	private String patternString5 = ".*απαραίτητη η?\\s?τηλεφωνική επικοινωνία.*";
 	private String patternString6 = ".*με τηλεφωνικό ραντεβού.*";
 	private String patternString8 = ".*απαιτείται τηλεφωνική επικοινωνία.*"; 
 	private Pattern pattern1;
