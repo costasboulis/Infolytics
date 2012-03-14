@@ -1,20 +1,41 @@
 package com.cleargist.catalog.deals.scrape;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.text.NumberFormat;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.GregorianCalendar;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import javax.xml.bind.JAXBContext;
 import javax.xml.bind.JAXBException;
+import javax.xml.bind.Marshaller;
 import javax.xml.bind.Unmarshaller;
+import javax.xml.datatype.DatatypeFactory;
+import javax.xml.validation.Schema;
+import javax.xml.validation.SchemaFactory;
 
 import org.apache.log4j.Logger;
 
+import com.cleargist.catalog.dao.MyValidationEventHandler;
+import com.cleargist.catalog.deals.entity.jaxb.AddressListType;
+import com.cleargist.catalog.deals.entity.jaxb.AddressType;
 import com.cleargist.catalog.deals.entity.jaxb.Collection;
 import com.cleargist.catalog.deals.entity.jaxb.DealType;
 
 public class ScraperEvaluator {
 	public static String newline = System.getProperty("line.separator"); 
+	private Locale locale = new Locale("el", "GR");
 	private Logger logger = Logger.getLogger(getClass());
 	private HashMap<String, DealType> hypDeals;
 	private HashMap<String, DealType> refDeals;
@@ -87,8 +108,198 @@ public class ScraperEvaluator {
 		return sb.toString();
 	}
 	
-	public static void convertRefDealsToSchema(File refDeals) throws Exception {
+	private String zeroPadDate(String date) {
+		String[] tmp = date.trim().split("/");
+		int day = Integer.parseInt(tmp[0]);
+		int month = Integer.parseInt(tmp[1]);
+		String[] moreFlds = tmp[2].split(" ");
+		String yearString = moreFlds[0];
+		int year = Integer.parseInt(yearString);
+		if (year < 50) {
+			year += 2000;
+		}
 		
+		StringBuffer sb = new StringBuffer();
+		sb.append(String.format("%02d", day)); sb.append("/");
+		sb.append(String.format("%02d", month)); sb.append("/");
+		sb.append(year);
+		
+		tmp = date.trim().split(" ");
+		sb.append(" "); sb.append(tmp[1]);
+		
+		return sb.toString();
+	}
+	
+	public void convertRefDealsToSchema(File refDeals, File XSDFile, File outRefXMLDeals) {
+		SimpleDateFormat formatter = new SimpleDateFormat("dd/MM/yyyy HH:mm");
+		SimpleDateFormat formatter2 = new SimpleDateFormat("dd/MM/yyyy");
+		NumberFormat doubleNumberFormat = NumberFormat.getNumberInstance(locale); 
+		doubleNumberFormat.setMaximumFractionDigits(2);
+		doubleNumberFormat.setMinimumFractionDigits(0);
+		
+		try {
+			Collection collection = new Collection();
+			collection.setDeals(new Collection.Deals());
+			List<DealType> deals = collection.getDeals().getDeal();
+			
+    		BufferedReader reader = new BufferedReader(new FileReader(refDeals));
+    		String line = reader.readLine();
+			HashMap<String, Integer> fields = new HashMap<String, Integer>();
+			String[] flds = line.split(";");
+			int cnt = 0;
+			for (String s : flds) {
+				fields.put(s, cnt);
+				
+				cnt ++;
+			}
+			while (( line = reader.readLine()) != null){
+				flds = line.split(";");
+				DealType deal = new DealType();
+				String dealID = flds[fields.get("URL")];
+				if (!dealID.startsWith("http")) {
+					continue;
+				}
+				dealID = dealID.replaceAll("http://www.goldendeals.gr/deals/", "");
+				deal.setDealId(dealID);
+				
+				String merchantName = flds[fields.get("NameOfBusiness")];
+				deal.setBusinessName(merchantName);
+				
+				String siteID = flds[fields.get("Provider")];
+				if (siteID.equals("GoldenDeals")) {
+					deal.setSiteId("Golden Deals");
+				}
+				
+				String city = flds[fields.get("Location")];
+				deal.setSiteCity(city.toLowerCase());
+				deal.setSiteCountry("GR");
+				
+				deal.setMinCouponsForActivation(new BigInteger(flds[fields.get("MinCoupons")]));
+				
+				deal.setMaxCouponsPerPerson(new BigInteger(flds[fields.get("MaxCouponsPerPerson")]));
+				
+				deal.setNumberOfCouponsSold((new BigInteger(flds[fields.get("NumberOfCoupons")])));
+				
+				try {
+		        	double p = doubleNumberFormat.parse(flds[fields.get("InitialPrice")]).doubleValue();
+		        	deal.setInitialPrice((new BigDecimal(Double.toString(p))));
+		        }
+		        catch (ParseException ex) {
+		        	
+		        }
+				
+		        try {
+		        	double p = doubleNumberFormat.parse(flds[fields.get("PriceAfterDiscount")]).doubleValue();
+		        	deal.setDealPrice((new BigDecimal(Double.toString(p))));
+		        }
+		        catch (ParseException ex) {
+		        	
+		        }
+				
+				
+				String date = flds[fields.get("FromCouponDate")];
+				String paddedDate = zeroPadDate(date);
+				Date fromDate = formatter.parse(paddedDate);
+				GregorianCalendar gc = new GregorianCalendar();
+		        gc.setTimeInMillis(fromDate.getTime());
+		        DatatypeFactory df = DatatypeFactory.newInstance();
+				deal.setCouponPurchaseStartingDate(df.newXMLGregorianCalendar(gc));
+				
+				
+				date = flds[fields.get("ToCouponDate")];
+				Date toDate = formatter.parse(zeroPadDate(date));
+		        gc.setTimeInMillis(toDate.getTime());
+				deal.setCouponPurchaseEndDate(df.newXMLGregorianCalendar(gc));
+				
+				
+				date = flds[fields.get("DealStartDate")];
+				fromDate = formatter2.parse(GreekCouponRedemptionResolver.zeroPadDate(date));
+		        gc.setTimeInMillis(fromDate.getTime());
+				deal.setCouponRedemptionStartingDate(df.newXMLGregorianCalendar(gc));
+				
+				
+				date = flds[fields.get("DealEndDate")];
+				toDate = formatter2.parse(GreekCouponRedemptionResolver.zeroPadDate(date));
+		        gc.setTimeInMillis(toDate.getTime());
+				deal.setCouponRedemptionEndDate(df.newXMLGregorianCalendar(gc));
+				
+				
+				AddressType address = new AddressType();
+				address.setCity("Unknown");
+				address.setGeographicalArea("Unknown");
+				AddressListType addressList = new AddressListType();
+				List<AddressType> adrList = addressList.getAddress();
+				adrList.add(address);
+				deal.setBusinessAddress(addressList);
+				
+				boolean requiresStoreVisit = flds[fields.get("RequiresPhysicalVisit")].equals("Yes") ? true : false;
+				deal.setRequiresStoreVisit(requiresStoreVisit);
+				
+				
+//				boolean hasMultipleStores = flds[fields.get("MultipleStores")].equals("Yes") ? true : false;
+				
+				boolean requiresPhoneReservation = flds[fields.get("PhoneReservation")].equals("Yes") ? true : false;
+				deal.setRequiresPhoneReservation(requiresPhoneReservation);
+						
+				boolean hasBlockerDates = flds[fields.get("ValidWithoutTimeExceptions")].equals("Yes") ? true : false;
+				deal.setHasBlockerDates(hasBlockerDates);
+				
+				boolean isOnePersonCoupon = flds[fields.get("OnePersonCoupon")].equals("Yes") ? true : false;
+				deal.setIsOnePersonCoupon(isOnePersonCoupon);
+				
+				boolean hasExtraDiscounts = flds[fields.get("ExtraDiscounts")].equals("Yes") ? true : false;
+				deal.setHasExtraDiscounts(hasExtraDiscounts);
+				
+				boolean isComboDeal = flds[fields.get("ComboDeal")].equals("Yes") ? true : false;
+				deal.setIsComboDeal(isComboDeal);
+				
+				boolean hasOptions = flds[fields.get("Has Options")].equals("Yes") ? true : false;
+				deal.setHasOptions(hasOptions);
+				
+				deals.add(deal);
+			}
+    		reader.close();
+    		
+    		// Marshall the reference deals
+    		Marshaller marshaller = null;
+        	try {
+        		String contextPath = com.cleargist.catalog.deals.entity.jaxb.Collection.class.getCanonicalName().replaceAll("\\.Collection", "");
+        		JAXBContext jaxbContext = JAXBContext.newInstance(contextPath);
+        		marshaller = jaxbContext.createMarshaller();
+        		SchemaFactory sf = SchemaFactory.newInstance(javax.xml.XMLConstants.W3C_XML_SCHEMA_NS_URI);
+        		Schema schema = null;
+        		try {
+        			schema = sf.newSchema(XSDFile);
+        		}
+        		catch (Exception e){
+        			logger.warn("Cannot create schema, check schema location " + XSDFile.getAbsolutePath());
+        			System.exit(-1);
+        		}
+        		marshaller.setSchema(schema);
+        		marshaller.setEventHandler(new MyValidationEventHandler());
+        		marshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, new Boolean(true));
+        	}
+        	catch (JAXBException ex) {
+        		logger.error("Setting up marshalling failed");
+        		System.exit(-1);
+        	}
+        	
+        	try {
+    			marshaller.marshal(collection, new FileOutputStream(outRefXMLDeals));
+    		}
+    		catch (JAXBException ex) {
+    			logger.error("Could not marshal the catalog");
+    			System.exit(-1);
+    		}
+    		catch (FileNotFoundException ex2) {
+    			logger.error("Could not write to " + outRefXMLDeals.getAbsolutePath());
+    			System.exit(-1);
+    		}
+		}
+		catch (Exception ex) {
+			logger.error("Cannot read from file " + refDeals.getAbsolutePath());
+			System.exit(-1);
+		}
 	}
 	
 	public void evaluate(File hypDealsFile, File refDealsFile) {
@@ -231,11 +442,13 @@ public class ScraperEvaluator {
 	}
 	
 	public static void main(String[] argv) {
-		String hypDealsFilename = "";
-		String refDealsFilename = "";
+		String hypDealsFilename = "C:\\Users\\kboulis\\Infolytics\\catalog\\goldenDeals.xml";
+		String refDealsFilename = "C:\\recs\\GoldenDealsReference.xml";
 		ScraperEvaluator eval = new ScraperEvaluator();
 		
-		eval.evaluate(new File(hypDealsFilename), new File(refDealsFilename));
+		eval.convertRefDealsToSchema(new File("C:\\recs\\goldenDeals.csv"), new File("C:\\Users\\kboulis\\deals.xsd"), new File(refDealsFilename));
+		
+//		eval.evaluate(new File(hypDealsFilename), new File(refDealsFilename));
 	}
 
 }

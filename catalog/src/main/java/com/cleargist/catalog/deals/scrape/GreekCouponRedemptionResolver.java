@@ -146,7 +146,7 @@ public class GreekCouponRedemptionResolver {
 		return dates;
 	}
 	
-	private String zeroPadDate(String date) {
+	public static String zeroPadDate(String date) {
 		String[] tmp = date.trim().split("/");
 		int day = Integer.parseInt(tmp[0]);
 		int month = Integer.parseInt(tmp[1]);
