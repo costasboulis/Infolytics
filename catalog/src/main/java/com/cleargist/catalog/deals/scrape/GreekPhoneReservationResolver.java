@@ -6,7 +6,7 @@ import java.util.regex.Pattern;
 public class GreekPhoneReservationResolver {
 	private String patternString1 = ".*απαιτείται τηλεφωνική κράτηση.*";
 	private String patternString2 = ".*απαιτείται τηλεφωνικό ραντεβού.*";
-	private String patternString3 = ".*καλείτε (.{0,100})\\s?τουλάχιστον \\p{InGreek}{0,3}\\s?\\d* μέρ.*";
+	private String patternString3 = ".*καλείτε (.{0,100})\\s?τουλάχιστον\\s?\\p{InGreek}{0,3}\\s?\\d* μέρ.*";
 	private String patternString4 = ".*απαιτείται επικοινωνία.*";
 	private String patternString5 = ".*απαραίτητη η?\\s?τηλεφωνική επικοινωνία.*";
 	private String patternString6 = ".*με τηλεφωνικό ραντεβού.*";
@@ -45,7 +45,7 @@ public class GreekPhoneReservationResolver {
 			String matchedText = patternMatcher3.group(1);
 			if (matchedText.contains("ραντεβού") || matchedText.contains("παραγγελία") || matchedText.contains("παραλαβή") ||
 				matchedText.contains("πληροφορία") || matchedText.contains("συνεννοηθείτε") || matchedText.contains("επίσκεψη")	|| 
-				matchedText.contains("μαθήματα") || matchedText.contains("τμήμα")) {
+				matchedText.contains("μαθήματα") || matchedText.contains("τμήμα") || matchedText.contains("σχολή")) {
 				return true;
 			}
 		}

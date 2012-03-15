@@ -13,6 +13,7 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -159,10 +160,12 @@ public class ScraperEvaluator {
 				if (!dealID.startsWith("http")) {
 					continue;
 				}
+				deal.setDealURL(dealID);
+				
 				dealID = dealID.replaceAll("http://www.goldendeals.gr/deals/", "");
 				deal.setDealId(dealID);
 				
-				String merchantName = flds[fields.get("NameOfBusiness")];
+				String merchantName = flds[fields.get("NameOfBusiness")].trim();
 				deal.setBusinessName(merchantName);
 				
 				String siteID = flds[fields.get("Provider")];
@@ -185,7 +188,8 @@ public class ScraperEvaluator {
 		        	deal.setInitialPrice((new BigDecimal(Double.toString(p))));
 		        }
 		        catch (ParseException ex) {
-		        	
+		        	logger.error("Cannot parse Initial Price in deal " + dealID);
+		        	System.exit(-1);
 		        }
 				
 		        try {
@@ -193,7 +197,8 @@ public class ScraperEvaluator {
 		        	deal.setDealPrice((new BigDecimal(Double.toString(p))));
 		        }
 		        catch (ParseException ex) {
-		        	
+		        	logger.error("Cannot parse Deal Price in deal " + dealID);
+		        	System.exit(-1);
 		        }
 				
 				
@@ -241,7 +246,7 @@ public class ScraperEvaluator {
 				boolean requiresPhoneReservation = flds[fields.get("PhoneReservation")].equals("Yes") ? true : false;
 				deal.setRequiresPhoneReservation(requiresPhoneReservation);
 						
-				boolean hasBlockerDates = flds[fields.get("ValidWithoutTimeExceptions")].equals("Yes") ? true : false;
+				boolean hasBlockerDates = flds[fields.get("ValidWithoutTimeExceptions")].equals("Yes") ? false : true;
 				deal.setHasBlockerDates(hasBlockerDates);
 				
 				boolean isOnePersonCoupon = flds[fields.get("OnePersonCoupon")].equals("Yes") ? true : false;
@@ -255,6 +260,29 @@ public class ScraperEvaluator {
 				
 				boolean hasOptions = flds[fields.get("Has Options")].equals("Yes") ? true : false;
 				deal.setHasOptions(hasOptions);
+				
+				boolean hasMultiplePrices = flds[fields.get("MultiplePrices")].equals("Yes") ? true : false;
+				deal.setHasMultiplePrices(hasMultiplePrices);
+				
+				boolean hasMoreToPay = flds[fields.get("MoreToPay")].equals("Yes") ? true : false;
+				deal.setRequiresMoreToPay(hasMoreToPay);
+				
+				boolean isValidForEveryWeekday = flds[fields.get("ValidForEveryWeekday")].equals("Yes") ? true : false;
+				List<String> validDays = deal.getValidDates();
+				if (isValidForEveryWeekday) {
+					validDays.add("Monday"); validDays.add("Tuesday"); validDays.add("Wednesday");
+					validDays.add("Thursday"); validDays.add("Friday");
+				}
+				boolean isValidForSaturday = flds[fields.get("ValidForSaturdays")].equals("Yes") ? true : false;
+				if (isValidForSaturday) {
+					validDays.add("Saturday");
+				}
+				
+				boolean isValidForSunday = flds[fields.get("ValidForSundays")].equals("Yes") ? true : false;
+				if (isValidForSunday) {
+					validDays.add("Sunday");
+				}
+				
 				
 				deals.add(deal);
 			}
@@ -307,7 +335,7 @@ public class ScraperEvaluator {
 		hypDeals = readDeals(hypDealsFile);
 		refDeals = readDeals(refDealsFile);
 		
-		if (hypDeals.size() != refDeals.size()) {
+		if (hypDeals.size() > refDeals.size()) {
 			logger.error("Number of HYP deals " + hypDeals.size() + " . Number of REF deals " + refDeals.size());
 			System.exit(-1);
 		}
@@ -350,18 +378,21 @@ public class ScraperEvaluator {
 			// Has Blocker Dates
 			hypHasBlockerDates[dealIndx] = hypDeal.isHasBlockerDates() ? 1 : 0;
 			refHasBlockerDates[dealIndx] = refDeal.isHasBlockerDates() ? 1 : 0;
+			if (hypHasBlockerDates[dealIndx] == 0 && refHasBlockerDates[dealIndx] == 1) {
+				logger.info(dealID);
+			}
 			
 			// Is Luxury Business
-			hypIsLuxuryBusiness[dealIndx] = hypDeal.isIsLuxuryBusiness() ? 1 : 0;
-			refIsLuxuryBusiness[dealIndx] = refDeal.isIsLuxuryBusiness() ? 1 : 0;
+//			hypIsLuxuryBusiness[dealIndx] = hypDeal.isIsLuxuryBusiness() ? 1 : 0;
+//			refIsLuxuryBusiness[dealIndx] = refDeal.isIsLuxuryBusiness() ? 1 : 0;
 			
 			// Has Multiple Prices
 			hypHasMultiplePrices[dealIndx] = hypDeal.isHasMultiplePrices() ? 1 : 0;
 			refHasMultiplePrices[dealIndx] = refDeal.isHasMultiplePrices() ? 1 : 0;
 			
 			// Requires store visit
-			hypRequiresStoreVisit[dealIndx] = hypDeal.isRequiresStoreVisit() ? 1 : 0;
-			refRequiresStoreVisit[dealIndx] = refDeal.isRequiresStoreVisit() ? 1 : 0;
+//			hypRequiresStoreVisit[dealIndx] = hypDeal.isRequiresStoreVisit() ? 1 : 0;
+//			refRequiresStoreVisit[dealIndx] = refDeal.isRequiresStoreVisit() ? 1 : 0;
 			
 			// Requires More to Pay
 			hypRequiresMoreToPay[dealIndx] = hypDeal.isRequiresMoreToPay() ? 1 : 0;
@@ -370,22 +401,25 @@ public class ScraperEvaluator {
 			// Requires Phone Reservation
 			hypRequiresPhoneReservation[dealIndx] = hypDeal.isRequiresPhoneReservation() ? 1 : 0;
 			refRequiresPhoneReservation[dealIndx] = refDeal.isRequiresPhoneReservation() ? 1 : 0;
+//			if (hypRequiresPhoneReservation[dealIndx] == 0 && refRequiresPhoneReservation[dealIndx] == 1) {
+//				logger.info(dealID);
+//			}
 			
 			// Is One Person Coupon
 			hypIsOnePersonCoupon[dealIndx] = hypDeal.isIsOnePersonCoupon() ? 1 : 0;
 			refIsOnePersonCoupon[dealIndx] = refDeal.isIsOnePersonCoupon() ? 1 : 0;
 			
 			// Is Single Visit Coupon
-			hypIsSingleVisitCoupon[dealIndx] = hypDeal.isIsSingleVisitCoupon() ? 1 : 0;
-			refIsSingleVisitCoupon[dealIndx] = refDeal.isIsSingleVisitCoupon() ? 1 : 0;
+//			hypIsSingleVisitCoupon[dealIndx] = hypDeal.isIsSingleVisitCoupon() ? 1 : 0;
+//			refIsSingleVisitCoupon[dealIndx] = refDeal.isIsSingleVisitCoupon() ? 1 : 0;
 			
 			// Has Extra Discounts
 			hypHasExtraDiscounts[dealIndx] = hypDeal.isHasExtraDiscounts() ? 1 : 0;
 			refHasExtraDiscounts[dealIndx] = refDeal.isHasExtraDiscounts() ? 1 : 0;
 			
 			// Is Combo Deal
-			hypIsComboDeal[dealIndx] = hypDeal.isIsComboDeal() ? 1 : 0;
-			refIsComboDeal[dealIndx] = refDeal.isIsComboDeal() ? 1 : 0;
+//			hypIsComboDeal[dealIndx] = hypDeal.isIsComboDeal() ? 1 : 0;
+//			refIsComboDeal[dealIndx] = refDeal.isIsComboDeal() ? 1 : 0;
 			
 			// Has Options
 			hypHasOptions[dealIndx] = hypDeal.isHasOptions() ? 1 : 0;
@@ -446,9 +480,9 @@ public class ScraperEvaluator {
 		String refDealsFilename = "C:\\recs\\GoldenDealsReference.xml";
 		ScraperEvaluator eval = new ScraperEvaluator();
 		
-		eval.convertRefDealsToSchema(new File("C:\\recs\\goldenDeals.csv"), new File("C:\\Users\\kboulis\\deals.xsd"), new File(refDealsFilename));
+//		eval.convertRefDealsToSchema(new File("C:\\recs\\goldenDeals.csv"), new File("C:\\Users\\kboulis\\deals.xsd"), new File(refDealsFilename));
 		
-//		eval.evaluate(new File(hypDealsFilename), new File(refDealsFilename));
+		eval.evaluate(new File(hypDealsFilename), new File(refDealsFilename));
 	}
 
 }
