@@ -90,14 +90,20 @@ public class GoldenDealsScraper {
 	    return Jsoup.parse(html).text();
 	}
 	
-	public Collection scrape(List<String> urlList) throws Exception {
+	public Collection scrape(List<String> urlList) {
 		Collection collection = new Collection();
 		Collection.Deals deals = new Collection.Deals();
 		collection.setDeals(deals);
 		List<DealType> dealsList = deals.getDeal();
 		for (String url : urlList) {
-			DealType deal = scrape(url);
-			
+			DealType deal = null;
+			try {
+				deal = scrape(url);
+			}
+			catch (Exception ex) {
+				logger.warn("Could not scrape deal " + url);
+				continue;
+			}
 			dealsList.add(deal);
 			
 			logger.info("Processed deal " + url);

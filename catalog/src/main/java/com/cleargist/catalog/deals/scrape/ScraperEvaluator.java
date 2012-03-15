@@ -378,9 +378,6 @@ public class ScraperEvaluator {
 			// Has Blocker Dates
 			hypHasBlockerDates[dealIndx] = hypDeal.isHasBlockerDates() ? 1 : 0;
 			refHasBlockerDates[dealIndx] = refDeal.isHasBlockerDates() ? 1 : 0;
-			if (hypHasBlockerDates[dealIndx] == 0 && refHasBlockerDates[dealIndx] == 1) {
-				logger.info(dealID);
-			}
 			
 			// Is Luxury Business
 //			hypIsLuxuryBusiness[dealIndx] = hypDeal.isIsLuxuryBusiness() ? 1 : 0;
@@ -401,9 +398,9 @@ public class ScraperEvaluator {
 			// Requires Phone Reservation
 			hypRequiresPhoneReservation[dealIndx] = hypDeal.isRequiresPhoneReservation() ? 1 : 0;
 			refRequiresPhoneReservation[dealIndx] = refDeal.isRequiresPhoneReservation() ? 1 : 0;
-//			if (hypRequiresPhoneReservation[dealIndx] == 0 && refRequiresPhoneReservation[dealIndx] == 1) {
-//				logger.info(dealID);
-//			}
+			if (hypRequiresPhoneReservation[dealIndx] == 0 && refRequiresPhoneReservation[dealIndx] == 1) {
+				logger.info(dealID);
+			}
 			
 			// Is One Person Coupon
 			hypIsOnePersonCoupon[dealIndx] = hypDeal.isIsOnePersonCoupon() ? 1 : 0;
