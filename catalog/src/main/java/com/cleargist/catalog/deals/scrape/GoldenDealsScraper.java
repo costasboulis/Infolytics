@@ -178,7 +178,7 @@ public class GoldenDealsScraper extends Scraper {
 		gc.setTimeInMillis(dueDate.getTime());
 		deal.setCouponPurchaseEndDate(df.newXMLGregorianCalendar(gc));
 
-		deal.setDealDescription(description);
+//		deal.setDealDescription(description);
 		deal.setDealTitle(title);
 
 		// Process the date terms

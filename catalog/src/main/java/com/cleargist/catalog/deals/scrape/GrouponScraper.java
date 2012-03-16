@@ -34,9 +34,9 @@ public class GrouponScraper extends Scraper {
 		String title = titleElement.text();
 		
 		Element termsElementA = doc.select("[class=viewHalfWidthSize]").get(0);
-		String termsA = termsElementA.text();
+		String termsA = termsElementA.text().replaceAll("Λίγα [Λλ]όγια", "").trim();
 		Element termsElementB = doc.select("[class=viewHalfWidthSize]").get(1);
-		String termsB = termsElementB.text();
+		String termsB = termsElementB.text().replaceAll("Ψιλά [Γγ]ράμματα", "").trim();
 		
 		Element merchantDescElement = doc.select("[class=contentBoxNormalLeft]").get(0);
 		String merchantDescription = merchantDescElement.text();
