@@ -61,12 +61,15 @@ public class GreekPhoneReservationResolver {
 		
 		Matcher patternMatcher3 = this.pattern3.matcher(text);
 		if (patternMatcher3.matches()) {
+			return true;
+			/*
 			String matchedText = patternMatcher3.group(1);
 			if (matchedText.isEmpty() || matchedText.contains("ραντεβού") || matchedText.contains("παραγγελία") || matchedText.contains("παραλαβή") ||
 				matchedText.contains("πληροφορία") || matchedText.contains("συνεννοηθείτε") || matchedText.contains("επίσκεψη")	|| 
 				matchedText.contains("μαθήματα") || matchedText.contains("τμήμα") || matchedText.contains("σχολή")) {
 				return true;
 			}
+			*/
 		}
 		
 		Matcher patternMatcher4 = this.pattern4.matcher(text);

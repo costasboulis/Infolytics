@@ -13,7 +13,6 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -480,10 +479,10 @@ public class ScraperEvaluator {
 	
 	public static void main(String[] argv) {
 		String hypDealsFilename = "C:\\Users\\kboulis\\Infolytics\\catalog\\goldenDeals.xml";
-		String refDealsFilename = "C:\\recs\\GoldenDealsReference.xml";
+		String refDealsFilename = "C:\\recs\\AllDealsReference.xml";
 		ScraperEvaluator eval = new ScraperEvaluator();
 		
-		eval.convertRefDealsToSchema(new File("C:\\recs\\goldenDeals.csv"), new File("C:\\Users\\kboulis\\deals.xsd"), new File(refDealsFilename));
+		eval.convertRefDealsToSchema(new File("C:\\recs\\Filtered_All_Deals.csv"), new File("C:\\Users\\kboulis\\deals.xsd"), new File(refDealsFilename));
 		
 //		eval.evaluate(new File(hypDealsFilename), new File(refDealsFilename));
 	}

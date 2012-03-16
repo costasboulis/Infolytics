@@ -122,7 +122,7 @@ public class GoldenDealsScraper extends Scraper {
 		Date startDate = this.formatter.parse(startDateString);
 		String location = html2text(dealJson.getString("location"));
 		String description = dealJson.getString("description");
-		String descriptionShort = dealJson.getString("descriptionShort");
+//		String descriptionShort = dealJson.getString("descriptionShort");
 		String cityTag = dealJson.getString("cityTag");
 		String title = dealJson.getString("title");
 		float price = (float)dealJson.getDouble("price");
@@ -144,6 +144,10 @@ public class GoldenDealsScraper extends Scraper {
 		}
 
 		String[] descriptionParts = description.split("<h2>");
+		deal.setTerms(descriptionParts[0]);
+		if (descriptionParts.length > 1){
+			deal.setMerchantDescription(descriptionParts[1]);
+		}
 		String allTerms = html2text(descriptionParts[0]).toLowerCase(locale)
 		.replaceAll("<\\\\/strong>", "")
 		.replaceAll("<\\\\/li>", "")
@@ -275,8 +279,8 @@ public class GoldenDealsScraper extends Scraper {
 
 
 	public static void main(String[] argv) {
-		String dealsFilenameString = "c:\\Users\\kboulis\\goldenDeals.txt";
-//		String dealsFilenameString = "c:\\Users\\kboulis\\goldenDealsSmall.txt";
+		String dealsFilenameString = "c:\\recs\\GoldenDealsList.txt";
+//		String dealsFilenameString = "c:\\recs\\GoldenDealsListSmall.txt";
 		GoldenDealsScraper scraper = new GoldenDealsScraper();
 
 		File dealsFile = new File(dealsFilenameString);
@@ -304,7 +308,7 @@ public class GoldenDealsScraper extends Scraper {
 		}
 
 		try {
-			scraper.marshall(collection, new File("C:\\Users\\kboulis\\deals.xsd"), new File("C:\\Users\\kboulis\\Infolytics\\catalog\\goldenDeals.xml"));
+			scraper.marshall(collection, new File("C:\\Users\\kboulis\\deals.xsd"), new File("C:\\recs\\GoldenDealsScraped.xml"));
 		}
 		catch (Exception ex) {
 			System.exit(-1);

@@ -392,11 +392,11 @@ public abstract class TextClassifier {
 	
 	public static void main(String[] argv) {
 //		String scrapedDealsFilename = "C:\\Users\\kboulis\\Infolytics\\catalog\\goldenDealsSmall.xml";
-		String scrapedDealsFilename = "C:\\Users\\kboulis\\Infolytics\\catalog\\goldenDeals.xml";
-		String annotatedDealsFilename = "C:\\recs\\GoldenDealsReference.xml";
-		String trainingFilename = "c:\\recs\\GoldenDealsTitlesAndCategories.arff";
-		String idfFilename = "c:\\recs\\GoldenDealsIdfFile.csv";
-		String vocabularyFilename = "c:\\recs\\GoldenDealsVocabularyFile.csv";
+		String scrapedDealsFilename = "C:\\recs\\AllDealsScraped.xml";
+		String annotatedDealsFilename = "C:\\recs\\AllDealsReference.xml";
+		String trainingFilename = "c:\\recs\\AllDealsTitlesAndCategories.arff";
+		String idfFilename = "c:\\recs\\AllDealsIdfFile.csv";
+		String vocabularyFilename = "c:\\recs\\AllDealsVocabularyFile.csv";
 		
 		
 		TextClassifier gdct = new TitleCategoryTextClassifier();
