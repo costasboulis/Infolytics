@@ -399,7 +399,7 @@ public abstract class TextClassifier {
 		String vocabularyFilename = "c:\\recs\\AllDealsVocabularyFile.csv";
 		
 		
-		TextClassifier gdct = new TitleCategoryTextClassifier();
+		TextClassifier gdct = new DescriptionCategoryTextClassifier();
 		
 		gdct.createDataSet(new File(scrapedDealsFilename), new File(annotatedDealsFilename),
 						   new File(idfFilename), new File(vocabularyFilename), new File(trainingFilename));
