@@ -177,6 +177,12 @@ public class ScraperEvaluator {
 				deal.setSiteCity(city.toLowerCase());
 				deal.setSiteCountry("GR");
 				
+				String category = flds[fields.get("GrouponCategory")];
+				deal.setCategory(category.trim());
+				
+				String subCategory = flds[fields.get("GrouponSubCategory")];
+				deal.setSubCategory(subCategory.trim());
+				
 				deal.setMinCouponsForActivation(new BigInteger(flds[fields.get("MinCoupons")]));
 				
 				deal.setMaxCouponsPerPerson(new BigInteger(flds[fields.get("MaxCouponsPerPerson")]));
@@ -477,9 +483,9 @@ public class ScraperEvaluator {
 		String refDealsFilename = "C:\\recs\\GoldenDealsReference.xml";
 		ScraperEvaluator eval = new ScraperEvaluator();
 		
-//		eval.convertRefDealsToSchema(new File("C:\\recs\\goldenDeals.csv"), new File("C:\\Users\\kboulis\\deals.xsd"), new File(refDealsFilename));
+		eval.convertRefDealsToSchema(new File("C:\\recs\\goldenDeals.csv"), new File("C:\\Users\\kboulis\\deals.xsd"), new File(refDealsFilename));
 		
-		eval.evaluate(new File(hypDealsFilename), new File(refDealsFilename));
+//		eval.evaluate(new File(hypDealsFilename), new File(refDealsFilename));
 	}
 
 }
