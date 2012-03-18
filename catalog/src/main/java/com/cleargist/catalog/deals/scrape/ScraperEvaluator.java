@@ -345,7 +345,7 @@ public class ScraperEvaluator {
 			System.exit(-1);
 		}
 		
-		int length = refDeals.size();
+		int length = hypDeals.size();
 		int[] hypHasBlockerDates = new int[length];
 		int[] refHasBlockerDates = new int[length];
 		int[] hypIsLuxuryBusiness = new int[length];
@@ -403,13 +403,16 @@ public class ScraperEvaluator {
 			// Requires Phone Reservation
 			hypRequiresPhoneReservation[dealIndx] = hypDeal.isRequiresPhoneReservation() ? 1 : 0;
 			refRequiresPhoneReservation[dealIndx] = refDeal.isRequiresPhoneReservation() ? 1 : 0;
-			if (hypRequiresPhoneReservation[dealIndx] == 0 && refRequiresPhoneReservation[dealIndx] == 1) {
+			if (hypRequiresPhoneReservation[dealIndx] == 1 && refRequiresPhoneReservation[dealIndx] == 0) {
 				logger.info(dealID);
 			}
 			
 			// Is One Person Coupon
 			hypIsOnePersonCoupon[dealIndx] = hypDeal.isIsOnePersonCoupon() ? 1 : 0;
 			refIsOnePersonCoupon[dealIndx] = refDeal.isIsOnePersonCoupon() ? 1 : 0;
+//			if (hypIsOnePersonCoupon[dealIndx] == 1 && refIsOnePersonCoupon[dealIndx] == 0) {
+//				logger.info(dealID);
+//			}
 			
 			// Is Single Visit Coupon
 //			hypIsSingleVisitCoupon[dealIndx] = hypDeal.isIsSingleVisitCoupon() ? 1 : 0;
@@ -418,6 +421,9 @@ public class ScraperEvaluator {
 			// Has Extra Discounts
 			hypHasExtraDiscounts[dealIndx] = hypDeal.isHasExtraDiscounts() ? 1 : 0;
 			refHasExtraDiscounts[dealIndx] = refDeal.isHasExtraDiscounts() ? 1 : 0;
+//			if (hypHasExtraDiscounts[dealIndx] == 0 && refHasExtraDiscounts[dealIndx] == 1) {
+//				logger.info(dealID);
+//			}
 			
 			// Is Combo Deal
 //			hypIsComboDeal[dealIndx] = hypDeal.isIsComboDeal() ? 1 : 0;
@@ -478,13 +484,13 @@ public class ScraperEvaluator {
 	}
 	
 	public static void main(String[] argv) {
-		String hypDealsFilename = "C:\\Users\\kboulis\\Infolytics\\catalog\\goldenDeals.xml";
+		String hypDealsFilename = "C:\\recs\\GoldenDealsScraped.xml";
 		String refDealsFilename = "C:\\recs\\AllDealsReference.xml";
 		ScraperEvaluator eval = new ScraperEvaluator();
 		
-		eval.convertRefDealsToSchema(new File("C:\\recs\\Filtered_All_Deals.csv"), new File("C:\\Users\\kboulis\\deals.xsd"), new File(refDealsFilename));
+//		eval.convertRefDealsToSchema(new File("C:\\recs\\All_Deals.csv"), new File("C:\\Users\\kboulis\\deals.xsd"), new File(refDealsFilename));
 		
-//		eval.evaluate(new File(hypDealsFilename), new File(refDealsFilename));
+		eval.evaluate(new File(hypDealsFilename), new File(refDealsFilename));
 	}
 
 }
