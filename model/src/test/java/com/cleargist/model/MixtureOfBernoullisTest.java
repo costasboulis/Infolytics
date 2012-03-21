@@ -40,6 +40,7 @@ public class MixtureOfBernoullisTest {
 	
 	private void createSample() {
 		int numberOfSamples = 10000;
+		/*
 		double[] priors = {8.0/36.0, 7.0/36.0, 6.0/36.0, 5.0/36, 4.0/36.0, 3.0/36.0, 2.0/36.0, 1.0/36.0};
 		double[][] probs = { {0.8, 0.8, 0.8, 0.8, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2},
 							 {0.2, 0.2, 0.2, 0.2, 0.8, 0.8, 0.8, 0.8, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2}, 
@@ -49,6 +50,10 @@ public class MixtureOfBernoullisTest {
 							 {0.2, 0.8, 0.2, 0.2, 0.2, 0.8, 0.2, 0.2, 0.2, 0.8, 0.2, 0.2, 0.2, 0.8, 0.2, 0.2},
 							 {0.2, 0.2, 0.8, 0.2, 0.2, 0.2, 0.8, 0.2, 0.2, 0.2, 0.8, 0.2, 0.2, 0.2, 0.8, 0.2},
 							 {0.2, 0.2, 0.2, 0.8, 0.2, 0.2, 0.2, 0.8, 0.2, 0.2, 0.2, 0.8, 0.2, 0.2, 0.2, 0.8}  };
+		*/
+		double[] priors = {0.5, 0.5};
+		double[][] probs = { {0.9, 0.9, 0.9, 0.9, 0.1, 0.1, 0.1, 0.1},
+							 {0.1, 0.1, 0.1, 0.1, 0.9, 0.9, 0.9, 0.9}  };
 		
 		int[] categories = new int[numberOfSamples];
 		String filename = "c:\\recs\\mixBernoullisSample.txt";
@@ -194,12 +199,13 @@ public class MixtureOfBernoullisTest {
 		
 		
 		MixtureOfBernoullis mixBernoullis = new MixtureOfBernoullis();
-		mixBernoullis.setNumberOfClusters(8);
+		int numClusters = 2;
+		mixBernoullis.setNumberOfClusters(numClusters);
 		mixBernoullis.setNumberOfIterations(10);
 		try {
 			mixBernoullis.trainInMemory("cleargist", "mixBernoullisSample.txt", "test");
 			mixBernoullis.writeClusterMemberships("cleargist", "mixBernoullisSample.txt", "cleargist", "mixBernoullisSampleHyp.txt", "test"); 
-			double adjRank = computeAdjustedRandIndex("cleargist", "mixBernoullisSampleCategories.txt", "cleargist", "mixBernoullisSampleHyp.txt", 8);
+			double adjRank = computeAdjustedRandIndex("cleargist", "mixBernoullisSampleCategories.txt", "cleargist", "mixBernoullisSampleHyp.txt", numClusters);
 			System.out.println("AdjustedRank : " + adjRank);
 		}
 		catch (Exception ex) {

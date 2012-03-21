@@ -9,6 +9,7 @@ import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -403,9 +404,119 @@ public class MixtureOfBernoullis extends BaseModel {
 		
 	}
 	
-	private void mergeSufficientStatistics(String mergedBuckeName, String mergedKey, 
-										   String statsBucketName, String statsKey, String tenantID) {
+	private void mergeSufficientStatistics(String mergedBucketName, String mergedKey, 
+										   String statsBucketName, String statsKey, String tenantID) throws Exception {
 		
+		// Load in memory the statsKey
+		this.ss1 = new ArrayList<HashMap<Integer, Double>>();
+		for (int m = 0; m < this.C; m ++) {
+			this.ss1.add(new HashMap<Integer, Double>());
+		}
+		this.ss0 = new double[this.C];
+		
+		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
+				MixtureOfBernoullis.class.getResourceAsStream(AWS_CREDENTIALS)));
+		S3Object statsObject = s3.getObject(statsBucketName, statsKey);
+		BufferedReader reader = new BufferedReader(new InputStreamReader(statsObject.getObjectContent()));
+		String lineStr = reader.readLine();
+		this.N = Double.parseDouble(lineStr);
+		lineStr = reader.readLine();
+		String[] fields = lineStr.split(" ");
+		for (int m = 0; m < fields.length; m ++) {
+			this.ss0[m] = Double.parseDouble(fields[m]);
+		}
+		while ((lineStr = reader.readLine()) != null) {
+			fields = lineStr.split(" ");
+			int m = Integer.parseInt(fields[0]);
+			
+			for (int k = 1; k < fields.length; k ++) {
+				String[] f = fields[k].split(":");
+				int indx = Integer.parseInt(f[0]);
+				double value = Double.parseDouble(f[1]);
+				
+				ss1.get(m).put(indx, value);
+			}
+		}
+		reader.close();
+		HashSet<Integer> hsA = new HashSet<Integer>();
+		for (int m = 0; m < this.ss1.size(); m ++) {
+			if (this.ss1.get(m).size() != 0) {
+				hsA.add(m);
+			}
+		}
+		
+		
+		// Read line-by-line the mergedKey, merge with statsKey and write to new local file
+		String localFilename = mergedBucketName + "_" + mergedKey + "_" + tenantID;
+		File localFile = new File(localFilename);
+		BufferedWriter bw = new BufferedWriter(new FileWriter(localFile));
+		S3Object mergedObject = s3.getObject(mergedBucketName, mergedKey);
+		reader = new BufferedReader(new InputStreamReader(mergedObject.getObjectContent()));
+		lineStr = reader.readLine();
+		double mergedN = Double.parseDouble(lineStr) + this.N;
+		StringBuffer sb = new StringBuffer();
+		sb.append(mergedN); sb.append(newline);
+		
+		lineStr = reader.readLine();
+		fields = lineStr.split(" ");
+		for (int m = 0; m < fields.length; m ++) {
+			double v = Double.parseDouble(fields[m]) + ss0[m];
+			sb.append(v);
+		}
+		sb.append(newline);
+		bw.write(sb.toString());
+		bw.flush();
+		
+		HashSet<Integer> hsB = new HashSet<Integer>();
+		while ((lineStr = reader.readLine()) != null) {
+			fields = lineStr.split(" ");
+			int m = Integer.parseInt(fields[0]);
+			
+			hsB.add(m);
+			sb = new StringBuffer();
+			sb.append(m);
+			HashMap<Integer, Double> hm = this.ss1.get(m);
+			for (int k = 1; k < fields.length; k ++) {
+				String[] f = fields[k].split(":");
+				int indx = Integer.parseInt(f[0]);
+				double value = Double.parseDouble(f[1]);
+				
+				Double v = hm.get(indx);
+				if (v == null) {
+					sb.append(" "); sb.append(indx); sb.append(":"); sb.append(value);
+				}
+				else {
+					sb.append(" "); sb.append(indx); sb.append(":"); sb.append(value + v);
+				}
+			}
+			sb.append(newline);
+			bw.write(sb.toString());
+			bw.flush();
+		}
+		reader.close();
+		
+		for (Integer m : hsA) {
+			if (!hsB.contains(m)) {
+				continue;
+			}
+			sb = new StringBuffer();
+			sb.append(m); 
+			for (Map.Entry<Integer, Double> entry : this.ss1.get(m).entrySet()) {
+				sb.append(" "); sb.append(entry.getKey()); sb.append(":"); sb.append(entry.getValue());
+			}
+			sb.append(newline);
+			bw.write(sb.toString());
+			bw.flush();
+		}
+		bw.close();
+		
+		// Now copy over to S3
+		PutObjectRequest r = new PutObjectRequest(mergedBucketName, mergedKey, localFile);
+    	r.setStorageClass(StorageClass.ReducedRedundancy);
+    	s3.putObject(r);
+    	
+		// cleanup
+		localFile.delete();
 	}
 	
 	public void estimateModelParameters(String bucketName, String key, String tenantID) 
@@ -487,7 +598,7 @@ public class MixtureOfBernoullis extends BaseModel {
 			sb = new StringBuffer();
 			sb.append(logProbUnseen.get(0));
 			for (int m = 1; m < logPriors.size(); m ++) {
-				sb.append(" "); sb.append(logProbUnseen.get(m));
+				sb.append(" "); sb.append(logProbUnseen.get(m).get(0)); sb.append(":"); sb.append(logProbUnseen.get(m).get(1));
 			}
 			sb.append(newline);
 			bw.write(sb.toString());
