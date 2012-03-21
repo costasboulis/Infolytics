@@ -11,6 +11,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 
 import org.apache.log4j.Logger;
 
@@ -19,8 +20,11 @@ import com.amazonaws.AmazonServiceException;
 import com.amazonaws.auth.PropertiesCredentials;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.PutObjectRequest;
+import com.amazonaws.services.s3.model.Region;
 import com.amazonaws.services.s3.model.S3Object;
+import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.services.s3.model.StorageClass;
 
 /**
@@ -37,19 +41,28 @@ public class MixtureOfBernoullis extends BaseModel {
 	private List<List<Double>> logProbUnseen;
 	private List<HashMap<Integer, Double>> ss1;
 	private double[] ss0;
-	private double priorsSS1;
 	private double N;  // Number of data points
 	private int C;   // Number of clusters
+	private int numberOfIterations; 
 	private static double ALPHA = 1.0;
 	private static double BETA = 1.0;
 	private static double UPPER_LOG_THRESHOLD = 10.0;
 	private static double LOWER_LOG_THRESHOLD = -10.0;
-	
+	private Random random;
+
 	public MixtureOfBernoullis() {
 		this.logProb = new ArrayList<HashMap<Integer, List<Double>>>();
 		this.logPriors = new ArrayList<Double>();
 		this.logProbUnseen = new ArrayList<List<Double>>();
-		this.ss1 = new ArrayList<HashMap<Integer, Double>>();
+		this.random = new Random();
+	}
+	
+	protected  String getDomainBasename() {
+		return "MODEL_MIXBERNOULLIS_";
+	}
+	
+	protected String getStatsBucketName(String tenantID) {
+		return STATS_BASE_BUCKETNAME + "mixbernoullis" + tenantID;
 	}
 	
 	public void setNumberOfClusters(int numClusters) {
@@ -65,6 +78,49 @@ public class MixtureOfBernoullis extends BaseModel {
 		}
 	}
 	
+	public void setNumberOfIterations(int r) {
+		this.numberOfIterations = r;
+	}
+	
+	public void trainInMemory(String dataBucketName, String dataKey, String tenantID) throws Exception {
+		
+		String statsBucketName = getStatsBucketName(tenantID);
+		String statsKey = "merged.txt";
+		
+		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
+				MixtureOfBernoullis.class.getResourceAsStream(AWS_CREDENTIALS)));
+		
+		if (!s3.doesBucketExist(statsBucketName)) {
+			s3.createBucket(statsBucketName, Region.EU_Ireland);
+		}
+		else {
+			logger.info("Deleting contents of bucket " + statsBucketName);
+			ObjectListing objListing = s3.listObjects(statsBucketName);
+			if (objListing.getObjectSummaries().size() > 0) {
+				for (S3ObjectSummary objSummary : objListing.getObjectSummaries()) {
+					s3.deleteObject(statsBucketName, objSummary.getKey());
+				}
+			}
+		}
+		
+		
+		logger.info("Initializing models");
+		calculateSufficientStatistics(dataBucketName, dataKey, statsBucketName, statsKey, tenantID, true);
+		estimateModelParameters(statsBucketName, statsKey, tenantID);
+		for (int iter = 1 ; iter <= this.numberOfIterations; iter ++) {
+			logger.info("Iteration " + iter);
+			
+			calculateSufficientStatistics(dataBucketName, dataKey, statsBucketName, statsKey, tenantID, false);
+			estimateModelParameters(statsBucketName, statsKey, tenantID);
+		}
+		
+		logger.info("Writing models to file");
+		String outputBucketName = "cleargist";
+		String outputKey = getDomainBasename() + tenantID;
+		writeModelsToFile(outputBucketName, outputKey, tenantID);
+		logger.info("Training done");
+	}
+	
 	private void readModels() {
 		
 	}
@@ -72,21 +128,24 @@ public class MixtureOfBernoullis extends BaseModel {
 	public void calculateSufficientStatistics(String bucketName, String key, String tenantID) {
 		// Create the S3 file with all the data
 		
-		this.N = 0;
 		// Distribute to many files
 	}
 	
-	private void calculateSufficientStatistics(String inputBucketName, String inputKey, 
-											   String outputBucketName, String outputKey, String tenantID) throws Exception {
+	private void calculateSufficientStatistics(String dataBucketName, String dataKey, 
+											   String statsBucketName, String statsKey, String tenantID, boolean isInitial) throws Exception {
 		
 		
-		
+		this.ss1 = new ArrayList<HashMap<Integer, Double>>();
+		for (int m = 0; m < this.C; m ++) {
+			this.ss1.add(new HashMap<Integer, Double>());
+		}
+		this.ss0 = new double[this.C];
+		this.N = 0;
 		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
 				MixtureOfBernoullis.class.getResourceAsStream(AWS_CREDENTIALS)));
 		
-		S3Object dataObject = s3.getObject(inputBucketName, inputKey);
+		S3Object dataObject = s3.getObject(dataBucketName, dataKey);
 		BufferedReader reader = new BufferedReader(new InputStreamReader(dataObject.getObjectContent()));
-		double numData = 0.0;
 		String lineStr = null;
 		while ((lineStr = reader.readLine()) != null) {
 			String[] fields = lineStr.split(" ");
@@ -125,7 +184,7 @@ public class MixtureOfBernoullis extends BaseModel {
 			
 			
 			// Now update the sufficient statistics
-			double[] probs = calculateClusterPosteriors(hm);
+			double[] probs = isInitial ? calculateInitialClusterPosteriors(hm) : calculateClusterPosteriors(hm);
 			for (int m = 0 ; m < ss1.size(); m ++) {
 				for (Map.Entry<Integer, Integer> entry : hm.entrySet()) {
 					int indx = entry.getKey();
@@ -144,15 +203,15 @@ public class MixtureOfBernoullis extends BaseModel {
 				}
 			}
 			
-			numData += 1.0;
+			this.N += 1.0;
 		}
 		reader.close();
 		
 		// Now write the sufficient statistics
-		File localFile = new File(tenantID + "_" + outputBucketName + "_" + outputKey);
+		File localFile = new File(tenantID + "_" + statsBucketName + "_" + statsKey);
 		try {
 			BufferedWriter bw = new BufferedWriter(new FileWriter(localFile));
-			bw.write(numData + newline);
+			bw.write(this.N + newline);
 			StringBuffer sb = new StringBuffer();
 			sb.append(ss0[0]);
 			for (int m = 1; m < this.C; m ++) {
@@ -179,7 +238,7 @@ public class MixtureOfBernoullis extends BaseModel {
 		}
 		
 		// Now copy over to S3
-		PutObjectRequest r = new PutObjectRequest(outputBucketName, outputKey, localFile);
+		PutObjectRequest r = new PutObjectRequest(statsBucketName, statsKey, localFile);
     	r.setStorageClass(StorageClass.ReducedRedundancy);
     	s3.putObject(r);
     	
@@ -187,6 +246,20 @@ public class MixtureOfBernoullis extends BaseModel {
 		localFile.delete();
 	}
 
+	/*
+	 * Random assignment of cluster to data point. Used in first EM iteration
+	 */
+	private double[] calculateInitialClusterPosteriors(HashMap<Integer, Integer> hm) {
+		double[] probs = new double[this.C];
+		
+		int m = this.random.nextInt(this.C);
+		
+		for (int v = 0; v < this.C; v ++) {
+			probs[v] = m == v ? 1.0 : 0.0;
+		}
+		
+		return probs;
+	}
 	/*
 	 * Calculate p(cluster = m | t_n ; \theta)
 	 * 
