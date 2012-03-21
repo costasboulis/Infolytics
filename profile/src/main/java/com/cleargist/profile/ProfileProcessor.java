@@ -56,7 +56,8 @@ public abstract class ProfileProcessor {
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				ProfileProcessor.class.getResourceAsStream(AWS_CREDENTIALS)));
 		String resultNextToken = null;
-		SelectRequest selectRequest = new SelectRequest(selectExpression);
+		String selectExpressionWithLimit = selectExpression + " limit 2500";
+		SelectRequest selectRequest = new SelectRequest(selectExpressionWithLimit);
 		List<Item> allItems = new LinkedList<Item>();
 		do {
 		    if (resultNextToken != null) {
