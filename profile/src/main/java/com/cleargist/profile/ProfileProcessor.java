@@ -7,6 +7,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -39,6 +40,7 @@ import com.amazonaws.services.simpledb.model.PutAttributesRequest;
 import com.amazonaws.services.simpledb.model.ReplaceableAttribute;
 import com.amazonaws.services.simpledb.model.ReplaceableItem;
 import com.amazonaws.services.simpledb.model.SelectRequest;
+import com.amazonaws.services.simpledb.model.SelectResult;
 import com.cleargist.recommendations.dao.RecommendationsDAO;
 import com.cleargist.recommendations.dao.RecommendationsDAOImpl;
 import com.cleargist.recommendations.entity.Tenant;
@@ -48,6 +50,34 @@ public abstract class ProfileProcessor {
 	private static final String DATE_PATTERN = "yyMMddHHmmssSSSZ";
 	private Date currentDate;
 	private Logger logger = Logger.getLogger(getClass());
+	
+	
+	private List<Item> querySimpleDB(String selectExpression) throws AmazonServiceException, AmazonClientException, Exception{
+		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
+				ProfileProcessor.class.getResourceAsStream(AWS_CREDENTIALS)));
+		String resultNextToken = null;
+		SelectRequest selectRequest = new SelectRequest(selectExpression);
+		List<Item> allItems = new LinkedList<Item>();
+		do {
+		    if (resultNextToken != null) {
+		    	selectRequest.setNextToken(resultNextToken);
+		    }
+		    
+		    SelectResult selectResult = sdb.select(selectRequest);
+		    
+		    String newToken = selectResult.getNextToken();
+		    if (newToken != null && !newToken.equals(resultNextToken)) {
+		    	resultNextToken = selectResult.getNextToken();
+		    }
+		    else {
+		    	resultNextToken = null;
+		    }
+		    allItems.addAll(selectResult.getItems());
+		    
+		} while (resultNextToken != null);
+		
+		return allItems;
+	}
 	
 	protected List<List<Item>> getDataSinceLastUpdate(String tenantID) throws Exception {
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
@@ -144,14 +174,12 @@ public abstract class ProfileProcessor {
 		// Now form the SELECT statement for incremental data
 		String userActivityDomain = "ACTIVITY_" + tenantID;
 		String selectExpression = "select * from `" + userActivityDomain + "` where DATE > '" + formatter.format(lastUpdate.getTime()) + "'";
-        SelectRequest selectRequest = new SelectRequest(selectExpression);
-        List<Item> incrementalData = sdb.select(selectRequest).getItems();
+        List<Item> incrementalData = querySimpleDB(selectExpression);
         
 		// Now form the SELECT statement for decremental data
         selectExpression = "select * from `" + userActivityDomain + "` where DATE > '" + formatter.format(lastUpdateFrom.getTime()) + 
         "' and DATE < '" + formatter.format(currentDateFrom.getTime()) + "'";
-        selectRequest = new SelectRequest(selectExpression);
-        List<Item> decrementalData = sdb.select(selectRequest).getItems();
+        List<Item> decrementalData = querySimpleDB(selectExpression);
         
 		List<List<Item>> newData = new ArrayList<List<Item>>();
 		newData.add(incrementalData);
