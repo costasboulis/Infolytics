@@ -26,6 +26,7 @@ import com.amazonaws.services.s3.model.Region;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.services.s3.model.StorageClass;
+import com.cleargist.catalog.entity.jaxb.Catalog.Products.Product;
 
 /**
  * Mixture of multivariate Bernoulli distributions with missing values
@@ -66,16 +67,7 @@ public class MixtureOfBernoullis extends BaseModel {
 	}
 	
 	public void setNumberOfClusters(int numClusters) {
-		if (logProb.size() != 0) {
-			logger.warn("Ignoring setting of number of clusters to " + numClusters + " . Models are alredy loaded will read numClusters from there");
-			return;
-		}
 		this.C = numClusters;
-		this.ss0 = new double[numClusters];
-		for (int m = 0; m < numClusters; m ++) {
-			this.ss1.add(new HashMap<Integer, Double>());
-			this.ss0[m] = 0.0;
-		}
 	}
 	
 	public void setNumberOfIterations(int r) {
@@ -149,9 +141,11 @@ public class MixtureOfBernoullis extends BaseModel {
 		String lineStr = null;
 		while ((lineStr = reader.readLine()) != null) {
 			String[] fields = lineStr.split(" ");
+			String user = fields[0];
 			
 			HashMap<Integer, Integer> hm = new HashMap<Integer, Integer>();
-			for (String f : fields) {
+			for (int k = 1; k < fields.length; k ++) {
+				String f = fields[k];
 				String[] values = f.split(":");
 				
 				int indx = -1;
@@ -186,6 +180,9 @@ public class MixtureOfBernoullis extends BaseModel {
 			// Now update the sufficient statistics
 			double[] probs = isInitial ? calculateInitialClusterPosteriors(hm) : calculateClusterPosteriors(hm);
 			for (int m = 0 ; m < ss1.size(); m ++) {
+				if (probs[m] == 0.0) {
+					continue;
+				}
 				for (Map.Entry<Integer, Integer> entry : hm.entrySet()) {
 					int indx = entry.getKey();
 					int value = entry.getValue();
@@ -199,8 +196,8 @@ public class MixtureOfBernoullis extends BaseModel {
 							ss1.get(m).put(indx, probs[m] + v.doubleValue());
 						}
 					}
-					ss0[m] += probs[m];
 				}
+				ss0[m] += probs[m];
 			}
 			
 			this.N += 1.0;
@@ -220,9 +217,9 @@ public class MixtureOfBernoullis extends BaseModel {
 			sb.append(newline);
 			bw.write(sb.toString());
 			for (int m = 0; m < this.C; m ++) {
-				bw.write(m);
+				sb = new StringBuffer();
+				sb.append(m);
 				for (Map.Entry<Integer, Double> entry : ss1.get(m).entrySet()) {
-					sb = new StringBuffer();
 					sb.append(" "); sb.append(entry.getKey()); sb.append(":"); sb.append(entry.getValue());
 				}
 				sb.append(newline);
@@ -246,6 +243,82 @@ public class MixtureOfBernoullis extends BaseModel {
 		localFile.delete();
 	}
 
+	public void writeClusterMemberships(String dataBucketName, String dataKey, 
+			   							 String membershipsBucketName, String membershipsKey, String tenantID) throws Exception {
+		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
+				MixtureOfBernoullis.class.getResourceAsStream(AWS_CREDENTIALS)));
+		
+		File localFile = new File(tenantID + "_" + membershipsBucketName + "_" + membershipsKey);
+		BufferedWriter bw = new BufferedWriter(new FileWriter(localFile));
+			
+		S3Object dataObject = s3.getObject(dataBucketName, dataKey);
+		BufferedReader reader = new BufferedReader(new InputStreamReader(dataObject.getObjectContent()));
+		String lineStr = null;
+		while ((lineStr = reader.readLine()) != null) {
+			String[] fields = lineStr.split(" ");
+			String user = fields[0];
+			
+			HashMap<Integer, Integer> hm = new HashMap<Integer, Integer>();
+			for (int k = 1; k < fields.length; k ++) {
+				String f = fields[k];
+				String[] values = f.split(":");
+				
+				int indx = -1;
+				try {
+					indx = Integer.parseInt(values[0]);
+				}
+				catch (NumberFormatException ex) {
+					logger.warn("Cannot parse index \"" + values[0] + "\" ...skipping");
+					continue;
+				}
+				
+				int value = -1;
+				try {
+					value = Integer.parseInt(values[1]);
+				}
+				catch (NumberFormatException ex) {
+					logger.warn("Cannot parse value \"" + values[1] + "\" ...skipping");
+					continue;
+				}
+				if (value != 0 && value != 1) {
+					logger.warn("Illegal value " + value + " ... skipping");
+					continue;
+				}
+				hm.put(indx, value);
+			}
+			if (hm.size() == 0) {
+				logger.warn("Could not parse profile from " + lineStr);
+				continue;
+			}
+			
+			
+			double[] probs = calculateClusterPosteriors(hm);
+			
+			StringBuffer sb = new StringBuffer();
+			sb.append(user); 
+			for (int m = 0; m < probs.length; m ++) {
+				if (probs[m] == 0.0) {
+					continue;
+				}
+				sb.append(" "); sb.append(m); sb.append(":"); sb.append(probs[m]);
+			}
+			sb.append(newline);
+			
+			bw.write(sb.toString());
+			bw.flush();
+		}
+		reader.close();
+		bw.close();
+		
+		// Now copy over to S3
+		PutObjectRequest r = new PutObjectRequest(membershipsBucketName, membershipsKey, localFile);
+    	r.setStorageClass(StorageClass.ReducedRedundancy);
+    	s3.putObject(r);
+    	
+		// cleanup
+		localFile.delete();
+	}
+	
 	/*
 	 * Random assignment of cluster to data point. Used in first EM iteration
 	 */
@@ -452,5 +525,20 @@ public class MixtureOfBernoullis extends BaseModel {
     	
 		// cleanup
 		localFile.delete();
+	}
+
+	@Override
+	public List<Product> getRecommendedProductsInternal(
+			List<String> productIds, String tenantID, Filter filter)
+			throws Exception {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public List<Product> getPersonalizedRecommendedProductsInternal(
+			String userId, String tenantID, Filter filter) throws Exception {
+		// TODO Auto-generated method stub
+		return null;
 	}
 }
