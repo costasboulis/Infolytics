@@ -16,10 +16,10 @@ public class DetailViewProfileProcessor extends ProfileProcessor {
 			String productID = null;
 			boolean itemPageFound = false;
 			for (Attribute attribute : item.getAttributes()) {
-				if (attribute.getName().equalsIgnoreCase("USERID")) {
+				if (attribute.getName().equalsIgnoreCase("USER")) {
 					userID = attribute.getValue();
 				}
-				else if (attribute.getName().equalsIgnoreCase("PRODUCTID")) {
+				else if (attribute.getName().equalsIgnoreCase("ITEM")) {
 					productID = attribute.getValue();
 				}
 				else if (attribute.getName().equalsIgnoreCase("EVENT") && attribute.getValue().equalsIgnoreCase("ITEM_PAGE")) {

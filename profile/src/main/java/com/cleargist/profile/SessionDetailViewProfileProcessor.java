@@ -18,13 +18,13 @@ public class SessionDetailViewProfileProcessor extends ProfileProcessor {
 			String productID = null;
 			boolean itemPageFound = false;
 			for (Attribute attribute : item.getAttributes()) {
-				if (attribute.getName().equalsIgnoreCase("USER_ID")) {
+				if (attribute.getName().equalsIgnoreCase("USER")) {
 					userID = attribute.getValue();
 				}
-				else if (attribute.getName().equalsIgnoreCase("SESSION_ID")) {
+				else if (attribute.getName().equalsIgnoreCase("SESSION")) {
 					sessionID = attribute.getValue();
 				}
-				else if (attribute.getName().equalsIgnoreCase("PRODUCT_ID")) {
+				else if (attribute.getName().equalsIgnoreCase("ITEM")) {
 					productID = attribute.getValue();
 				}
 				else if (attribute.getName().equalsIgnoreCase("EVENT") && attribute.getValue().equalsIgnoreCase("ITEM_PAGE")) {
