@@ -225,6 +225,10 @@ public class MixtureOfBernoullis extends BaseModel {
 			for (int k = 1; k < fields.length; k ++) {
 				String f = fields[k];
 				String[] values = f.split(":");
+				if (values.length != 2) {
+					logger.error("Could not parse attribute/value pair for " + f);
+					continue;
+				}
 				
 				int indx = -1;
 				try {
@@ -435,6 +439,10 @@ public class MixtureOfBernoullis extends BaseModel {
 	 */
 	private double[] calculateClusterPosteriors(HashMap<Integer, Integer> hm) {
 		int numClusters = logProb.size();
+		if (numClusters <= 0) {
+			logger.error("Invalid number of clusters read from logP parameters");
+			return null;
+		}
 		double[] logProbs = new double[numClusters];
 		
 		for (int m = 0; m < numClusters; m ++) {
@@ -443,10 +451,8 @@ public class MixtureOfBernoullis extends BaseModel {
 				int indx = entry.getKey();
 				int value = entry.getValue();
 				
-				Double v = logProb.get(m).get(indx).get(value);
-				if (v == null) {
-					v = logProbUnseen.get(m).get(value);
-				}
+				List<Double> l = logProb.get(m).get(indx);
+				Double v = l == null ? logProbUnseen.get(m).get(value) : l.get(value);
 				
 				logProbs[m] += v;
 			}
@@ -651,17 +657,40 @@ public class MixtureOfBernoullis extends BaseModel {
 		S3Object statsObject = s3.getObject(bucketName, key);
 		BufferedReader reader = new BufferedReader(new InputStreamReader(statsObject.getObjectContent()));
 		String lineStr = reader.readLine();
-		this.N = Double.parseDouble(lineStr);
+		this.N = 0.0;
+		try {
+			this.N = Double.parseDouble(lineStr);
+		}
+		catch (NumberFormatException ex) {
+			logger.error("Cannot parse value of N : " + lineStr);
+			throw new Exception();
+		}
+		if (this.N <= 0.0) {
+			logger.info("Invalid value for N " + this.N);
+			throw new Exception();
+		}
 		
 		// Estimate logPriors and logProbUnseen
 		lineStr = reader.readLine();
 		String[] fields = lineStr.split(" ");
 		this.C = fields.length;
+		logger.info("There are " + this.C + " clusters in the stats file");
 		this.logPriors = new ArrayList<Double>();
 		this.logProbUnseen = new ArrayList<List<Double>>();
 		double[] ss0 = new double[this.C];
 		for (int m = 0; m < this.C; m ++) {
-			double v = Double.parseDouble(fields[m]);
+			double v = 0.0;
+			try {
+				v = Double.parseDouble(fields[m]);
+			}
+			catch (NumberFormatException ex) {
+				logger.error("Cannot parse value " + fields[m]);
+				throw new Exception();
+			}
+			if (v <= 0.0) {
+				logger.error("Invalid counts for cluster " + m + "  : (" + v + ")");
+				throw new Exception();
+			}
 			ss0[m] = v;
 			
 			double u = Math.log(v / this.N);
@@ -682,12 +711,42 @@ public class MixtureOfBernoullis extends BaseModel {
 		}
 		while ((lineStr = reader.readLine()) != null) {
 			fields = lineStr.split(" ");
-			int m = Integer.parseInt(fields[0]);
+			int m = -1;
+			try {
+				m = Integer.parseInt(fields[0]);
+			}
+			catch (NumberFormatException ex) {
+				logger.error("Cannot parse cluster index " + m);
+				throw new Exception();
+			}
+			if (m < 0) {
+				logger.error("Invalid value for cluster index (" + m + ")");
+				throw new Exception();
+			}
 			
 			for (int i = 1; i < fields.length; i ++) {
 				String[] f = fields[i].split(":");
-				int indx = Integer.parseInt(f[0]);
-				double v = Double.parseDouble(f[1]);
+				if (f.length != 2) {
+					logger.error("Could not parse attribute/count pair " + fields[i]);
+					throw new Exception();
+				}
+				int indx = -1;
+				try {
+					indx = Integer.parseInt(f[0]);
+				}
+				catch (NumberFormatException ex) {
+					logger.error("Cannot parse attribute index " + f[0]);
+					throw new Exception();
+				}
+				
+				double v = 0.0;
+				try {
+					v = Double.parseDouble(f[1]);
+				}
+				catch (NumberFormatException ex) {
+					logger.error("Cannot parse attribute counts " + f[1]);
+					throw new Exception();
+				}
 				
 				double logv1 = Math.log((v + ALPHA) / (ss0[m] + ALPHA + BETA));
 				double logv0 = Math.log(1.0 - ( (v + ALPHA) / (ss0[m] + ALPHA + BETA) ));
