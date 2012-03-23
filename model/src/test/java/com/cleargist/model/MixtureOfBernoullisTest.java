@@ -4,9 +4,12 @@ import static org.junit.Assert.assertTrue;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.InputStreamReader;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Random;
 
 import org.apache.log4j.Logger;
@@ -36,6 +39,44 @@ public class MixtureOfBernoullisTest {
 			}
 		}
 		return -1;
+	}
+	
+	private void convertToBernoulliFormat(String filename) {
+		File inputFile = new File(filename);
+		File outputFile = new File("c:\\recs\\20Newsgroups_data_Bernoullis.txt");
+		int numAttributes = 21147;
+		try {
+			BufferedWriter bw = new BufferedWriter(new FileWriter(outputFile));
+			BufferedReader br = new BufferedReader(new FileReader(inputFile));
+			String lineStr = null;
+			while ((lineStr = br.readLine()) != null) {
+				String[] fields = lineStr.split(" ");
+				
+				String user = fields[0];
+				HashSet<Integer> hs = new HashSet<Integer>();
+				for (int f = 1; f < fields.length; f = f + 2) {
+					int indx = Integer.parseInt(fields[f]);
+					hs.add(indx);
+				}
+				
+				StringBuffer sb = new StringBuffer();
+				sb.append(user); 
+				for (int att = 0; att < numAttributes; att ++ ) {
+					sb.append(" "); sb.append(att); sb.append(":"); 
+					int value = hs.contains(att) ? 1 : 0;
+					sb.append(value);
+				}
+				sb.append(newline);
+				bw.write(sb.toString());
+				bw.flush();
+			}
+			br.close();
+			bw.close();
+		}
+		catch (Exception ex) {
+			logger.error("Could not read from " + inputFile.getAbsolutePath());
+			System.exit(-1);
+		}
 	}
 	
 	private void createSample() {
@@ -104,8 +145,8 @@ public class MixtureOfBernoullisTest {
 		}
 	}
 	
-	private double computeAdjustedRandIndex(String referencePartitionBucket, String referencePartitionKey,
-											String hypPartitionBucket, 		 String hypPartitionKey, int numberOfExperts) throws Exception {
+	private double computeAdjustedRandIndex(File referencePartitionFile,
+											File hypPartitionFile      , int numberOfExperts) throws Exception {
 		double adjRandIndex=0.0;
 		int numberOfClasses = 0;
 		HashMap<String, Integer> referencePartition = new HashMap<String, Integer>();
@@ -113,8 +154,7 @@ public class MixtureOfBernoullisTest {
 		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
 				MixtureOfBernoullisTest.class.getResourceAsStream(AWS_CREDENTIALS)));
 		String lineStr = null;
-		S3Object referencePartitionObject = s3.getObject(referencePartitionBucket, referencePartitionKey);
-		BufferedReader reader = new BufferedReader(new InputStreamReader(referencePartitionObject.getObjectContent()));
+		BufferedReader reader = new BufferedReader(new FileReader(referencePartitionFile));
 		while ((lineStr = reader.readLine()) != null) {
 			String[] st = lineStr.split("\\s+");
 			String user = st[0];
@@ -139,8 +179,7 @@ public class MixtureOfBernoullisTest {
 		}
 		
 		int numberOfUsers = 0;
-		S3Object hypPartitionObject = s3.getObject(hypPartitionBucket, hypPartitionKey);
-		reader = new BufferedReader(new InputStreamReader(hypPartitionObject.getObjectContent()));
+		reader = new BufferedReader(new FileReader(hypPartitionFile));
 		while ((lineStr = reader.readLine()) != null) {
 			String[] st = lineStr.split("\\s+");
 			String user = st[0];
@@ -197,21 +236,32 @@ public class MixtureOfBernoullisTest {
 	public void trainInMemoryTest() {
 	//	createSample();
 		
+//		convertToBernoulliFormat("C:\\Users\\kboulis\\ClearGist\\Infolytics\\mixtureOfExperts\\src\\test\\resources\\gr\\infolytics\\models\\mixtureOfExperts\\ClusteringSmokeTest\\20Newsgroups.data.vocab.10.txt");
 		
+		File dataFile = new File("c:\\recs\\20Newsgroups_data_Bernoullis.txt");
+		File refCategoriesFile = new File("c:\\recs\\20Newsgroups_labels.txt");
+		int numClusters = 20;
+		
+		
+//		File dataFile = new File("c:\\recs\\mixBernoullisSample.txt");
+//		File refCategoriesFile = new File("c:\\recs\\mixBernoullisSampleCategories.txt");
+//		int numClusters = 2;
+		
+		File hypCategoriesFile = new File("c:\\recs\\mixBernoullisSampleHyp.txt");
 		MixtureOfBernoullis mixBernoullis = new MixtureOfBernoullis();
-		int numClusters = 2;
 		mixBernoullis.setNumberOfClusters(numClusters);
 		mixBernoullis.setNumberOfIterations(10);
-		mixBernoullis.setDataBucketNameAndKey("cleargist", "mixBernoullisSample.txt"); 
 		try {
-			mixBernoullis.createModel("test");
-			mixBernoullis.writeClusterMemberships("cleargist", "mixBernoullisSample.txt", "cleargist", "mixBernoullisSampleHyp.txt", "test"); 
-			double adjRank = computeAdjustedRandIndex("cleargist", "mixBernoullisSampleCategories.txt", "cleargist", "mixBernoullisSampleHyp.txt", numClusters);
+			mixBernoullis.createModel("test", dataFile);
+			mixBernoullis.writeClusterMemberships(dataFile, hypCategoriesFile, "test"); 
+			double adjRank = computeAdjustedRandIndex(refCategoriesFile, hypCategoriesFile, numClusters);
 			System.out.println("AdjustedRank : " + adjRank);
 		}
 		catch (Exception ex) {
 			assertTrue(false);
 		}
+		
+		hypCategoriesFile.delete();
 		
 		assertTrue(true);
 	}

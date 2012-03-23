@@ -3,6 +3,7 @@ package com.cleargist.model;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -44,7 +45,7 @@ public class MixtureOfBernoullis extends BaseModel {
 	private double[] ss0;
 	private double N;  // Number of data points
 	private int C;   // Number of clusters
-	private int numberOfIterations; 
+	private int numberOfIterations = 10; 
 	private static double ALPHA = 1.0;
 	private static double BETA = 1.0;
 	private static double UPPER_LOG_THRESHOLD = 10.0;
@@ -52,7 +53,8 @@ public class MixtureOfBernoullis extends BaseModel {
 	private Random random;
 	private String dataBucketName;
 	private String dataKey;
-	
+	private long maxDataSize = 1000000000;
+
 	
 	public MixtureOfBernoullis() {
 		this.logProb = new ArrayList<HashMap<Integer, List<Double>>>();
@@ -67,6 +69,10 @@ public class MixtureOfBernoullis extends BaseModel {
 	
 	protected String getStatsBucketName(String tenantID) {
 		return STATS_BASE_BUCKETNAME + "mixbernoullis" + tenantID;
+	}
+	
+	public void setMaxDataSize(long l) {
+		this.maxDataSize = l;
 	}
 	
 	public void setNumberOfClusters(int numClusters) {
@@ -112,9 +118,41 @@ public class MixtureOfBernoullis extends BaseModel {
 		logger.info("Training done");
 	}
 	
+	public void createModel(String tenantID, File dataFile) throws Exception {
+		logger.info("Initializing models");
+		calculateInitialSufficientStatistics(dataFile, tenantID);
+		mergeSufficientStatistics(tenantID);
+		estimateModelParameters(tenantID);
+		for (int iter = 1 ; iter <= this.numberOfIterations; iter ++) {
+			logger.info("Iteration " + iter);
+			
+			calculateSufficientStatistics(dataFile, tenantID);
+			mergeSufficientStatistics(tenantID);
+			estimateModelParameters(tenantID);
+		}
+		
+		logger.info("Writing models to file");
+		String outputBucketName = "cleargist";
+		String outputKey = getDomainBasename() + tenantID;
+		writeModelsToFile(outputBucketName, outputKey, tenantID);
+		logger.info("Training done");
+	}
+	
 	
 	public void calculateInitialSufficientStatistics(String bucketName, String key, String tenantID) throws Exception {
 		calculateSufficientStatistics(bucketName, key, tenantID, true);
+	}
+	
+	public void calculateInitialSufficientStatistics(File dataFile, String tenantID) throws Exception {
+		BufferedReader br = new BufferedReader(new FileReader(dataFile));
+		calculateSufficientStatistics(br, tenantID, true);
+		br.close();
+	}
+	
+	public void calculateSufficientStatistics(File dataFile, String tenantID) throws Exception {
+		BufferedReader br = new BufferedReader(new FileReader(dataFile));
+		calculateSufficientStatistics(br, tenantID, false);
+		br.close();
 	}
 	
 	public void calculateSufficientStatistics(String bucketName, String key, String tenantID) throws Exception {
@@ -122,6 +160,16 @@ public class MixtureOfBernoullis extends BaseModel {
 	}
 	
 	private void calculateSufficientStatistics(String bucketName, String key, String tenantID, boolean isInitial) throws Exception {
+		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
+				MixtureOfBernoullis.class.getResourceAsStream(AWS_CREDENTIALS)));
+		
+		S3Object dataObject = s3.getObject(dataBucketName, dataKey);
+		BufferedReader reader = new BufferedReader(new InputStreamReader(dataObject.getObjectContent()));
+		calculateSufficientStatistics(reader, tenantID, isInitial);
+		reader.close();
+	}
+	
+	private void calculateSufficientStatistics(BufferedReader reader, String tenantID, boolean isInitial) throws Exception {
 		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
 				MixtureOfBernoullis.class.getResourceAsStream(AWS_CREDENTIALS)));
 		
@@ -140,10 +188,11 @@ public class MixtureOfBernoullis extends BaseModel {
 		}
 		
 		// Create the S3 file with all the data
-		long numBytes = s3.getObjectMetadata(bucketName, key).getContentLength();
+//		long numBytes = s3.getObjectMetadata(bucketName, key).getContentLength();
+		long numBytes = 1000;
 		
-		if (numBytes < 1000000000) {
-			calculateSufficientStatistics(bucketName, key, 
+		if (numBytes < maxDataSize) {
+			calculateSufficientStatistics(reader, 
 					   					  statsBucketName, STATS_BASE_FILENAME + "_1.txt", 
 					   					  tenantID, isInitial);
 		}
@@ -155,7 +204,8 @@ public class MixtureOfBernoullis extends BaseModel {
 		
 	}
 	
-	private void calculateSufficientStatistics(String dataBucketName, String dataKey, 
+	
+	private void calculateSufficientStatistics(BufferedReader reader, 
 											   String statsBucketName, String statsKey, String tenantID, boolean isInitial) throws Exception {
 		
 		
@@ -165,11 +215,7 @@ public class MixtureOfBernoullis extends BaseModel {
 		}
 		this.ss0 = new double[this.C];
 		this.N = 0;
-		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
-				MixtureOfBernoullis.class.getResourceAsStream(AWS_CREDENTIALS)));
 		
-		S3Object dataObject = s3.getObject(dataBucketName, dataKey);
-		BufferedReader reader = new BufferedReader(new InputStreamReader(dataObject.getObjectContent()));
 		String lineStr = null;
 		while ((lineStr = reader.readLine()) != null) {
 			String[] fields = lineStr.split(" ");
@@ -234,7 +280,6 @@ public class MixtureOfBernoullis extends BaseModel {
 			
 			this.N += 1.0;
 		}
-		reader.close();
 		
 		// Now write the sufficient statistics
 		File localFile = new File(tenantID + "_" + statsBucketName + "_" + statsKey);
@@ -267,6 +312,8 @@ public class MixtureOfBernoullis extends BaseModel {
 		}
 		
 		// Now copy over to S3
+		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
+				MixtureOfBernoullis.class.getResourceAsStream(AWS_CREDENTIALS)));
 		PutObjectRequest r = new PutObjectRequest(statsBucketName, statsKey, localFile);
     	r.setStorageClass(StorageClass.ReducedRedundancy);
     	s3.putObject(r);
@@ -276,16 +323,41 @@ public class MixtureOfBernoullis extends BaseModel {
 	}
 
 	public void writeClusterMemberships(String dataBucketName, String dataKey, 
-			   							 String membershipsBucketName, String membershipsKey, String tenantID) throws Exception {
+				 String membershipsBucketName, String membershipsKey, String tenantID) throws Exception {
 		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
 				MixtureOfBernoullis.class.getResourceAsStream(AWS_CREDENTIALS)));
-		
 		s3.deleteObject(membershipsBucketName, membershipsKey);
-		File localFile = new File(tenantID + "_" + membershipsBucketName + "_" + membershipsKey);
-		BufferedWriter bw = new BufferedWriter(new FileWriter(localFile));
-			
 		S3Object dataObject = s3.getObject(dataBucketName, dataKey);
 		BufferedReader reader = new BufferedReader(new InputStreamReader(dataObject.getObjectContent()));
+		File localFile = new File(membershipsBucketName + "_" + membershipsKey +"_" + tenantID);
+		BufferedWriter writer = new BufferedWriter(new FileWriter(localFile));
+		writeClusterMemberships(reader, writer, tenantID);
+		reader.close();
+		writer.close();
+		
+		// Now copy over to S3
+		PutObjectRequest r = new PutObjectRequest(membershipsBucketName, membershipsKey, localFile);
+    	r.setStorageClass(StorageClass.ReducedRedundancy);
+    	s3.putObject(r);
+    	
+		// cleanup
+		localFile.delete();
+	}
+	
+	public void writeClusterMemberships(File dataFile, 
+			 							File clusterMembershipFile, String tenantID) throws Exception {
+		
+		BufferedReader reader = new BufferedReader(new FileReader(dataFile));
+		clusterMembershipFile.delete();
+		BufferedWriter writer = new BufferedWriter(new FileWriter(clusterMembershipFile));
+		writeClusterMemberships(reader, writer, tenantID);
+		reader.close();
+		writer.close();
+	}
+
+	private void writeClusterMemberships(BufferedReader reader, 
+			   							 BufferedWriter writer, String tenantID) throws Exception {
+			
 		String lineStr = null;
 		while ((lineStr = reader.readLine()) != null) {
 			String[] fields = lineStr.split(" ");
@@ -337,19 +409,9 @@ public class MixtureOfBernoullis extends BaseModel {
 			}
 			sb.append(newline);
 			
-			bw.write(sb.toString());
-			bw.flush();
+			writer.write(sb.toString());
+			writer.flush();
 		}
-		reader.close();
-		bw.close();
-		
-		// Now copy over to S3
-		PutObjectRequest r = new PutObjectRequest(membershipsBucketName, membershipsKey, localFile);
-    	r.setStorageClass(StorageClass.ReducedRedundancy);
-    	s3.putObject(r);
-    	
-		// cleanup
-		localFile.delete();
 	}
 	
 	/*
@@ -448,6 +510,7 @@ public class MixtureOfBernoullis extends BaseModel {
     		return;
     	}
     	
+    	
     	String statsFilename = objSummaries.get(0).getKey();
     	s3.copyObject(statsBucketName, statsFilename, statsBucketName, statsKey);
     	s3.deleteObject(statsBucketName, statsFilename);
@@ -496,7 +559,6 @@ public class MixtureOfBernoullis extends BaseModel {
 				ss1.get(m).put(indx, value);
 			}
 		}
-		reader.close();
 		HashSet<Integer> hsA = new HashSet<Integer>();
 		for (int m = 0; m < this.ss1.size(); m ++) {
 			if (this.ss1.get(m).size() != 0) {
