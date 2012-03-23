@@ -7,7 +7,6 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -51,7 +50,10 @@ public class MixtureOfBernoullis extends BaseModel {
 	private static double UPPER_LOG_THRESHOLD = 10.0;
 	private static double LOWER_LOG_THRESHOLD = -10.0;
 	private Random random;
-
+	private String dataBucketName;
+	private String dataKey;
+	
+	
 	public MixtureOfBernoullis() {
 		this.logProb = new ArrayList<HashMap<Integer, List<Double>>>();
 		this.logPriors = new ArrayList<Double>();
@@ -75,14 +77,55 @@ public class MixtureOfBernoullis extends BaseModel {
 		this.numberOfIterations = r;
 	}
 	
-	public void trainInMemory(String dataBucketName, String dataKey, String tenantID) throws Exception {
+	public void setDataBucketNameAndKey(String bucketname, String key) {
+		this.dataBucketName = bucketname;
+		this.dataKey = key;
+	}
+	
+	public String getDataBucketName() {
+		return this.dataBucketName;
+	}
+	
+	public String getDataKey() {
+		return this.dataKey;
+	}
+	
+	public void createModel(String tenantID) throws Exception {
+		String dataBucketName = getDataBucketName();
+		String dataKey = getDataKey();
+		logger.info("Initializing models");
+		calculateInitialSufficientStatistics(dataBucketName, dataKey, tenantID);
+		mergeSufficientStatistics(tenantID);
+		estimateModelParameters(tenantID);
+		for (int iter = 1 ; iter <= this.numberOfIterations; iter ++) {
+			logger.info("Iteration " + iter);
+			
+			calculateSufficientStatistics(dataBucketName, dataKey, tenantID);
+			mergeSufficientStatistics(tenantID);
+			estimateModelParameters(tenantID);
+		}
 		
-		String statsBucketName = getStatsBucketName(tenantID);
-		String statsKey = "merged.txt";
-		
+		logger.info("Writing models to file");
+		String outputBucketName = "cleargist";
+		String outputKey = getDomainBasename() + tenantID;
+		writeModelsToFile(outputBucketName, outputKey, tenantID);
+		logger.info("Training done");
+	}
+	
+	
+	public void calculateInitialSufficientStatistics(String bucketName, String key, String tenantID) throws Exception {
+		calculateSufficientStatistics(bucketName, key, tenantID, true);
+	}
+	
+	public void calculateSufficientStatistics(String bucketName, String key, String tenantID) throws Exception {
+		calculateSufficientStatistics(bucketName, key, tenantID, false);
+	}
+	
+	private void calculateSufficientStatistics(String bucketName, String key, String tenantID, boolean isInitial) throws Exception {
 		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
 				MixtureOfBernoullis.class.getResourceAsStream(AWS_CREDENTIALS)));
 		
+		String statsBucketName = getStatsBucketName(tenantID);
 		if (!s3.doesBucketExist(statsBucketName)) {
 			s3.createBucket(statsBucketName, Region.EU_Ireland);
 		}
@@ -96,32 +139,20 @@ public class MixtureOfBernoullis extends BaseModel {
 			}
 		}
 		
+		// Create the S3 file with all the data
+		long numBytes = s3.getObjectMetadata(bucketName, key).getContentLength();
 		
-		logger.info("Initializing models");
-		calculateSufficientStatistics(dataBucketName, dataKey, statsBucketName, statsKey, tenantID, true);
-		estimateModelParameters(statsBucketName, statsKey, tenantID);
-		for (int iter = 1 ; iter <= this.numberOfIterations; iter ++) {
-			logger.info("Iteration " + iter);
-			
-			calculateSufficientStatistics(dataBucketName, dataKey, statsBucketName, statsKey, tenantID, false);
-			estimateModelParameters(statsBucketName, statsKey, tenantID);
+		if (numBytes < 1000000000) {
+			calculateSufficientStatistics(bucketName, key, 
+					   					  statsBucketName, STATS_BASE_FILENAME + "_1.txt", 
+					   					  tenantID, isInitial);
+		}
+		else {
+			// Distribute to many files
+			logger.error("Mutliple file splitting not yet implemented");
+			System.exit(-1);
 		}
 		
-		logger.info("Writing models to file");
-		String outputBucketName = "cleargist";
-		String outputKey = getDomainBasename() + tenantID;
-		writeModelsToFile(outputBucketName, outputKey, tenantID);
-		logger.info("Training done");
-	}
-	
-	private void readModels() {
-		
-	}
-	
-	public void calculateSufficientStatistics(String bucketName, String key, String tenantID) {
-		// Create the S3 file with all the data
-		
-		// Distribute to many files
 	}
 	
 	private void calculateSufficientStatistics(String dataBucketName, String dataKey, 
@@ -249,6 +280,7 @@ public class MixtureOfBernoullis extends BaseModel {
 		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
 				MixtureOfBernoullis.class.getResourceAsStream(AWS_CREDENTIALS)));
 		
+		s3.deleteObject(membershipsBucketName, membershipsKey);
 		File localFile = new File(tenantID + "_" + membershipsBucketName + "_" + membershipsKey);
 		BufferedWriter bw = new BufferedWriter(new FileWriter(localFile));
 			
@@ -400,8 +432,35 @@ public class MixtureOfBernoullis extends BaseModel {
 		return probs;
 	}
 	
-	public void mergeSufficientStatistics(String bucketName, String key, String tenantID) {
+	public void mergeSufficientStatistics(String tenantID) 
+	throws AmazonServiceException, AmazonClientException, IOException, Exception {
 		
+		String statsBucketName = getStatsBucketName(tenantID);
+		String statsKey = MERGED_STATS_FILENAME;
+		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
+				MixtureOfBernoullis.class.getResourceAsStream(AWS_CREDENTIALS)));
+    	
+    	ObjectListing objectListing = s3.listObjects(statsBucketName);
+    	List<S3ObjectSummary> objSummaries = objectListing.getObjectSummaries();
+    	
+    	if (objSummaries.size() == 0) {
+    		logger.warn("No stats files found for tenant " + tenantID + " in bucket " + statsBucketName);
+    		return;
+    	}
+    	
+    	String statsFilename = objSummaries.get(0).getKey();
+    	s3.copyObject(statsBucketName, statsFilename, statsBucketName, statsKey);
+    	s3.deleteObject(statsBucketName, statsFilename);
+    	int i = 1;
+    	while (i < objSummaries.size()) {
+    		statsFilename = objSummaries.get(i).getKey();
+        	
+    		mergeSufficientStatistics(statsBucketName, statsKey, 
+    								  statsBucketName, statsFilename, tenantID);
+    		
+    		s3.deleteObject(statsBucketName, statsFilename);
+    		i ++;
+    	}
 	}
 	
 	private void mergeSufficientStatistics(String mergedBucketName, String mergedKey, 
@@ -519,9 +578,11 @@ public class MixtureOfBernoullis extends BaseModel {
 		localFile.delete();
 	}
 	
-	public void estimateModelParameters(String bucketName, String key, String tenantID) 
+	public void estimateModelParameters(String tenantID) 
 	throws AmazonServiceException, AmazonClientException, IOException, Exception {
 		
+		String bucketName = getStatsBucketName(tenantID);
+		String key = MERGED_STATS_FILENAME;
 		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
 				MixtureOfBernoullis.class.getResourceAsStream(AWS_CREDENTIALS)));
 		

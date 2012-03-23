@@ -36,57 +36,22 @@ public abstract class BaseModel implements Modelable {
 	private Logger logger = Logger.getLogger(getClass());
 	public static String newline = System.getProperty("line.separator");
 	protected static final String STATS_BASE_BUCKETNAME = "tmpstats";      // Base name of the S3 bucket name
-	private static final String MERGED_STATS_FILENAME = "merged.txt";    // Name of the merged suff. stats file in S3 and local file system
-	private static final String STATS_BASE_FILENAME = "partialStats";    // Base name of the suff. stats file in S3 and local file system 
+	protected static final String MERGED_STATS_FILENAME = "merged.txt";    // Name of the merged suff. stats file in S3 and local file system
+	protected static final String STATS_BASE_FILENAME = "partialStats";    // Base name of the suff. stats file in S3 and local file system 
 	private static final String MODEL_STATES_DOMAIN = "MODEL_STATES";    // SimpleDB domain where model states are stored
 	// Cache parameters
 	private static final String MEMCACHED_SERVER = "176.34.191.239";
     private static final int MEMCACHED_PORT = 11211;
     private int TTL_CACHE = 60 * 60 * 24;   // This must be the same as the model update rate
     
-	public void createModel(String tenantID) 
-	throws AmazonServiceException, AmazonClientException, Exception {
-		
-		String bucketName = getStatsBucketName(tenantID);
-		
-		calculateSufficientStatistics(bucketName, STATS_BASE_FILENAME, tenantID);
-		
-		mergeSufficientStatistics(bucketName, MERGED_STATS_FILENAME, tenantID);
-		
-		estimateModelParameters(bucketName, MERGED_STATS_FILENAME, tenantID);
-		
-		// Now that the new model is ready swap the domain names
-    	swapModelDomainNames(getDomainBasename(), tenantID);
-    	
-  /* Don't clear cache since it holds responses from all tenants. Better set the expiration time of each new entry  	
-    	// Clear cache
-    	MemcachedClient client = null;
-    	try {
-        	client = new MemcachedClient(new InetSocketAddress(MEMCACHED_SERVER, MEMCACHED_PORT));
-    	}
-    	catch (IOException ex) {
-        	logger.warn("Cannot insantiate memcached client");
-        }
-    	OperationFuture<Boolean> success = client.flush();
-
-    	try {
-    	    if (!success.get()) {
-    	        logger.warn("Delete failed!");
-    	    }
-    	}
-    	catch (Exception e) {
-    	    logger.warn("Failed to delete " + e);
-    	}
-    	
-    	resetHealthCounters(tenantID);
-    	*/
-	}
 	
+    public abstract void createModel(String tenantID) throws AmazonServiceException, AmazonClientException, Exception;
+    
 	protected abstract void calculateSufficientStatistics(String bucketName, String baseFilename, String tenantID) throws Exception;
 	
-	protected abstract void mergeSufficientStatistics(String bucketName, String mergedStatsFilename, String tenantID) throws Exception;
+	protected abstract void mergeSufficientStatistics(String tenantID) throws Exception;
 	
-	protected abstract void estimateModelParameters(String bucketName, String filename, String tenantID) throws Exception;
+	protected abstract void estimateModelParameters(String tenantID) throws Exception;
 	
 	private String getHealthMetricKey(String eventID, String tenantID, String serviceID) {
 		StringBuffer sb = new StringBuffer();

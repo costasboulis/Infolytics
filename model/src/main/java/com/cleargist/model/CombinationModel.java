@@ -4,6 +4,8 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 
+import com.amazonaws.AmazonClientException;
+import com.amazonaws.AmazonServiceException;
 import com.cleargist.catalog.entity.jaxb.Catalog;
 
 public class CombinationModel extends BaseModel {
@@ -20,20 +22,57 @@ public class CombinationModel extends BaseModel {
 		this.correlationsModel.setTopCorrelations(TOP_N_CORRELATIONS);
 	}
 	
+	public void createModel(String tenantID) 
+	throws AmazonServiceException, AmazonClientException, Exception {
+		
+		String bucketName = getStatsBucketName(tenantID);
+		
+		calculateSufficientStatistics(bucketName, STATS_BASE_FILENAME, tenantID);
+		
+		mergeSufficientStatistics(tenantID);
+		
+		estimateModelParameters(tenantID);
+		
+		// Now that the new model is ready swap the domain names
+    	swapModelDomainNames(getDomainBasename(), tenantID);
+    	
+  /* Don't clear cache since it holds responses from all tenants. Better set the expiration time of each new entry  	
+    	// Clear cache
+    	MemcachedClient client = null;
+    	try {
+        	client = new MemcachedClient(new InetSocketAddress(MEMCACHED_SERVER, MEMCACHED_PORT));
+    	}
+    	catch (IOException ex) {
+        	logger.warn("Cannot insantiate memcached client");
+        }
+    	OperationFuture<Boolean> success = client.flush();
+
+    	try {
+    	    if (!success.get()) {
+    	        logger.warn("Delete failed!");
+    	    }
+    	}
+    	catch (Exception e) {
+    	    logger.warn("Failed to delete " + e);
+    	}
+    	
+    	resetHealthCounters(tenantID);
+    	*/
+	}
 	
 	protected void calculateSufficientStatistics(String bucketName, String baseFilename, String tenantID) throws Exception {
 		this.correlationsModel.calculateSufficientStatistics(bucketName, baseFilename, tenantID);
 		this.semanticModel.calculateSufficientStatistics(bucketName, baseFilename, tenantID);
 	}
 	
-	protected void mergeSufficientStatistics(String bucketName, String mergedStatsFilename, String tenantID) throws Exception {
-		this.correlationsModel.mergeSufficientStatistics(bucketName, mergedStatsFilename, tenantID);
-		this.semanticModel.mergeSufficientStatistics(bucketName, mergedStatsFilename, tenantID);
+	protected void mergeSufficientStatistics(String tenantID) throws Exception {
+		this.correlationsModel.mergeSufficientStatistics(tenantID);
+		this.semanticModel.mergeSufficientStatistics(tenantID);
 	}
 	
-	protected void estimateModelParameters(String bucketName, String filename, String tenantID) throws Exception {
-		this.correlationsModel.estimateModelParameters(bucketName, filename, tenantID);
-		this.semanticModel.estimateModelParameters(bucketName, filename, tenantID);
+	protected void estimateModelParameters(String tenantID) throws Exception {
+		this.correlationsModel.estimateModelParameters(tenantID);
+		this.semanticModel.estimateModelParameters(tenantID);
 		
 		swapModelDomainNames(this.correlationsModel.getDomainBasename(), tenantID);
 		swapModelDomainNames(this.semanticModel.getDomainBasename(), tenantID);

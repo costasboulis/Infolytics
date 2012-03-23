@@ -101,6 +101,44 @@ public class SemanticModel extends BaseModel {
 		return out;
 	}
 	
+	public void createModel(String tenantID) 
+	throws AmazonServiceException, AmazonClientException, Exception {
+		
+		String bucketName = getStatsBucketName(tenantID);
+		
+		calculateSufficientStatistics(bucketName, STATS_BASE_FILENAME, tenantID);
+		
+		mergeSufficientStatistics(tenantID);
+		
+		estimateModelParameters(tenantID);
+		
+		// Now that the new model is ready swap the domain names
+    	swapModelDomainNames(getDomainBasename(), tenantID);
+    	
+  /* Don't clear cache since it holds responses from all tenants. Better set the expiration time of each new entry  	
+    	// Clear cache
+    	MemcachedClient client = null;
+    	try {
+        	client = new MemcachedClient(new InetSocketAddress(MEMCACHED_SERVER, MEMCACHED_PORT));
+    	}
+    	catch (IOException ex) {
+        	logger.warn("Cannot insantiate memcached client");
+        }
+    	OperationFuture<Boolean> success = client.flush();
+
+    	try {
+    	    if (!success.get()) {
+    	        logger.warn("Delete failed!");
+    	    }
+    	}
+    	catch (Exception e) {
+    	    logger.warn("Failed to delete " + e);
+    	}
+    	
+    	resetHealthCounters(tenantID);
+    	*/
+	}
+	
 	protected void calculateSufficientStatistics(String bucketName, String baseFilename, String tenantID) throws Exception {
 		
 		logger.info("Initiating calculation of sufficient stats for tenant ID " + tenantID);
@@ -261,11 +299,12 @@ public class SemanticModel extends BaseModel {
 		return hm;
 	}
 	
-	protected void mergeSufficientStatistics(String bucketName, String mergedStatsFilename, String tenantID) throws Exception {
+	protected void mergeSufficientStatistics(String tenantID) throws Exception {
 		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
 				SemanticModel.class.getResourceAsStream(AWS_CREDENTIALS)));
+		
 		String tfidfBucket = getStatsBucketName(tenantID);
-		s3.copyObject(tfidfBucket, TFIDF_FILENAME, bucketName, mergedStatsFilename);
+		s3.copyObject(tfidfBucket, TFIDF_FILENAME, tfidfBucket, MERGED_STATS_FILENAME);
 	}
 	
 	/*
@@ -355,13 +394,16 @@ public class SemanticModel extends BaseModel {
     	loadFromS3File2Domain(bucketName, associationsFilename, getBackupModelDomainName(getDomainBasename(), tenantID));
 	}
 	
-	protected void estimateModelParameters(String bucketName, String filename, String tenantID) throws Exception {
+	protected void estimateModelParameters(String tenantID) throws Exception {
 		
 		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
 				SemanticModel.class.getResourceAsStream(AWS_CREDENTIALS)));
 		List<HashMap<String, Float>> vectors = new ArrayList<HashMap<String, Float>>();
 		HashMap<Integer, String> itemNames = new HashMap<Integer, String>();
-		S3Object tfidfFile = s3.getObject(bucketName, filename);
+		
+		String bucketName = getStatsBucketName(tenantID);
+		String key = MERGED_STATS_FILENAME;
+		S3Object tfidfFile = s3.getObject(bucketName, key);
 		BufferedReader reader = new BufferedReader(new InputStreamReader(tfidfFile.getObjectContent()));
 		int k = 0;
 		String line = null;
@@ -381,7 +423,7 @@ public class SemanticModel extends BaseModel {
 		reader.close();
 		
 		
-		estimateModelParameters(vectors, itemNames, vectors.size(), bucketName, filename, tenantID);
+		estimateModelParameters(vectors, itemNames, vectors.size(), bucketName, key, tenantID);
 	}
 
 	public List<Catalog.Products.Product> getRecommendedProductsInternal(List<String> productIDs, String tenantID, Filter filter) throws Exception {

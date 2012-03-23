@@ -202,8 +202,9 @@ public class MixtureOfBernoullisTest {
 		int numClusters = 2;
 		mixBernoullis.setNumberOfClusters(numClusters);
 		mixBernoullis.setNumberOfIterations(10);
+		mixBernoullis.setDataBucketNameAndKey("cleargist", "mixBernoullisSample.txt"); 
 		try {
-			mixBernoullis.trainInMemory("cleargist", "mixBernoullisSample.txt", "test");
+			mixBernoullis.createModel("test");
 			mixBernoullis.writeClusterMemberships("cleargist", "mixBernoullisSample.txt", "cleargist", "mixBernoullisSampleHyp.txt", "test"); 
 			double adjRank = computeAdjustedRandIndex("cleargist", "mixBernoullisSampleCategories.txt", "cleargist", "mixBernoullisSampleHyp.txt", numClusters);
 			System.out.println("AdjustedRank : " + adjRank);

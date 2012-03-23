@@ -73,7 +73,43 @@ public class CorrelationsModel extends BaseModel {
 		this.topCorrelations = 10;
 	}
 	
-	
+	public void createModel(String tenantID) 
+	throws AmazonServiceException, AmazonClientException, Exception {
+		
+		String bucketName = getStatsBucketName(tenantID);
+		
+		calculateSufficientStatistics(bucketName, STATS_BASE_FILENAME, tenantID);
+		
+		mergeSufficientStatistics(tenantID);
+		
+		estimateModelParameters(tenantID);
+		
+		// Now that the new model is ready swap the domain names
+    	swapModelDomainNames(getDomainBasename(), tenantID);
+    	
+  /* Don't clear cache since it holds responses from all tenants. Better set the expiration time of each new entry  	
+    	// Clear cache
+    	MemcachedClient client = null;
+    	try {
+        	client = new MemcachedClient(new InetSocketAddress(MEMCACHED_SERVER, MEMCACHED_PORT));
+    	}
+    	catch (IOException ex) {
+        	logger.warn("Cannot insantiate memcached client");
+        }
+    	OperationFuture<Boolean> success = client.flush();
+
+    	try {
+    	    if (!success.get()) {
+    	        logger.warn("Delete failed!");
+    	    }
+    	}
+    	catch (Exception e) {
+    	    logger.warn("Failed to delete " + e);
+    	}
+    	
+    	resetHealthCounters(tenantID);
+    	*/
+	}
 	public void setProfilesPerChunk(int n) {
 		this.profilesPerChunk = n < 2500 ? 2500 : n;
 	}
@@ -164,11 +200,13 @@ public class CorrelationsModel extends BaseModel {
 		return getRecommendedProductsList(sourceIDs, tenantID, filter);
 	}
 	
-	public void mergeSufficientStatistics(String statsBucketName, String mergedStatsFilename, String tenantID) 
+	public void mergeSufficientStatistics(String tenantID) 
 	throws AmazonServiceException, AmazonClientException, IOException, Exception {
 		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
 				CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
     	
+		String statsBucketName = getStatsBucketName(tenantID);
+		String key = MERGED_STATS_FILENAME;
     	ObjectListing objectListing = s3.listObjects(statsBucketName);
     	List<S3ObjectSummary> objSummaries = objectListing.getObjectSummaries();
     	
@@ -178,14 +216,14 @@ public class CorrelationsModel extends BaseModel {
     	}
     	
     	String statsFilename = objSummaries.get(0).getKey();
-    	s3.copyObject(statsBucketName, statsFilename, statsBucketName, mergedStatsFilename);
+    	s3.copyObject(statsBucketName, statsFilename, statsBucketName, key);
     	s3.deleteObject(statsBucketName, statsFilename);
     	int i = 1;
     	while (i < objSummaries.size()) {
     		statsFilename = objSummaries.get(i).getKey();
     		S3Object statsObject = s3.getObject(statsBucketName, statsFilename);
         	
-    		mergeSufficientStatistics(tenantID, mergedStatsFilename, statsObject);
+    		mergeSufficientStatistics(tenantID, key, statsObject);
     		
     		s3.deleteObject(statsBucketName, statsFilename);
     		i ++;
@@ -590,12 +628,14 @@ public class CorrelationsModel extends BaseModel {
 		localSSFile.delete();
 	}
 	
-	public void estimateModelParameters(String bucketName, String filename, String tenantID) 
+	public void estimateModelParameters(String tenantID) 
 	throws AmazonServiceException, AmazonClientException, IOException, Exception {
     	AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
 				CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
     	
-    	S3Object mergedStats = s3.getObject(bucketName, filename);
+    	String bucketName = getStatsBucketName(tenantID);
+    	String key = MERGED_STATS_FILENAME;
+    	S3Object mergedStats = s3.getObject(bucketName, key);
     	
     	
     	// Read in memory SS0
