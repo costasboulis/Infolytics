@@ -440,7 +440,8 @@ public class SemanticModel extends BaseModel {
 	private List<Catalog.Products.Product> getRecommendedProductsList(List<AttributeObject> productIds, String tenantID, Filter filter) throws Exception {
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				SemanticModel.class.getResourceAsStream(AWS_CREDENTIALS)));
-    	
+		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
+		
 		HashSet<String> sourceIDs = new HashSet<String>();
     	for (AttributeObject attObject : productIds) {
     		sourceIDs.add(attObject.getUID());
@@ -544,7 +545,8 @@ public class SemanticModel extends BaseModel {
 	private void loadFromS3File2Domain(String bucketName, String filename, String domainName) throws Exception {
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				SemanticModel.class.getResourceAsStream(AWS_CREDENTIALS)));
-    	
+		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
+		
 		List<ReplaceableItem> items = new ArrayList<ReplaceableItem>();
 		
 		for (String domain : sdb.listDomains().getDomainNames()) {

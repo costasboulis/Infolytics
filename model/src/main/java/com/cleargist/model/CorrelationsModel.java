@@ -140,7 +140,8 @@ public class CorrelationsModel extends BaseModel {
 	private List<Catalog.Products.Product> getRecommendedProductsList(List<AttributeObject> productIds, String tenantID, Filter filter) throws Exception {
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
-    	
+		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
+		
 		HashSet<String> sourceIDs = new HashSet<String>();
     	for (AttributeObject attObject : productIds) {
     		sourceIDs.add(attObject.getUID());
@@ -514,6 +515,8 @@ public class CorrelationsModel extends BaseModel {
 		// Now calculate new suff stats
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
+		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
+		
 		String profileDomain = getProfileDomainName(tenantID);
 		String selectExpression = "select * from `" + profileDomain + "` limit 2500";
 		
@@ -666,7 +669,8 @@ public class CorrelationsModel extends BaseModel {
     	// Read line-by-line the SS1 compute the correlation coefficient and write to SimpleDB
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
-    	
+		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
+		
     	String correlationsModelDomainName = getBackupModelDomainName(getDomainBasename(), tenantID);
     	sdb.deleteDomain(new DeleteDomainRequest(correlationsModelDomainName));
     	sdb.createDomain(new CreateDomainRequest(correlationsModelDomainName));

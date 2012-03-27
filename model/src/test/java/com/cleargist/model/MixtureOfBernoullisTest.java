@@ -145,6 +145,11 @@ public class MixtureOfBernoullisTest {
 		}
 	}
 	
+	/* 
+	 * TODO : Can easily add combining multiple systems by using List<File> hypPartitionFileList 
+	 * and having crossCounts[reference][c] += (memb) / (float)hypPartitionFileList.size();
+	 */
+	
 	private double computeAdjustedRandIndex(File referencePartitionFile,
 											File hypPartitionFile      , int numberOfExperts) throws Exception {
 		double adjRandIndex=0.0;

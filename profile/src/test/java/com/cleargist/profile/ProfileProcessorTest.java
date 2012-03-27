@@ -41,6 +41,7 @@ public class ProfileProcessorTest {
 	private String profileDomain = "PROFILE_TEST";
 	private SimpleDateFormat dateFormatter = new SimpleDateFormat("yyMMddHHmmssSSSZ");
 	private RecommendationsDAO dao;
+	private static String SIMPLEDB_ENDPOINT = "https://sdb.eu-west-1.amazonaws.com";
 	
 	@Before
 	public void createSimpleDBDomain() {
@@ -48,6 +49,7 @@ public class ProfileProcessorTest {
     	try {
     		sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
     				ProfileProcessorTest.class.getResourceAsStream(AWS_CREDENTIALS)));
+    		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
     	}
     	catch (IOException ex) {
     		String errorMessage = "Cannot connect to Amazon SimpleDB, check credentials";
@@ -206,6 +208,7 @@ public class ProfileProcessorTest {
     	try {
     		sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
     				ProfileProcessorTest.class.getResourceAsStream(AWS_CREDENTIALS)));
+    		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
     	}
     	catch (IOException ex) {
     		String errorMessage = "Cannot connect to Amazon SimpleDB, check credentials";
@@ -246,6 +249,7 @@ public class ProfileProcessorTest {
     	try {
     		sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
     				ProfileProcessorTest.class.getResourceAsStream(AWS_CREDENTIALS)));
+    		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
     	}
     	catch (IOException ex) {
     		String errorMessage = "Cannot connect to Amazon SimpleDB, check credentials";
@@ -283,6 +287,7 @@ public class ProfileProcessorTest {
     	try {
     		sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
     				ProfileProcessorTest.class.getResourceAsStream(AWS_CREDENTIALS)));
+    		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
     	}
     	catch (IOException ex) {
     		String errorMessage = "Cannot connect to Amazon SimpleDB, check credentials";
@@ -400,6 +405,7 @@ public class ProfileProcessorTest {
     	try {
     		sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
     				ProfileProcessorTest.class.getResourceAsStream(AWS_CREDENTIALS)));
+    		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
     	}
     	catch (IOException ex) {
     		String errorMessage = "Cannot connect to Amazon SimpleDB, check credentials";
@@ -452,6 +458,7 @@ public class ProfileProcessorTest {
     	try {
     		sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
     				ProfileProcessorTest.class.getResourceAsStream(AWS_CREDENTIALS)));
+    		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
     	}
     	catch (IOException ex) {
     		String errorMessage = "Cannot connect to Amazon SimpleDB, check credentials";
@@ -498,7 +505,17 @@ public class ProfileProcessorTest {
 		assertTrue(profile.getAttributes().size() == 2);
 	}
 
+	@Test
+	public void test104() {
+		SessionDetailViewProfileProcessor pr = new SessionDetailViewProfileProcessor();
 	
+		try {
+			pr.updateProfiles("104");
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
 }
 
 

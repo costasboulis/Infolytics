@@ -39,6 +39,7 @@ public abstract class BaseModel implements Modelable {
 	protected static final String MERGED_STATS_FILENAME = "merged.txt";    // Name of the merged suff. stats file in S3 and local file system
 	protected static final String STATS_BASE_FILENAME = "partialStats";    // Base name of the suff. stats file in S3 and local file system 
 	private static final String MODEL_STATES_DOMAIN = "MODEL_STATES";    // SimpleDB domain where model states are stored
+	protected static String SIMPLEDB_ENDPOINT = "https://sdb.eu-west-1.amazonaws.com";
 	// Cache parameters
 	private static final String MEMCACHED_SERVER = "176.34.191.239";
     private static final int MEMCACHED_PORT = 11211;

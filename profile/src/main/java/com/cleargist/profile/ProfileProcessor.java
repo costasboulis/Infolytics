@@ -7,11 +7,11 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.TimeZone;
 
 import org.apache.log4j.Logger;
 
@@ -50,16 +50,23 @@ public abstract class ProfileProcessor {
 	private static final String DATE_PATTERN = "yyMMddHHmmssSSSZ";
 	private Date currentDate;
 	private Logger logger = Logger.getLogger(getClass());
-	
+	private static String SIMPLEDB_ENDPOINT = "https://sdb.eu-west-1.amazonaws.com";
 	
 	private List<Item> querySimpleDB(String selectExpression) throws AmazonServiceException, AmazonClientException, Exception{
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				ProfileProcessor.class.getResourceAsStream(AWS_CREDENTIALS)));
+		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
+		
 		String resultNextToken = null;
 		String selectExpressionWithLimit = selectExpression + " limit 2500";
 		SelectRequest selectRequest = new SelectRequest(selectExpressionWithLimit);
 		List<Item> allItems = new LinkedList<Item>();
+		int count  =0;
 		do {
+			count ++;
+			System.out.println("count ::: " + count);
+			System.out.flush();
+			
 		    if (resultNextToken != null) {
 		    	selectRequest.setNextToken(resultNextToken);
 		    }
@@ -83,7 +90,8 @@ public abstract class ProfileProcessor {
 	protected List<List<Item>> getDataSinceLastUpdate(String tenantID) throws Exception {
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				ProfileProcessor.class.getResourceAsStream(AWS_CREDENTIALS)));
-    	
+		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
+		
     	SimpleDateFormat formatter = new SimpleDateFormat(DATE_PATTERN);
     	
     	/*
@@ -158,28 +166,31 @@ public abstract class ProfileProcessor {
     	
     	// dummy last update
 		Calendar currentDateFrom = Calendar.getInstance();
+		currentDateFrom.setTimeZone(TimeZone.getTimeZone("Europe/London"));
 		Date currentDate = new Date();
-		currentDateFrom.setTime(currentDate);     
+		currentDateFrom.setTimeInMillis(currentDate.getTime());     
 		currentDateFrom.add(Calendar.MONTH, -6);      // Profile horizon, retrieve this from tenant profile
 		
 		Calendar lastUpdate = Calendar.getInstance();
- //   	lastUpdate.set(2012, 0, 6, 16, 56, 20);       // Last update, retrieve this from tenant profile
-		lastUpdate.setTime(currentDate); 
+		lastUpdate.setTimeZone(TimeZone.getTimeZone("Europe/London"));
+    	lastUpdate.set(2012, 2, 26, 16, 56, 20);       // Last update, retrieve this from tenant profile
+//		lastUpdate.setTime(currentDate); 
 		
 		Calendar lastUpdateFrom = Calendar.getInstance();
-		lastUpdateFrom.setTime(lastUpdate.getTime());     
+		lastUpdateFrom.setTimeZone(TimeZone.getTimeZone("Europe/London"));
+		lastUpdateFrom.setTimeInMillis(lastUpdate.getTime().getTime());    
 		lastUpdateFrom.add(Calendar.MONTH, -6);      // Profile horizon, retrieve this from tenant profile
 		
 		
 		
 		// Now form the SELECT statement for incremental data
 		String userActivityDomain = "ACTIVITY_" + tenantID;
-		String selectExpression = "select * from `" + userActivityDomain + "` where DATE > '" + formatter.format(lastUpdate.getTime()) + "'";
+		String selectExpression = "select * from `" + userActivityDomain + "` where ACTDATE > '" + formatter.format(lastUpdate.getTime()) + "'";
         List<Item> incrementalData = querySimpleDB(selectExpression);
         
 		// Now form the SELECT statement for decremental data
-        selectExpression = "select * from `" + userActivityDomain + "` where DATE > '" + formatter.format(lastUpdateFrom.getTime()) + 
-        "' and DATE < '" + formatter.format(currentDateFrom.getTime()) + "'";
+        selectExpression = "select * from `" + userActivityDomain + "` where ACTDATE < '" + formatter.format(currentDateFrom.getTime()) + 
+        															"' and ACTDATE > '" + formatter.format(lastUpdateFrom.getTime()) + "'" ;
         List<Item> decrementalData = querySimpleDB(selectExpression);
         
 		List<List<Item>> newData = new ArrayList<List<Item>>();
@@ -203,7 +214,8 @@ public abstract class ProfileProcessor {
 		// Retrieve existing profiles and merge / write to SimpleDB
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				ProfileProcessor.class.getResourceAsStream(AWS_CREDENTIALS)));
-    	
+		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
+		
     	String profileDomain = "PROFILE_" + tenantID;
     	
     	// Do the incremental profiles
@@ -371,6 +383,7 @@ public abstract class ProfileProcessor {
 		}
 		
 		// Profile is updated
+		/*
 		RecommendationsDAO recsDAO = new RecommendationsDAOImpl();
     	Tenant tenant = recsDAO.getTenantById(tenantID);
     	if (tenant == null) {
@@ -378,6 +391,7 @@ public abstract class ProfileProcessor {
     		throw new Exception();
     	}
 		tenant.setLatestProfile(this.currentDate);
+		*/
 	}
 	
 	private void updateAttributes(AmazonSimpleDB sdb, String profileDomain, String userID, List<ReplaceableAttribute> attributes) throws Exception {

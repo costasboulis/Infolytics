@@ -217,7 +217,13 @@ public class MixtureOfBernoullis extends BaseModel {
 		this.N = 0;
 		
 		String lineStr = null;
+		int numLines = 1;
 		while ((lineStr = reader.readLine()) != null) {
+			
+			if (numLines % 1000 == 0) {
+				logger.info("Lines read " + numLines);
+			}
+			
 			String[] fields = lineStr.split(" ");
 			String user = fields[0];
 			
@@ -283,6 +289,8 @@ public class MixtureOfBernoullis extends BaseModel {
 			}
 			
 			this.N += 1.0;
+			
+			numLines ++;
 		}
 		
 		// Now write the sufficient statistics
@@ -673,8 +681,11 @@ public class MixtureOfBernoullis extends BaseModel {
 		// Estimate logPriors and logProbUnseen
 		lineStr = reader.readLine();
 		String[] fields = lineStr.split(" ");
-		this.C = fields.length;
-		logger.info("There are " + this.C + " clusters in the stats file");
+		if (this.C != fields.length) {
+			logger.error("Expecting " + this.C + " clusters, but found " + fields.length);
+			throw new Exception();
+		}
+		
 		this.logPriors = new ArrayList<Double>();
 		this.logProbUnseen = new ArrayList<List<Double>>();
 		double[] ss0 = new double[this.C];
