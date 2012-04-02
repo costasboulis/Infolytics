@@ -1,23 +1,40 @@
 package com.cleargist.profile;
 
+//TODO : Do the profile merging in the Profile class
 
 
-
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.InputStreamReader;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
+import java.util.UUID;
 
 import org.apache.log4j.Logger;
 
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.auth.PropertiesCredentials;
+import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.model.CreateBucketRequest;
+import com.amazonaws.services.s3.model.ListObjectsRequest;
+import com.amazonaws.services.s3.model.ObjectListing;
+import com.amazonaws.services.s3.model.PutObjectRequest;
+import com.amazonaws.services.s3.model.Region;
+import com.amazonaws.services.s3.model.S3Object;
+import com.amazonaws.services.s3.model.S3ObjectSummary;
+import com.amazonaws.services.s3.model.StorageClass;
 import com.amazonaws.services.simpledb.AmazonSimpleDB;
 import com.amazonaws.services.simpledb.AmazonSimpleDBClient;
 import com.amazonaws.services.simpledb.model.Attribute;
@@ -48,7 +65,9 @@ import com.cleargist.recommendations.entity.Tenant;
 public abstract class ProfileProcessor {
 	private static final String AWS_CREDENTIALS = "/AwsCredentials.properties";
 	private static final String DATE_PATTERN = "yyMMddHHmmssSSSZ";
+	public static String newline = System.getProperty("line.separator");
 	private Date currentDate;
+	protected List<ReplaceableItem> items = new ArrayList<ReplaceableItem>();
 	private Logger logger = Logger.getLogger(getClass());
 	private static String SIMPLEDB_ENDPOINT = "https://sdb.eu-west-1.amazonaws.com";
 	
@@ -203,14 +222,7 @@ public abstract class ProfileProcessor {
 	// Gets as input the raw data, implements custom weighting, filtering logic and produces a profile of the form UID, <PID, VALUE>+
 	protected abstract List<Profile> createProfile(List<Item> rawData) throws Exception;
 	
-	public void updateProfiles(String tenantID) throws Exception {
-		List<List<Item>> newData = getDataSinceLastUpdate(tenantID);
-		List<Item> incrementalData = newData.get(0);
-		List<Item> decrementalData = newData.get(1);
-		
-		List<Profile> incrementalProfiles = createProfile(incrementalData);
-		List<Profile> decrementalProfiles = createProfile(decrementalData);
-		
+	private void updateProfilesSimpleDB(List<Profile> incrementalProfiles, List<Profile> decrementalProfiles, String tenantID) throws Exception {
 		// Retrieve existing profiles and merge / write to SimpleDB
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				ProfileProcessor.class.getResourceAsStream(AWS_CREDENTIALS)));
@@ -269,7 +281,7 @@ public abstract class ProfileProcessor {
         			attributes.add(att);
 				}
 				item.setAttributes(attributes);
-				addUserProfile(sdb, profileDomain, item);
+				addUserProfile(sdb, profileDomain, item, false);
 			}
 			else {
 				// Update only the attributes
@@ -382,6 +394,161 @@ public abstract class ProfileProcessor {
 			
 		}
 		
+		// Write any remaining - less than 25 - profiles
+		addUserProfile(sdb, profileDomain, null, true);
+	}
+	
+	private void updateProfilesS3(HashMap<String, Profile> incrementalProfiles, HashMap<String, Profile> decrementalProfiles, 
+								String profilesBucket, int maxProfilesPerFile) throws Exception {
+		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
+				ProfileProcessor.class.getResourceAsStream(AWS_CREDENTIALS)));
+		
+		if (!s3.doesBucketExist(profilesBucket)) {
+			CreateBucketRequest createBucketRequest = new CreateBucketRequest(profilesBucket, Region.EU_Ireland);
+			s3.createBucket(createBucketRequest);
+		}
+		
+		List<String> profileKeys = new LinkedList<String>();
+		ListObjectsRequest listObjectsRequest = new ListObjectsRequest();
+		listObjectsRequest.setBucketName(profilesBucket);
+		
+		String marker = null;
+		do {
+			listObjectsRequest.setMarker(marker);
+			ObjectListing listing = s3.listObjects(listObjectsRequest);
+			for (S3ObjectSummary summary : listing.getObjectSummaries() ) {
+				profileKeys.add(summary.getKey());
+			}
+			marker = listing.getNextMarker();
+			
+		} while (marker != null);
+		
+		String filename = "PROFILES_" + UUID.randomUUID().toString();
+		File localFile = new File(filename);
+		BufferedWriter writer = new BufferedWriter(new FileWriter(localFile));
+		int linesWritten = 0;
+		
+		for (String key : profileKeys) {
+			
+			S3Object profile = s3.getObject(profilesBucket, key);
+			BufferedReader reader = new BufferedReader(new InputStreamReader(profile.getObjectContent()));
+			String line = null;
+			while ((line = reader.readLine()) != null) {
+				String[] fields = line.split(" ");
+				String userId = fields[0];
+				
+				Profile incr = incrementalProfiles.get(userId);
+				Profile decr = decrementalProfiles.get(userId);
+				if (incr == null && decr == null) {                      // Profiles that haven't changed
+					StringBuffer sb = new StringBuffer();
+					sb.append(line); sb.append(newline);
+					writer.write(line);
+					writer.flush();
+					linesWritten ++;
+					if (linesWritten > maxProfilesPerFile) {
+						// Copy the local file to S3
+				    	PutObjectRequest r = new PutObjectRequest(profilesBucket, filename, localFile);  
+				    	r.setStorageClass(StorageClass.ReducedRedundancy);
+				    	s3.putObject(r);
+						linesWritten = 0;
+						writer.close();
+						localFile.delete();
+						filename = "PROFILES_" + UUID.randomUUID().toString();
+						localFile = new File(filename);
+						writer = new BufferedWriter(new FileWriter(localFile));
+					}
+					
+					continue;
+				}
+				
+				Profile existing = new Profile(line);
+				if (incr != null) {
+					existing.merge(incr);
+					incrementalProfiles.remove(userId);
+				}
+				if (decr != null) {
+					existing.reduce(decr);
+					if (existing.getAttributes().size() == 0) {  // Profile needs to be deleted
+						continue;
+					}
+				}
+				
+				StringBuffer sb = new StringBuffer();
+				sb.append(existing.toString()); sb.append(newline);
+				writer.write(line);
+				writer.flush();
+				linesWritten ++;
+				if (linesWritten > maxProfilesPerFile) {
+					// Copy the local file to S3
+			    	PutObjectRequest r = new PutObjectRequest(profilesBucket, filename, localFile);
+			    	r.setStorageClass(StorageClass.ReducedRedundancy);
+			    	s3.putObject(r);
+					linesWritten = 0;
+					writer.close();
+					localFile.delete();
+					filename = "PROFILES_" + UUID.randomUUID().toString();
+					localFile = new File(filename);
+					writer = new BufferedWriter(new FileWriter(localFile));
+				}
+				
+			}
+			reader.close();
+			
+			s3.deleteObject(profilesBucket, key);
+		}
+		
+		
+		// Write the new users
+		for (Profile newUserProfile : incrementalProfiles.values()) {
+			StringBuffer sb = new StringBuffer();
+			sb.append(newUserProfile.toString()); sb.append(newline);
+			writer.write(sb.toString());
+			writer.flush();
+			linesWritten ++;
+			if (linesWritten > maxProfilesPerFile) {
+				// Copy the local file to S3
+		    	PutObjectRequest r = new PutObjectRequest(profilesBucket, filename, localFile);
+		    	r.setStorageClass(StorageClass.ReducedRedundancy);
+		    	s3.putObject(r);
+				linesWritten = 0;
+				writer.close();
+				localFile.delete();
+				filename = "PROFILES_" + UUID.randomUUID().toString();
+				localFile = new File(filename);
+				writer = new BufferedWriter(new FileWriter(localFile));
+			}
+		}
+		
+		writer.close();
+	}
+	
+	public void updateProfiles(String tenantID) throws Exception {
+		List<List<Item>> newData = getDataSinceLastUpdate(tenantID);
+		List<Item> incrementalData = newData.get(0);
+		List<Item> decrementalData = newData.get(1);
+		
+		List<Profile> incrementalProfilesList = createProfile(incrementalData);
+		HashMap<String, Profile> incrementalProfiles = new HashMap<String, Profile>();
+		for (Profile profile : incrementalProfilesList) {
+			String userID = profile.getUserID();
+			incrementalProfiles.put(userID, profile);
+		}
+		incrementalProfilesList = null;
+		
+		List<Profile> decrementalProfilesList = createProfile(decrementalData);
+		HashMap<String, Profile> decrementalProfiles = new HashMap<String, Profile>();
+		for (Profile profile : decrementalProfilesList) {
+			String userID = profile.getUserID();
+			decrementalProfiles.put(userID, profile);
+		}
+		decrementalProfilesList = null;
+	
+		String profilesBucket = "profiles" + tenantID;
+		int maxProfilesPerFile = 5000;
+		updateProfilesS3(incrementalProfiles, decrementalProfiles, profilesBucket, maxProfilesPerFile);
+		
+//		updateProfilesSimpleDB(incrementalProfiles, decrementalProfiles, tenantID);
+		
 		// Profile is updated
 		/*
 		RecommendationsDAO recsDAO = new RecommendationsDAOImpl();
@@ -445,13 +612,23 @@ public abstract class ProfileProcessor {
     	}
 	}
 	
-	private void addUserProfile(AmazonSimpleDB sdb, String SimpleDBDomain, ReplaceableItem profile) 
+	private void addUserProfile(AmazonSimpleDB sdb, String SimpleDBDomain, ReplaceableItem profile, boolean forceWrite) 
 	throws DuplicateItemNameException, InvalidParameterValueException, NumberDomainBytesExceededException, NumberSubmittedItemsExceededException, 
 	NumberSubmittedAttributesExceededException, NumberDomainAttributesExceededException, NumberItemAttributesExceededException, 
 	NoSuchDomainException, AmazonServiceException, AmazonClientException, Exception {
 		
-		List<ReplaceableItem> items = new ArrayList<ReplaceableItem>();
-		items.add(profile);
+		
+		if (profile != null) {
+			items.add(profile);
+		}
+		
+		if (!forceWrite) {
+			if (items.size() < 25) {
+				return;
+			}
+		}
+		
+		
     	try {
     		sdb.batchPutAttributes(new BatchPutAttributesRequest(SimpleDBDomain, items));
     	}
@@ -512,5 +689,7 @@ public abstract class ProfileProcessor {
     		logger.error(errorMessage);
     		throw new Exception();
     	}
+    	
+    	items = new ArrayList<ReplaceableItem>();
     }
 }
