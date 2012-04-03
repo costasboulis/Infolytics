@@ -70,6 +70,8 @@ public abstract class ProfileProcessor {
 	protected List<ReplaceableItem> items = new ArrayList<ReplaceableItem>();
 	private Logger logger = Logger.getLogger(getClass());
 	private static String SIMPLEDB_ENDPOINT = "https://sdb.eu-west-1.amazonaws.com";
+	private static int MAX_PROFILES_PER_FILE = 50000;
+	private static TimeZone TIME_ZONE = TimeZone.getTimeZone("GMT");
 	
 	private List<Item> querySimpleDB(String selectExpression) throws AmazonServiceException, AmazonClientException, Exception{
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
@@ -83,8 +85,7 @@ public abstract class ProfileProcessor {
 		int count  =0;
 		do {
 			count ++;
-			System.out.println("count ::: " + count);
-			System.out.flush();
+			logger.debug("count ::: " + count);
 			
 		    if (resultNextToken != null) {
 		    	selectRequest.setNextToken(resultNextToken);
@@ -112,6 +113,7 @@ public abstract class ProfileProcessor {
 		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
 		
     	SimpleDateFormat formatter = new SimpleDateFormat(DATE_PATTERN);
+    	formatter.setTimeZone(TIME_ZONE);
     	
     	/*
     	RecommendationsDAO recsDAO = new RecommendationsDAOImpl();
@@ -185,18 +187,18 @@ public abstract class ProfileProcessor {
     	
     	// dummy last update
 		Calendar currentDateFrom = Calendar.getInstance();
-		currentDateFrom.setTimeZone(TimeZone.getTimeZone("Europe/London"));
+		currentDateFrom.setTimeZone(TIME_ZONE);
 		Date currentDate = new Date();
 		currentDateFrom.setTimeInMillis(currentDate.getTime());     
 		currentDateFrom.add(Calendar.MONTH, -6);      // Profile horizon, retrieve this from tenant profile
 		
 		Calendar lastUpdate = Calendar.getInstance();
-		lastUpdate.setTimeZone(TimeZone.getTimeZone("Europe/London"));
-    	lastUpdate.set(2012, 2, 26, 16, 56, 20);       // Last update, retrieve this from tenant profile
+		lastUpdate.setTimeZone(TIME_ZONE);
+    	lastUpdate.set(2012, 3, 3, 4, 56, 20);       // Last update, retrieve this from tenant profile
 //		lastUpdate.setTime(currentDate); 
 		
 		Calendar lastUpdateFrom = Calendar.getInstance();
-		lastUpdateFrom.setTimeZone(TimeZone.getTimeZone("Europe/London"));
+		lastUpdateFrom.setTimeZone(TIME_ZONE);
 		lastUpdateFrom.setTimeInMillis(lastUpdate.getTime().getTime());    
 		lastUpdateFrom.add(Calendar.MONTH, -6);      // Profile horizon, retrieve this from tenant profile
 		
@@ -452,7 +454,10 @@ public abstract class ProfileProcessor {
 				    	s3.putObject(r);
 						linesWritten = 0;
 						writer.close();
-						localFile.delete();
+						boolean localFileDeleted = localFile.delete();
+				    	if (!localFileDeleted) {
+				    		logger.error("Could not delete local file " + localFile.getAbsolutePath());
+				    	}
 						filename = "PROFILES_" + UUID.randomUUID().toString();
 						localFile = new File(filename);
 						writer = new BufferedWriter(new FileWriter(localFile));
@@ -485,7 +490,10 @@ public abstract class ProfileProcessor {
 			    	s3.putObject(r);
 					linesWritten = 0;
 					writer.close();
-					localFile.delete();
+					boolean localFileDeleted = localFile.delete();
+			    	if (!localFileDeleted) {
+			    		logger.error("Could not delete local file " + localFile.getAbsolutePath());
+			    	}
 					filename = "PROFILES_" + UUID.randomUUID().toString();
 					localFile = new File(filename);
 					writer = new BufferedWriter(new FileWriter(localFile));
@@ -512,14 +520,25 @@ public abstract class ProfileProcessor {
 		    	s3.putObject(r);
 				linesWritten = 0;
 				writer.close();
-				localFile.delete();
+				boolean localFileDeleted = localFile.delete();
+		    	if (!localFileDeleted) {
+		    		logger.error("Could not delete local file " + localFile.getAbsolutePath());
+		    	}
 				filename = "PROFILES_" + UUID.randomUUID().toString();
 				localFile = new File(filename);
 				writer = new BufferedWriter(new FileWriter(localFile));
 			}
 		}
-		
 		writer.close();
+		
+		// Copy the local file to S3
+    	PutObjectRequest r = new PutObjectRequest(profilesBucket, filename, localFile);
+    	r.setStorageClass(StorageClass.ReducedRedundancy);
+    	s3.putObject(r);
+    	boolean localFileDeleted = localFile.delete();
+    	if (!localFileDeleted) {
+    		logger.error("Could not delete local file " + localFile.getAbsolutePath());
+    	}
 	}
 	
 	public void updateProfiles(String tenantID) throws Exception {
@@ -544,8 +563,7 @@ public abstract class ProfileProcessor {
 		decrementalProfilesList = null;
 	
 		String profilesBucket = "profiles" + tenantID;
-		int maxProfilesPerFile = 5000;
-		updateProfilesS3(incrementalProfiles, decrementalProfiles, profilesBucket, maxProfilesPerFile);
+		updateProfilesS3(incrementalProfiles, decrementalProfiles, profilesBucket, MAX_PROFILES_PER_FILE);
 		
 //		updateProfilesSimpleDB(incrementalProfiles, decrementalProfiles, tenantID);
 		

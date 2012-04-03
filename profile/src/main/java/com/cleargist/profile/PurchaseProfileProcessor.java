@@ -17,10 +17,10 @@ public class PurchaseProfileProcessor extends ProfileProcessor {
 			String productID = null;
 			boolean purchaseFound = false;
 			for (Attribute attribute : item.getAttributes()) {
-				if (attribute.getName().equalsIgnoreCase("USERID")) {
+				if (attribute.getName().equalsIgnoreCase("USER")) {
 					userID = attribute.getValue();
 				}
-				else if (attribute.getName().equalsIgnoreCase("PRODUCTID")) {
+				else if (attribute.getName().equalsIgnoreCase("ITEM")) {
 					productID = attribute.getValue();
 				}
 				else if (attribute.getName().equalsIgnoreCase("EVENT") && attribute.getValue().equalsIgnoreCase("PURCHASE")) {

@@ -42,6 +42,12 @@ public class ProfileProcessorTest {
 	private SimpleDateFormat dateFormatter = new SimpleDateFormat("yyMMddHHmmssSSSZ");
 	private RecommendationsDAO dao;
 	private static String SIMPLEDB_ENDPOINT = "https://sdb.eu-west-1.amazonaws.com";
+	private static String USER_STRING = "USER";
+	private static String SESSION_STRING = "SESSION";
+	private static String ITEM_STRING = "ITEM";
+	private static String EVENT_STRING = "EVENT";
+	private static String ITEM_PAGE_STRING = "ITEM_PAGE";
+	private static String DATE_STRING = "ACTDATE";
 	
 	@Before
 	public void createSimpleDBDomain() {
@@ -96,10 +102,10 @@ public class ProfileProcessorTest {
     	String dateString = dateFormatter.format(date.getTime());
     	String itemName = userID + "_" + productID + "_" + event + "_" + date;
     	ReplaceableItem item1 = new ReplaceableItem(itemName).withAttributes(
-                new ReplaceableAttribute("PRODUCTID", productID, true),
-                new ReplaceableAttribute("EVENT", event, true), 
-                new ReplaceableAttribute("USERID", userID, true),
-                new ReplaceableAttribute("DATE", dateString, true));
+                new ReplaceableAttribute(ITEM_STRING, productID, true),
+                new ReplaceableAttribute(EVENT_STRING, event, true), 
+                new ReplaceableAttribute(USER_STRING, userID, true),
+                new ReplaceableAttribute(DATE_STRING, dateString, true));
     	
     	recsPairs.add(item1);
     	
@@ -112,10 +118,10 @@ public class ProfileProcessorTest {
     	dateString = dateFormatter.format(dateA.getTime());
     	itemName = userID + "_" + productID + "_" + event + "_" + date;
     	ReplaceableItem item2 = new ReplaceableItem(itemName).withAttributes(
-                new ReplaceableAttribute("PRODUCTID", productID, true),
-                new ReplaceableAttribute("EVENT", event, true), 
-                new ReplaceableAttribute("USERID", userID, true),
-                new ReplaceableAttribute("DATE", dateString, true));
+                new ReplaceableAttribute(ITEM_STRING, productID, true),
+                new ReplaceableAttribute(EVENT_STRING, event, true), 
+                new ReplaceableAttribute(USER_STRING, userID, true),
+                new ReplaceableAttribute(DATE_STRING, dateString, true));
     	recsPairs.add(item2);
     	
     	Calendar dateB = Calendar.getInstance();
@@ -127,10 +133,10 @@ public class ProfileProcessorTest {
     	dateString = dateFormatter.format(dateB.getTime());
     	itemName = userID + "_" + productID + "_" + event + "_" + date;
     	ReplaceableItem item3 = new ReplaceableItem(itemName).withAttributes(
-                new ReplaceableAttribute("PRODUCTID", productID, true),
-                new ReplaceableAttribute("EVENT", event, true), 
-                new ReplaceableAttribute("USERID", userID, true),
-                new ReplaceableAttribute("DATE", dateString, true));
+                new ReplaceableAttribute(ITEM_STRING, productID, true),
+                new ReplaceableAttribute(EVENT_STRING, event, true), 
+                new ReplaceableAttribute(USER_STRING, userID, true),
+                new ReplaceableAttribute(DATE_STRING, dateString, true));
     	recsPairs.add(item3);
     	
     	Calendar dateC = Calendar.getInstance();
@@ -142,10 +148,10 @@ public class ProfileProcessorTest {
     	dateString = dateFormatter.format(dateC.getTime());
     	itemName = userID + "_" + productID + "_" + event + "_" + date;
     	ReplaceableItem item4 = new ReplaceableItem(itemName).withAttributes(
-                new ReplaceableAttribute("PRODUCTID", productID, true),
-                new ReplaceableAttribute("EVENT", event, true), 
-                new ReplaceableAttribute("USERID", userID, true),
-                new ReplaceableAttribute("DATE", dateString, true));
+                new ReplaceableAttribute(ITEM_STRING, productID, true),
+                new ReplaceableAttribute(EVENT_STRING, event, true), 
+                new ReplaceableAttribute(USER_STRING, userID, true),
+                new ReplaceableAttribute(DATE_STRING, dateString, true));
     	recsPairs.add(item4);
     	
     	Calendar dateD = Calendar.getInstance();
@@ -157,10 +163,10 @@ public class ProfileProcessorTest {
     	dateString = dateFormatter.format(dateD.getTime());
     	itemName = userID + "_" + productID + "_" + event + "_" + date;
     	ReplaceableItem item5 = new ReplaceableItem(itemName).withAttributes(
-                new ReplaceableAttribute("PRODUCTID", productID, true),
-                new ReplaceableAttribute("EVENT", event, true), 
-                new ReplaceableAttribute("USERID", userID, true),
-                new ReplaceableAttribute("DATE", dateString, true));
+                new ReplaceableAttribute(ITEM_STRING, productID, true),
+                new ReplaceableAttribute(EVENT_STRING, event, true), 
+                new ReplaceableAttribute(USER_STRING, userID, true),
+                new ReplaceableAttribute(DATE_STRING, dateString, true));
     	recsPairs.add(item5);
     	
     	try {
@@ -306,10 +312,10 @@ public class ProfileProcessorTest {
     	String dateString = dateFormatter.format(dateD.getTime());
     	String itemName = userID + "_" + productID + "_" + event + "_" + dateString;
     	ReplaceableItem item5 = new ReplaceableItem(itemName).withAttributes(
-                new ReplaceableAttribute("PRODUCTID", productID, true),
-                new ReplaceableAttribute("EVENT", event, true), 
-                new ReplaceableAttribute("USERID", userID, true),
-                new ReplaceableAttribute("DATE", dateString, true));
+                new ReplaceableAttribute(ITEM_STRING, productID, true),
+                new ReplaceableAttribute(EVENT_STRING, event, true), 
+                new ReplaceableAttribute(USER_STRING, userID, true),
+                new ReplaceableAttribute(DATE_STRING, dateString, true));
     	newData.add(item5);
     	
     	Calendar dateE = Calendar.getInstance();
@@ -321,10 +327,10 @@ public class ProfileProcessorTest {
     	dateString = dateFormatter.format(dateE.getTime());
     	itemName = userID + "_" + productID + "_" + event + "_" + dateString;
     	ReplaceableItem item6 = new ReplaceableItem(itemName).withAttributes(
-                new ReplaceableAttribute("PRODUCTID", productID, true),
-                new ReplaceableAttribute("EVENT", event, true), 
-                new ReplaceableAttribute("USERID", userID, true),
-                new ReplaceableAttribute("DATE", dateString, true));
+                new ReplaceableAttribute(ITEM_STRING, productID, true),
+                new ReplaceableAttribute(EVENT_STRING, event, true), 
+                new ReplaceableAttribute(USER_STRING, userID, true),
+                new ReplaceableAttribute(DATE_STRING, dateString, true));
     	newData.add(item6);
     	
     	try {
@@ -394,10 +400,10 @@ public class ProfileProcessorTest {
     	String dateString = dateFormatter.format(date.getTime());
     	String itemName = userID + "_" + productID + "_" + event + "_" + date;
     	ReplaceableItem item1 = new ReplaceableItem(itemName).withAttributes(
-                new ReplaceableAttribute("PRODUCTID", productID, true),
-                new ReplaceableAttribute("EVENT", event, true), 
-                new ReplaceableAttribute("USERID", userID, true),
-                new ReplaceableAttribute("DATE", dateString, true));
+                new ReplaceableAttribute(ITEM_STRING, productID, true),
+                new ReplaceableAttribute(EVENT_STRING, event, true), 
+                new ReplaceableAttribute(USER_STRING, userID, true),
+                new ReplaceableAttribute(DATE_STRING, dateString, true));
     	
     	recsPairs.add(item1);
     	
@@ -447,10 +453,10 @@ public class ProfileProcessorTest {
     	String date = dateFormatter.format(calendar.getTime());
     	String itemName = userID + "_" + productID + "_" + event + "_" + date;
     	ReplaceableItem item1 = new ReplaceableItem(itemName).withAttributes(
-                new ReplaceableAttribute("PRODUCTID", productID, true),
-                new ReplaceableAttribute("EVENT", event, true), 
-                new ReplaceableAttribute("USERID", userID, true),
-                new ReplaceableAttribute("DATE", date, true));
+                new ReplaceableAttribute(ITEM_STRING, productID, true),
+                new ReplaceableAttribute(EVENT_STRING, event, true), 
+                new ReplaceableAttribute(USER_STRING, userID, true),
+                new ReplaceableAttribute(DATE_STRING, date, true));
     	
     	recsPairs.add(item1);
     	
