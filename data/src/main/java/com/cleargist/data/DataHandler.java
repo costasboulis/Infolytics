@@ -9,6 +9,12 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.TimeZone;
+import java.util.UUID;
 
 import javax.xml.bind.JAXBContext;
 import javax.xml.bind.JAXBException;
@@ -19,6 +25,8 @@ import javax.xml.validation.SchemaFactory;
 
 import org.apache.log4j.Logger;
 
+import com.amazonaws.AmazonClientException;
+import com.amazonaws.AmazonServiceException;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.PropertiesCredentials;
 import com.amazonaws.services.s3.AmazonS3;
@@ -27,14 +35,32 @@ import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.StorageClass;
+import com.amazonaws.services.simpledb.AmazonSimpleDB;
+import com.amazonaws.services.simpledb.AmazonSimpleDBClient;
+import com.amazonaws.services.simpledb.model.BatchPutAttributesRequest;
+import com.amazonaws.services.simpledb.model.ReplaceableAttribute;
+import com.amazonaws.services.simpledb.model.ReplaceableItem;
 import com.cleargist.data.jaxb.Collection;
+import com.cleargist.data.jaxb.DataType;
+
 
 public class DataHandler {
 	private static final String AWS_CREDENTIALS = "/AwsCredentials.properties";
+	private static String SIMPLEDB_ENDPOINT = "https://sdb.eu-west-1.amazonaws.com";
+	private static String ACTIVITY_DOMAIN = "ACTIVITY_";
+	private static final String DATE_PATTERN = "yyMMddHHmmssSSSZ";
+	private static TimeZone TIME_ZONE = TimeZone.getTimeZone("GMT");
 	private Logger logger = Logger.getLogger(getClass());
 	public static String newline = System.getProperty("line.separator");
 	private static String LOCAL_FILE = "c:\\recs\\data.xml";
 	private static String LOCAL_SCHEMA = "c:\\recs\\dataTmp.xsd";
+	private static String USER_STRING = "USER";
+	private static String SESSION_STRING = "SESSION";
+	private static String ITEM_STRING = "ITEM";
+	private static String EVENT_STRING = "EVENT";
+	private static String RATING_STRING = "RATING";
+	private static String DATE_STRING = "ACTDATE";
+	
 	
 	public void marshallData(Collection collection, 
 							String schemaBucket, String schemaKey, 
@@ -176,5 +202,72 @@ public class DataHandler {
         logger.info("Catalog unmarshalled");
         
         return catalog;
+	}
+	
+	public void insertInSimpleDB(Collection collection, String tenantID) throws AmazonServiceException, AmazonClientException, IOException {
+		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
+				DataHandler.class.getResourceAsStream(AWS_CREDENTIALS)));
+		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
+    	
+		SimpleDateFormat formatter = new SimpleDateFormat(DATE_PATTERN);
+    	formatter.setTimeZone(TIME_ZONE);
+		String rawDataDomain = ACTIVITY_DOMAIN + tenantID;
+		List<ReplaceableItem> newData = new ArrayList<ReplaceableItem>();
+		for (DataType data : collection.getDataList().getData()) {
+			
+			List<ReplaceableAttribute> attributeList = new LinkedList<ReplaceableAttribute>();
+			String itemName = UUID.randomUUID().toString();
+			String productID = data.getItemId();
+			attributeList.add(new ReplaceableAttribute(ITEM_STRING, productID, true));
+			
+			StringBuffer sb = new StringBuffer();
+			int rating = -1;
+			boolean ratingFound = false;
+			if (data.getEvent().getName() == null) {
+				String ratingEvent = data.getEvent().getRatingAction().getName().toString();
+				sb.append(ratingEvent); 
+				rating = data.getEvent().getRatingAction().getRating().intValue();
+				ratingFound = true;
+			}
+			else {
+				String event = data.getEvent().getName().toString();
+				sb.append(event);
+			}
+			String event = sb.toString();
+			attributeList.add(new ReplaceableAttribute(EVENT_STRING, event, true));
+			
+			if (ratingFound) {
+				ReplaceableAttribute ratingAttribute = new ReplaceableAttribute(RATING_STRING, Integer.toString(rating), true);
+				attributeList.add(ratingAttribute);
+			}
+			
+			
+			String sessionID = data.getSession();
+			attributeList.add(new ReplaceableAttribute(SESSION_STRING, sessionID, true));
+			
+			String dateString = formatter.format(data.getTimeStamp().toGregorianCalendar().getTime());
+			attributeList.add(new ReplaceableAttribute(DATE_STRING, dateString, true));
+			
+			String userID = data.getUserId();
+			if (userID != null && !userID.isEmpty() && !userID.equals("0")) {
+				ReplaceableAttribute userAttribute = new ReplaceableAttribute(USER_STRING, userID, true);
+				attributeList.add(userAttribute);
+			}
+			
+			ReplaceableItem item = new ReplaceableItem(itemName);
+			item.setAttributes(attributeList);
+			newData.add(item);
+			
+			if (newData.size() >= 25) {
+				sdb.batchPutAttributes(new BatchPutAttributesRequest(rawDataDomain, newData));
+				newData = new ArrayList<ReplaceableItem>();
+			}
+		}
+		
+		if (newData.size() > 0) {
+			sdb.batchPutAttributes(new BatchPutAttributesRequest(rawDataDomain, newData));
+			newData = new ArrayList<ReplaceableItem>();
+		}
+		
 	}
 }
