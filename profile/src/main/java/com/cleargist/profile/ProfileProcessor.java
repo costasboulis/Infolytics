@@ -1,6 +1,5 @@
 package com.cleargist.profile;
 
-//TODO : Do the profile merging in the Profile class
 
 
 import java.io.BufferedReader;
@@ -58,15 +57,12 @@ import com.amazonaws.services.simpledb.model.ReplaceableAttribute;
 import com.amazonaws.services.simpledb.model.ReplaceableItem;
 import com.amazonaws.services.simpledb.model.SelectRequest;
 import com.amazonaws.services.simpledb.model.SelectResult;
-import com.cleargist.recommendations.dao.RecommendationsDAO;
-import com.cleargist.recommendations.dao.RecommendationsDAOImpl;
-import com.cleargist.recommendations.entity.Tenant;
+
 
 public abstract class ProfileProcessor {
 	private static final String AWS_CREDENTIALS = "/AwsCredentials.properties";
 	private static final String DATE_PATTERN = "yyMMddHHmmssSSSZ";
 	public static String newline = System.getProperty("line.separator");
-	private Date currentDate;
 	protected List<ReplaceableItem> items = new ArrayList<ReplaceableItem>();
 	private Logger logger = Logger.getLogger(getClass());
 	private static String SIMPLEDB_ENDPOINT = "https://sdb.eu-west-1.amazonaws.com";
@@ -224,7 +220,7 @@ public abstract class ProfileProcessor {
 	// Gets as input the raw data, implements custom weighting, filtering logic and produces a profile of the form UID, <PID, VALUE>+
 	protected abstract List<Profile> createProfile(List<Item> rawData) throws Exception;
 	
-	private void updateProfilesSimpleDB(List<Profile> incrementalProfiles, List<Profile> decrementalProfiles, String tenantID) throws Exception {
+	private void updateProfilesSimpleDB(HashMap<String, Profile> incrementalProfiles, HashMap<String, Profile> decrementalProfiles, String tenantID) throws Exception {
 		// Retrieve existing profiles and merge / write to SimpleDB
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				ProfileProcessor.class.getResourceAsStream(AWS_CREDENTIALS)));
@@ -233,7 +229,7 @@ public abstract class ProfileProcessor {
     	String profileDomain = "PROFILE_" + tenantID;
     	
     	// Do the incremental profiles
-		for (Profile incrementalProfile : incrementalProfiles) {
+		for (Profile incrementalProfile : incrementalProfiles.values()) {
 			String userID = incrementalProfile.getUserID();
 			
 			List<ReplaceableAttribute> attributes = new LinkedList<ReplaceableAttribute>();
@@ -308,7 +304,7 @@ public abstract class ProfileProcessor {
 		}
 		
 		// Now do the decremental profiles
-		for (Profile decrementalProfile : decrementalProfiles) {
+		for (Profile decrementalProfile : decrementalProfiles.values()) {
 			String userID = decrementalProfile.getUserID();
 			
 			
@@ -565,7 +561,7 @@ public abstract class ProfileProcessor {
 		String profilesBucket = "profiles" + tenantID;
 		updateProfilesS3(incrementalProfiles, decrementalProfiles, profilesBucket, MAX_PROFILES_PER_FILE);
 		
-//		updateProfilesSimpleDB(incrementalProfiles, decrementalProfiles, tenantID);
+		updateProfilesSimpleDB(incrementalProfiles, decrementalProfiles, tenantID);
 		
 		// Profile is updated
 		/*
