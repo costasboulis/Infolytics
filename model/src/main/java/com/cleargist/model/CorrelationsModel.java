@@ -15,6 +15,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 
 import org.apache.log4j.Logger;
@@ -25,8 +26,10 @@ import com.amazonaws.AmazonServiceException;
 import com.amazonaws.auth.PropertiesCredentials;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.DeleteObjectRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
+import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.Region;
 import com.amazonaws.services.s3.model.S3Object;
@@ -54,6 +57,8 @@ import com.amazonaws.services.simpledb.model.ReplaceableItem;
 import com.amazonaws.services.simpledb.model.SelectRequest;
 import com.amazonaws.services.simpledb.model.SelectResult;
 import com.cleargist.catalog.entity.jaxb.Catalog;
+import com.cleargist.profile.Profile;
+
 
 public class CorrelationsModel extends BaseModel {
 	private static final String AWS_CREDENTIALS = "/AwsCredentials.properties";
@@ -81,6 +86,12 @@ public class CorrelationsModel extends BaseModel {
 		calculateSufficientStatistics(bucketName, STATS_BASE_FILENAME, tenantID);
 		
 		mergeSufficientStatistics(tenantID);
+		// Remove the sufficient statistics file
+		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
+				CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
+		String statsBucketName = getStatsBucketName(tenantID);
+    	String key = MERGED_STATS_FILENAME;
+		s3.deleteObject(new DeleteObjectRequest(statsBucketName, key));
 		
 		estimateModelParameters(tenantID);
 		
@@ -110,6 +121,51 @@ public class CorrelationsModel extends BaseModel {
     	resetHealthCounters(tenantID);
     	*/
 	}
+	
+	public void updateModel(String tenantID, List<Profile> incrementalProfiles, List<Profile> decrementalProfiles) 
+					throws AmazonServiceException, AmazonClientException, Exception {
+		
+		String incrStatsKey = updateSufficientStatistics(tenantID, incrementalProfiles, decrementalProfiles);
+		
+		String statsBucketName = getStatsBucketName(tenantID);
+		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
+				CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
+		boolean doesStatsFileExist = isValidFile(s3, statsBucketName, MERGED_STATS_FILENAME);
+		if (doesStatsFileExist) {
+			S3Object statsObject = s3.getObject(statsBucketName, incrStatsKey);
+			mergeSufficientStatistics(tenantID, MERGED_STATS_FILENAME, statsObject);
+			s3.deleteObject(statsBucketName, incrStatsKey);
+		}
+		else {
+			s3.copyObject(statsBucketName, incrStatsKey, statsBucketName, MERGED_STATS_FILENAME);
+			s3.deleteObject(statsBucketName, incrStatsKey);
+		}
+		
+		
+		estimateModelParameters(tenantID);
+	
+    	swapModelDomainNames(getDomainBasename(), tenantID);
+	}
+	
+	public static boolean isValidFile(AmazonS3 s3,
+	        String bucketName,
+	        String path) throws AmazonClientException, AmazonServiceException {
+	    boolean isValidFile = true;
+	    try {
+	        ObjectMetadata objectMetadata = s3.getObjectMetadata(bucketName, path);
+	    } catch (AmazonS3Exception s3e) {
+	        if (s3e.getStatusCode() == 404) {
+	        // i.e. 404: NoSuchKey - The specified key does not exist
+	            isValidFile = false;
+	        }
+	        else {
+	            throw s3e;    // rethrow all S3 exceptions other than 404   
+	        }
+	    }
+
+	    return isValidFile;
+	}
+	
 	public void setProfilesPerChunk(int n) {
 		this.profilesPerChunk = n < 2500 ? 2500 : n;
 	}
@@ -207,7 +263,6 @@ public class CorrelationsModel extends BaseModel {
 				CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
     	
 		String statsBucketName = getStatsBucketName(tenantID);
-		String key = MERGED_STATS_FILENAME;
     	ObjectListing objectListing = s3.listObjects(statsBucketName);
     	List<S3ObjectSummary> objSummaries = objectListing.getObjectSummaries();
     	
@@ -216,12 +271,10 @@ public class CorrelationsModel extends BaseModel {
     		return;
     	}
     	
-    	String statsFilename = objSummaries.get(0).getKey();
-    	s3.copyObject(statsBucketName, statsFilename, statsBucketName, key);
-    	s3.deleteObject(statsBucketName, statsFilename);
+    	String key = objSummaries.get(0).getKey();
     	int i = 1;
     	while (i < objSummaries.size()) {
-    		statsFilename = objSummaries.get(i).getKey();
+    		String statsFilename = objSummaries.get(i).getKey();
     		S3Object statsObject = s3.getObject(statsBucketName, statsFilename);
         	
     		mergeSufficientStatistics(tenantID, key, statsObject);
@@ -319,6 +372,7 @@ public class CorrelationsModel extends BaseModel {
 			logger.error("Cannot write to file " + localMergedFile.getAbsolutePath());
 			throw new Exception();
 		}
+		
 		
     	S3Object mergedFile = s3.getObject(bucketName, mergedStatsFilename);
     	try {
@@ -445,6 +499,146 @@ public class CorrelationsModel extends BaseModel {
     	s3.putObject(r);
 	}
 	
+	
+	private String updateSufficientStatistics(String tenantID, List<Profile> incrementalProfiles, List<Profile> decrementalProfiles) 
+														throws Exception {
+		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
+				CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
+		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
+    	  
+		HashMap<String, HashMap<String, Float>> SS1 = new HashMap<String, HashMap<String, Float>>();
+		HashMap<String, Float> SS0 = new HashMap<String, Float>();
+		float numberOfProfiles = 0.0f;
+		for (Profile incrementalProfile : incrementalProfiles) {
+			// Retrieve existing profile
+			GetAttributesRequest request = new GetAttributesRequest();
+    		request.setDomainName(getProfileDomainName(tenantID));
+    		request.setItemName(incrementalProfile.getUserID());
+    		GetAttributesResult result = sdb.getAttributes(request);
+    		List<Attribute> attributes = result.getAttributes();
+    		
+    		Profile existingProfile = null;
+    		if (attributes != null && attributes.size() > 0) {
+    			existingProfile = new Profile();
+    			existingProfile.setUserID(incrementalProfile.getUserID());
+    			for (Attribute attribute : attributes) {
+                	String[] fields = attribute.getValue().split(";");
+                	String productID = fields[0];
+                	Float score = Float.parseFloat(fields[1]);
+                	
+                	existingProfile.add(productID, score);
+    			}
+    		}
+            
+    		// Now update the stats 
+    		updateStats(existingProfile, incrementalProfile, true, SS1, SS0);
+    		if (existingProfile == null) {
+    			numberOfProfiles += 1.0f;
+    		}
+    		
+		}
+		
+		for (Profile decrementalProfile : decrementalProfiles) {
+			// Retrieve existing profile
+			GetAttributesRequest request = new GetAttributesRequest();
+    		request.setDomainName(getProfileDomainName(tenantID));
+    		request.setItemName(decrementalProfile.getUserID());
+    		GetAttributesResult result = sdb.getAttributes(request);
+    		List<Attribute> attributes = result.getAttributes();
+    		
+    		Profile existingProfile = null;
+    		if (attributes != null && attributes.size() > 0) {
+    			existingProfile = new Profile();
+    			existingProfile.setUserID(decrementalProfile.getUserID());
+    			for (Attribute attribute : attributes) {
+                	String[] fields = attribute.getValue().split(";");
+                	String productID = fields[0];
+                	Float score = Float.parseFloat(fields[1]);
+                	
+                	existingProfile.add(productID, score);
+    			}
+    		}
+            if (existingProfile == null) {
+            	logger.error("Encountered NULL existing profile while in the decremental profiles");
+            	continue;
+            }
+            
+    		// Now update the stats
+    		updateStats(existingProfile, decrementalProfile, false, SS1, SS0);
+    		if (existingProfile.equals(decrementalProfile)) {
+    			numberOfProfiles -= 1.0f;
+    		}
+		}
+		
+		
+		// write the stats
+		String bucketName = getStatsBucketName(tenantID);
+		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
+				CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
+		if (!s3.doesBucketExist(bucketName)) {
+			s3.createBucket(bucketName, Region.EU_Ireland);
+		}
+		String incrStatsKey = UUID.randomUUID().toString();
+		writeSufficientStatistics(tenantID, bucketName, STATS_BASE_FILENAME + "_INCREMENTAL_", numberOfProfiles, SS1, SS0, incrStatsKey);
+		
+		return incrStatsKey;
+	}
+	
+	private void updateStats(Profile existingProfile, Profile incrementalProfile, boolean doIncrement,
+										HashMap<String, HashMap<String, Float>> SS1, HashMap<String, Float> SS0) {
+		
+		float multiplier = doIncrement ? 1.0f : -1.0f;
+		HashSet<String> hs = new HashSet<String>();
+		if (existingProfile != null) {
+			for (String s : existingProfile.getAttributes().keySet()) {
+				hs.add(s);
+			}
+		}
+		for (String s : incrementalProfile.getAttributes().keySet()) {
+			hs.add(s);
+		}
+		List<String> productIDs = new ArrayList<String>();
+		for (String s : hs) {
+			productIDs.add(s);
+		}
+		Collections.sort(productIDs);
+		
+		for (int i = 0; i < productIDs.size(); i ++) {
+			String productI = productIDs.get(i);
+			boolean isIncrementalProfileAttribute = incrementalProfile.getAttributes().get(productI) != null ? true : false;
+			if (isIncrementalProfileAttribute) {
+				Float f = SS0.get(productI);
+				if (f == null) {
+					SS0.put(productI, multiplier * 1.0f);
+				}
+				else {
+					SS0.put(productI, f.floatValue() + multiplier * 1.0f);
+				}
+			}
+			
+			
+			HashMap<String, Float> hm = SS1.get(productI);
+			if (hm == null) {
+				hm = new HashMap<String, Float>();
+				SS1.put(productI, hm);
+			}
+			for (int j = i + 1; j < productIDs.size(); j ++) {
+				String productJ = productIDs.get(j);
+				
+				if (isIncrementalProfileAttribute || incrementalProfile.getAttributes().containsKey(productJ)) {
+					Float count = hm.get(productJ);
+					if (count == null) {
+						hm.put(productJ, multiplier * 1.0f);
+					}
+					else {
+						hm.put(productJ, count.floatValue() + multiplier * 1.0f);
+					}
+				}
+				
+			}
+		}
+		
+	}
 	
 	private void calculateSufficientStatistics(String tenantID, List<Item> items, 
 			HashMap<String, HashMap<String, Float>> SS1, 
@@ -636,9 +830,18 @@ public class CorrelationsModel extends BaseModel {
     	AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
 				CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
     	
-    	String bucketName = getStatsBucketName(tenantID);
-    	String key = MERGED_STATS_FILENAME;
-    	S3Object mergedStats = s3.getObject(bucketName, key);
+    	String statsBucketName = getStatsBucketName(tenantID);
+    	ObjectListing objectListing = s3.listObjects(statsBucketName);
+    	List<S3ObjectSummary> objSummaries = objectListing.getObjectSummaries();
+    	
+    	if (objSummaries.size() != 1) {
+    		logger.warn("Expecting one stats file in bucket " + statsBucketName + " but found " + objSummaries.size());
+    		throw new Exception();
+    	}
+    	
+    	
+    	String key = objSummaries.get(0).getKey();
+    	S3Object mergedStats = s3.getObject(statsBucketName, key);
     	
     	
     	// Read in memory SS0
@@ -754,10 +957,6 @@ public class CorrelationsModel extends BaseModel {
 			writeSimpleDB(sdb, correlationsModelDomainName, items);
 			items = new ArrayList<ReplaceableItem>();
 		}
-    	
-    	
-    	// Remove the sufficient statistics files
-		s3.deleteObject(new DeleteObjectRequest(mergedStats.getBucketName(), mergedStats.getKey()));
 	}
 	
 
