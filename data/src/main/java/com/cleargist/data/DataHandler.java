@@ -9,7 +9,6 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.math.BigInteger;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -19,6 +18,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.TimeZone;
 import java.util.UUID;
+import java.util.zip.GZIPOutputStream;
 
 import javax.xml.bind.JAXBContext;
 import javax.xml.bind.JAXBException;
@@ -49,6 +49,7 @@ import com.amazonaws.services.simpledb.model.ReplaceableAttribute;
 import com.amazonaws.services.simpledb.model.ReplaceableItem;
 import com.cleargist.data.jaxb.ActionType;
 import com.cleargist.data.jaxb.Collection;
+import com.cleargist.data.jaxb.Collection.DataList;
 import com.cleargist.data.jaxb.DataType;
 import com.cleargist.data.jaxb.MainActionType;
 import com.cleargist.data.jaxb.RatingActionType;
@@ -63,7 +64,7 @@ public class DataHandler {
 	private static TimeZone TIME_ZONE = TimeZone.getTimeZone("GMT");
 	private Logger logger = Logger.getLogger(getClass());
 	public static String newline = System.getProperty("line.separator");
-	private static String LOCAL_FILE = "c:\\recs\\data.xml";
+	private static String LOCAL_FILE = "c:\\recs\\data.xml.gz";
 	private static String LOCAL_SCHEMA = "c:\\recs\\dataTmp.xsd";
 	private static String USER_STRING = "USER";
 	private static String SESSION_STRING = "SESSION";
@@ -127,7 +128,9 @@ public class DataHandler {
     	
     	File localFile = new File(LOCAL_FILE);
     	try {
-			marshaller.marshal(collection, new FileOutputStream(localFile));
+    		GZIPOutputStream gzippedOut = new GZIPOutputStream(new FileOutputStream(localFile));
+			marshaller.marshal(collection, gzippedOut);
+			gzippedOut.close();
 		}
 		catch (JAXBException ex) {
 			logger.error("Could not marshal the catalog");
@@ -226,6 +229,7 @@ public class DataHandler {
         gc.setTimeInMillis(date.getTime());
         DatatypeFactory df = DatatypeFactory.newInstance();
 		collection.setCreatedAt(df.newXMLGregorianCalendar(gc));
+		collection.setDataList(new DataList());
 		List<DataType> dataList = collection.getDataList().getData();
 		
 		for (Item item : items) {
@@ -257,23 +261,31 @@ public class DataHandler {
 					ActionType action = new ActionType();
 					String val = attribute.getValue();
 					if (!val.equals(RatingActionType.RATE.toString())) {
-						if (val.equals(MainActionType.ITEM_PAGE_VIEW.toString())) {
+						if (val.equals("ITEM_PAGE")) {
 							action.setName(MainActionType.ITEM_PAGE_VIEW);
+							data.setEvent(action);
+							mainEventFound = true;
 						}
 						else if (val.equals(MainActionType.ADD_TO_CART.toString())) {
 							action.setName(MainActionType.ADD_TO_CART);
+							data.setEvent(action);
+							mainEventFound = true;
 						}
 						else if (val.equals(MainActionType.CATEGORY_PAGE_VIEW.toString())) {
 							action.setName(MainActionType.CATEGORY_PAGE_VIEW);
+							data.setEvent(action);
+							mainEventFound = true;
 						}
 						else if (val.equals(MainActionType.HOME_PAGE_VIEW.toString())) {
 							action.setName(MainActionType.HOME_PAGE_VIEW);
+							data.setEvent(action);
+							mainEventFound = true;
 						}
 						else if (val.equals(MainActionType.PURCHASE.toString())) {
 							action.setName(MainActionType.PURCHASE);
+							data.setEvent(action);
+							mainEventFound = true;
 						}
-						data.setEvent(action);
-						mainEventFound = true;
 					}
 				}
 				else if (attributeName.equals(DATE_STRING)) {
