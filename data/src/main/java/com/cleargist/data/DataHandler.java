@@ -9,8 +9,12 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.math.BigInteger;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
+import java.util.GregorianCalendar;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.TimeZone;
@@ -20,6 +24,7 @@ import javax.xml.bind.JAXBContext;
 import javax.xml.bind.JAXBException;
 import javax.xml.bind.Marshaller;
 import javax.xml.bind.Unmarshaller;
+import javax.xml.datatype.DatatypeFactory;
 import javax.xml.validation.Schema;
 import javax.xml.validation.SchemaFactory;
 
@@ -37,11 +42,17 @@ import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.StorageClass;
 import com.amazonaws.services.simpledb.AmazonSimpleDB;
 import com.amazonaws.services.simpledb.AmazonSimpleDBClient;
+import com.amazonaws.services.simpledb.model.Attribute;
 import com.amazonaws.services.simpledb.model.BatchPutAttributesRequest;
+import com.amazonaws.services.simpledb.model.Item;
 import com.amazonaws.services.simpledb.model.ReplaceableAttribute;
 import com.amazonaws.services.simpledb.model.ReplaceableItem;
+import com.cleargist.data.jaxb.ActionType;
 import com.cleargist.data.jaxb.Collection;
 import com.cleargist.data.jaxb.DataType;
+import com.cleargist.data.jaxb.MainActionType;
+import com.cleargist.data.jaxb.RatingActionType;
+import com.cleargist.data.jaxb.RatingType;
 
 
 public class DataHandler {
@@ -204,6 +215,94 @@ public class DataHandler {
         return catalog;
 	}
 	
+	public Collection readFromSimpleDB(List<Item> items) throws AmazonServiceException, AmazonClientException, IOException, Exception {
+		
+		SimpleDateFormat formatter = new SimpleDateFormat(DATE_PATTERN);
+    	formatter.setTimeZone(TIME_ZONE);
+		Collection collection = new Collection();
+		// Calendar conversions
+		GregorianCalendar gc = new GregorianCalendar();
+		Date date = new Date();
+        gc.setTimeInMillis(date.getTime());
+        DatatypeFactory df = DatatypeFactory.newInstance();
+		collection.setCreatedAt(df.newXMLGregorianCalendar(gc));
+		List<DataType> dataList = collection.getDataList().getData();
+		
+		for (Item item : items) {
+			boolean ratingFound = false;
+			boolean mainEventFound = false;
+			DataType data = new DataType();
+			for (Attribute attribute : item.getAttributes()) {
+				String attributeName = attribute.getName();
+				if (attributeName.equals(USER_STRING)) {
+					data.setUserId(attribute.getValue());
+				}
+				else if (attributeName.equals(SESSION_STRING)) {
+					data.setSession(attribute.getValue());
+				}
+				else if (attributeName.equals(ITEM_STRING)) {
+					data.setItemId(attribute.getValue());
+				}
+				else if (attributeName.equals(RATING_STRING)) {
+					int ratingScore = Integer.parseInt(attribute.getValue());
+					ActionType action = new ActionType();
+					RatingType rating = new RatingType();
+					rating.setName(RatingActionType.RATE);
+					rating.setRating(ratingScore);
+					action.setRatingAction(rating);
+					data.setEvent(action);
+					ratingFound = true;
+				}
+				else if (attributeName.equals(EVENT_STRING)) {
+					ActionType action = new ActionType();
+					String val = attribute.getValue();
+					if (!val.equals(RatingActionType.RATE.toString())) {
+						if (val.equals(MainActionType.ITEM_PAGE_VIEW.toString())) {
+							action.setName(MainActionType.ITEM_PAGE_VIEW);
+						}
+						else if (val.equals(MainActionType.ADD_TO_CART.toString())) {
+							action.setName(MainActionType.ADD_TO_CART);
+						}
+						else if (val.equals(MainActionType.CATEGORY_PAGE_VIEW.toString())) {
+							action.setName(MainActionType.CATEGORY_PAGE_VIEW);
+						}
+						else if (val.equals(MainActionType.HOME_PAGE_VIEW.toString())) {
+							action.setName(MainActionType.HOME_PAGE_VIEW);
+						}
+						else if (val.equals(MainActionType.PURCHASE.toString())) {
+							action.setName(MainActionType.PURCHASE);
+						}
+						data.setEvent(action);
+						mainEventFound = true;
+					}
+				}
+				else if (attributeName.equals(DATE_STRING)) {
+					String dateString = attribute.getValue();
+					Date eventDate = null;
+					try {
+						eventDate = formatter.parse(dateString);
+					}
+					catch (ParseException ex) {
+						logger.error("Could not parse date from string \"" + dateString + "\" ... skipping item");
+						continue;
+					}
+					gc.setTimeInMillis(eventDate.getTime());
+					data.setTimeStamp(df.newXMLGregorianCalendar(gc));
+				}
+			}
+			if (ratingFound && mainEventFound) {
+				logger.error("Encountered both rating event and main event ... skipping");
+				continue;
+			}
+			if (!ratingFound && !mainEventFound) {
+				logger.error("Neither of rating event nor main event found ... skipping");
+				continue;
+			}
+			dataList.add(data);
+		}
+		
+		return collection;
+	}
 	public void insertInSimpleDB(Collection collection, String tenantID) throws AmazonServiceException, AmazonClientException, IOException {
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				DataHandler.class.getResourceAsStream(AWS_CREDENTIALS)));
@@ -226,7 +325,7 @@ public class DataHandler {
 			if (data.getEvent().getName() == null) {
 				String ratingEvent = data.getEvent().getRatingAction().getName().toString();
 				sb.append(ratingEvent); 
-				rating = data.getEvent().getRatingAction().getRating().intValue();
+				rating = data.getEvent().getRatingAction().getRating();
 				ratingFound = true;
 			}
 			else {
