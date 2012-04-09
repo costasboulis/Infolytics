@@ -30,7 +30,7 @@ public class DataSampler {
 	
 	private List<Item> querySimpleDB(String selectExpression) throws AmazonServiceException, AmazonClientException, Exception{
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
-				DataHandlerTest.class.getResourceAsStream(AWS_CREDENTIALS)));
+				DataSampler.class.getResourceAsStream(AWS_CREDENTIALS)));
 		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
 		
 		String resultNextToken = null;
@@ -66,37 +66,55 @@ public class DataSampler {
 		SimpleDateFormat formatter = new SimpleDateFormat(DATE_PATTERN);
     	formatter.setTimeZone(TIME_ZONE);
     	
-    	// dummy last update
-		Calendar currentDateFrom = Calendar.getInstance();
-		currentDateFrom.setTimeZone(TIME_ZONE);
+		Calendar yesterday = Calendar.getInstance();
+		yesterday.setTimeZone(TIME_ZONE);
 		Date currentDate = new Date();
-		currentDateFrom.setTimeInMillis(currentDate.getTime());     
-		currentDateFrom.add(Calendar.MONTH, -6);      // Profile horizon, retrieve this from tenant profile
+		yesterday.setTimeInMillis(currentDate.getTime());     
+		yesterday.add(Calendar.DATE, -1);      
 		
-		Calendar lastUpdate = Calendar.getInstance();
-		lastUpdate.setTimeZone(TIME_ZONE);
-    	lastUpdate.set(2012, 3, 7, 15, 56, 20);       // Last update, retrieve this from tenant profile
-//		lastUpdate.setTime(currentDate); 
+		Calendar yesterdayPlusOneHour = Calendar.getInstance();
+		yesterdayPlusOneHour.setTimeZone(TIME_ZONE);
+		yesterdayPlusOneHour.setTime(yesterday.getTime());
+		yesterdayPlusOneHour.add(Calendar.HOUR, 1);
 		
-		Calendar lastUpdateFrom = Calendar.getInstance();
-		lastUpdateFrom.setTimeZone(TIME_ZONE);
-		lastUpdateFrom.setTimeInMillis(lastUpdate.getTime().getTime());    
-		lastUpdateFrom.add(Calendar.MONTH, -6);      // Profile horizon, retrieve this from tenant profile
+		Calendar nowMinusOneHour = Calendar.getInstance();
+		nowMinusOneHour.setTimeZone(TIME_ZONE);
+		nowMinusOneHour.setTimeInMillis(currentDate.getTime());     
+		nowMinusOneHour.add(Calendar.HOUR, -1);   
 		
 		String tenantID = "104";
 		String userActivityDomain = "ACTIVITY_" + tenantID;
-		String selectExpression = "select * from `" + userActivityDomain + "` where ACTDATE > '" + formatter.format(lastUpdate.getTime()) + "'";
-		List<Item> incrementalData = querySimpleDB(selectExpression);
 		DataHandler dh = new DataHandler();
-		Collection collection = dh.readFromSimpleDB(incrementalData);
-		dh.marshallData(collection, "cleargist", "data.xsd", "cleargist", "activity104incremental.xml.gz");
 		
-		// Now form the SELECT statement for decremental data
-        selectExpression = "select * from `" + userActivityDomain + "` where ACTDATE < '" + formatter.format(currentDateFrom.getTime()) + 
-        															"' and ACTDATE > '" + formatter.format(lastUpdateFrom.getTime()) + "'" ;
-        List<Item> decrementalData = querySimpleDB(selectExpression);
-        collection = dh.readFromSimpleDB(decrementalData);
+		// Get activity from yesterday till one hour before (old activity)
+		String selectExpression = "select * from `" + userActivityDomain + "` where ACTDATE < '" + formatter.format(nowMinusOneHour.getTime()) + 
+																		   "' and ACTDATE > '" + formatter.format(yesterday.getTime()) + "'" ;
+		List<Item> oldData = querySimpleDB(selectExpression);
+		Collection collection = dh.readFromSimpleDB(oldData);
+		dh.marshallData(collection, "cleargist", "data.xsd", "cleargist", "activity104existing.xml.gz");
+		oldData = null;
+		
+		// Get activity of the last hour (incremental data)
+		selectExpression = "select * from `" + userActivityDomain + "` where ACTDATE > '" + formatter.format(nowMinusOneHour.getTime()) + "'";
+		List<Item> incrementalData = querySimpleDB(selectExpression);
+		collection = dh.readFromSimpleDB(incrementalData);
+		dh.marshallData(collection, "cleargist", "data.xsd", "cleargist", "activity104incremental.xml.gz");
+		incrementalData = null;
+		
+		// Get activity of the last hour (incremental data)
+		selectExpression = "select * from `" + userActivityDomain + "` where ACTDATE < '" + formatter.format(yesterdayPlusOneHour.getTime()) + 
+		   															"' and ACTDATE > '" + formatter.format(yesterday.getTime()) + "'" ;
+		List<Item> decrementalData = querySimpleDB(selectExpression);
+		collection = dh.readFromSimpleDB(decrementalData);
 		dh.marshallData(collection, "cleargist", "data.xsd", "cleargist", "activity104decremental.xml.gz");
+		decrementalData = null;
+		
+		// Get activity from yesterday till now (new activity)
+		selectExpression = "select * from `" + userActivityDomain + "` where ACTDATE > '" + formatter.format(yesterday.getTime()) + "'";
+		List<Item> newData = querySimpleDB(selectExpression);
+		collection = dh.readFromSimpleDB(newData);
+		dh.marshallData(collection, "cleargist", "data.xsd", "cleargist", "activity104new.xml.gz");
+		newData = null;
 	}
 	
 	public static void main(String[] argv) {
