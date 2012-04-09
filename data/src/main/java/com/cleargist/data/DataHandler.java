@@ -18,6 +18,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.TimeZone;
 import java.util.UUID;
+import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
 import javax.xml.bind.JAXBContext;
@@ -158,7 +159,8 @@ public class DataHandler {
 				DataHandler.class.getResourceAsStream(AWS_CREDENTIALS)));
     	
         S3Object catalogFile = s3.getObject(new GetObjectRequest(bucket, key));
-		BufferedReader reader = new BufferedReader(new InputStreamReader(catalogFile.getObjectContent()));
+        GZIPInputStream gzippedIn = new GZIPInputStream(catalogFile.getObjectContent());
+		BufferedReader reader = new BufferedReader(new InputStreamReader(gzippedIn));
 		
 		Collection collection = null;
 		try {
@@ -315,6 +317,15 @@ public class DataHandler {
 		
 		return collection;
 	}
+	/**
+	 * Inserts collection of activity items into ACTIVITY domain 
+	 * 
+	 * @param collection
+	 * @param tenantID
+	 * @throws AmazonServiceException
+	 * @throws AmazonClientException
+	 * @throws IOException
+	 */
 	public void insertInSimpleDB(Collection collection, String tenantID) throws AmazonServiceException, AmazonClientException, IOException {
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				DataHandler.class.getResourceAsStream(AWS_CREDENTIALS)));

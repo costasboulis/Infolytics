@@ -75,6 +75,11 @@
             <artifactId>profile</artifactId>
             <version>1.0-SNAPSHOT</version>
         </dependency>
+		<dependency>
+            <groupId>com.cleargist.data</groupId>
+            <artifactId>data</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
