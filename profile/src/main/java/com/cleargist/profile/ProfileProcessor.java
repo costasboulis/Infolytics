@@ -10,7 +10,6 @@ import java.io.InputStreamReader;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -39,7 +38,9 @@ import com.amazonaws.services.simpledb.AmazonSimpleDBClient;
 import com.amazonaws.services.simpledb.model.Attribute;
 import com.amazonaws.services.simpledb.model.AttributeDoesNotExistException;
 import com.amazonaws.services.simpledb.model.BatchPutAttributesRequest;
+import com.amazonaws.services.simpledb.model.CreateDomainRequest;
 import com.amazonaws.services.simpledb.model.DeleteAttributesRequest;
+import com.amazonaws.services.simpledb.model.DeleteDomainRequest;
 import com.amazonaws.services.simpledb.model.DuplicateItemNameException;
 import com.amazonaws.services.simpledb.model.GetAttributesRequest;
 import com.amazonaws.services.simpledb.model.GetAttributesResult;
@@ -69,7 +70,7 @@ public abstract class ProfileProcessor {
 	private static int MAX_PROFILES_PER_FILE = 50000;
 	private static TimeZone TIME_ZONE = TimeZone.getTimeZone("GMT");
 	
-	private List<Item> querySimpleDB(String selectExpression) throws AmazonServiceException, AmazonClientException, Exception{
+	public static List<Item> querySimpleDB(String selectExpression) throws AmazonServiceException, AmazonClientException, Exception{
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				ProfileProcessor.class.getResourceAsStream(AWS_CREDENTIALS)));
 		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
@@ -80,8 +81,8 @@ public abstract class ProfileProcessor {
 		List<Item> allItems = new LinkedList<Item>();
 		int count  =0;
 		do {
-			count ++;
-			logger.debug("count ::: " + count);
+//			count ++;
+//			logger.debug("count ::: " + count);
 			
 		    if (resultNextToken != null) {
 		    	selectRequest.setNextToken(resultNextToken);
@@ -103,7 +104,7 @@ public abstract class ProfileProcessor {
 		return allItems;
 	}
 	
-	protected List<List<Item>> getDataSinceLastUpdate(String tenantID) throws Exception {
+	protected List<List<Item>> getDataSinceLastUpdate(String tenantID, Calendar currentDateFrom, Calendar lastUpdate, Calendar lastUpdateFrom) throws Exception {
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				ProfileProcessor.class.getResourceAsStream(AWS_CREDENTIALS)));
 		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
@@ -180,7 +181,7 @@ public abstract class ProfileProcessor {
     	}
     	*/
     	
-    	
+    	/*
     	// dummy last update
 		Calendar currentDateFrom = Calendar.getInstance();
 		currentDateFrom.setTimeZone(TIME_ZONE);
@@ -197,7 +198,7 @@ public abstract class ProfileProcessor {
 		lastUpdateFrom.setTimeZone(TIME_ZONE);
 		lastUpdateFrom.setTimeInMillis(lastUpdate.getTime().getTime());    
 		lastUpdateFrom.add(Calendar.MONTH, -6);      // Profile horizon, retrieve this from tenant profile
-		
+		*/
 		
 		
 		// Now form the SELECT statement for incremental data
@@ -220,16 +221,22 @@ public abstract class ProfileProcessor {
 	// Gets as input the raw data, implements custom weighting, filtering logic and produces a profile of the form UID, <PID, VALUE>+
 	protected abstract List<Profile> createProfile(List<Item> rawData) throws Exception;
 	
-	private void updateProfilesSimpleDB(HashMap<String, Profile> incrementalProfiles, HashMap<String, Profile> decrementalProfiles, String tenantID) throws Exception {
+	private String getProfileDomainName(String tenantID) {
+		return "PROFILE_" + tenantID;
+	}
+	
+	private void updateProfilesSimpleDB(List<Profile> incrementalProfiles, List<Profile> decrementalProfiles, String tenantID) 
+	throws Exception {
+		
 		// Retrieve existing profiles and merge / write to SimpleDB
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				ProfileProcessor.class.getResourceAsStream(AWS_CREDENTIALS)));
 		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
 		
-    	String profileDomain = "PROFILE_" + tenantID;
+    	String profileDomain = getProfileDomainName(tenantID);
     	
     	// Do the incremental profiles
-		for (Profile incrementalProfile : incrementalProfiles.values()) {
+		for (Profile incrementalProfile : incrementalProfiles) {
 			String userID = incrementalProfile.getUserID();
 			
 			List<ReplaceableAttribute> attributes = new LinkedList<ReplaceableAttribute>();
@@ -304,7 +311,7 @@ public abstract class ProfileProcessor {
 		}
 		
 		// Now do the decremental profiles
-		for (Profile decrementalProfile : decrementalProfiles.values()) {
+		for (Profile decrementalProfile : decrementalProfiles) {
 			String userID = decrementalProfile.getUserID();
 			
 			
@@ -537,29 +544,32 @@ public abstract class ProfileProcessor {
     	}
 	}
 	
-	public void updateProfiles(String tenantID) throws Exception {
-		List<List<Item>> newData = getDataSinceLastUpdate(tenantID);
+	public void updateProfiles(String tenantID, Calendar currentDateFrom, Calendar lastUpdate, Calendar lastUpdateFrom) throws Exception {
+		List<List<Item>> newData = getDataSinceLastUpdate(tenantID, currentDateFrom, lastUpdate, lastUpdateFrom);
 		List<Item> incrementalData = newData.get(0);
 		List<Item> decrementalData = newData.get(1);
 		
-		List<Profile> incrementalProfilesList = createProfile(incrementalData);
+		List<Profile> incrementalProfiles = createProfile(incrementalData);
+		/*
 		HashMap<String, Profile> incrementalProfiles = new HashMap<String, Profile>();
 		for (Profile profile : incrementalProfilesList) {
 			String userID = profile.getUserID();
 			incrementalProfiles.put(userID, profile);
 		}
 		incrementalProfilesList = null;
+		*/
 		
-		List<Profile> decrementalProfilesList = createProfile(decrementalData);
+		List<Profile> decrementalProfiles = createProfile(decrementalData);
+		/*
 		HashMap<String, Profile> decrementalProfiles = new HashMap<String, Profile>();
 		for (Profile profile : decrementalProfilesList) {
 			String userID = profile.getUserID();
 			decrementalProfiles.put(userID, profile);
 		}
 		decrementalProfilesList = null;
-	
-		String profilesBucket = "profiles" + tenantID;
-		updateProfilesS3(incrementalProfiles, decrementalProfiles, profilesBucket, MAX_PROFILES_PER_FILE);
+		 */
+//		String profilesBucket = "profiles" + tenantID;
+//		updateProfilesS3(incrementalProfiles, decrementalProfiles, profilesBucket, MAX_PROFILES_PER_FILE);
 		
 		updateProfilesSimpleDB(incrementalProfiles, decrementalProfiles, tenantID);
 		
@@ -573,6 +583,31 @@ public abstract class ProfileProcessor {
     	}
 		tenant.setLatestProfile(this.currentDate);
 		*/
+	}
+	
+	/**
+	 * Adds all the data found in the ACTIVITY domain to create profiles in PROFILE domain
+	 * @param tenantID
+	 * @throws Exception
+	 */
+	public void createProfiles(String tenantID) throws Exception {
+		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
+				ProfileProcessor.class.getResourceAsStream(AWS_CREDENTIALS)));
+		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
+		String profileDomainName = getProfileDomainName(tenantID);
+		
+		DeleteDomainRequest deleteDomainRequest = new DeleteDomainRequest();
+		deleteDomainRequest.setDomainName(profileDomainName);
+		sdb.deleteDomain(deleteDomainRequest);
+		CreateDomainRequest createDomainRequest = new CreateDomainRequest();
+		createDomainRequest.setDomainName(profileDomainName);
+		sdb.createDomain(createDomainRequest);
+		String userActivityDomain = "ACTIVITY_" + tenantID;
+		String selectExpression = "select * from `" + userActivityDomain + "`";
+		List<Profile> incrementalProfiles = createProfile(querySimpleDB(selectExpression));
+		List<Profile> decrementalProfiles = new ArrayList<Profile>();
+		
+		updateProfilesSimpleDB(incrementalProfiles, decrementalProfiles, tenantID);
 	}
 	
 	private void updateAttributes(AmazonSimpleDB sdb, String profileDomain, String userID, List<ReplaceableAttribute> attributes) throws Exception {
@@ -642,6 +677,9 @@ public abstract class ProfileProcessor {
 			}
 		}
 		
+		if (items.size() == 0) {
+			return;
+		}
 		
     	try {
     		sdb.batchPutAttributes(new BatchPutAttributesRequest(SimpleDBDomain, items));

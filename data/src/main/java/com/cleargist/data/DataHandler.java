@@ -215,7 +215,7 @@ public class DataHandler {
     	Collection catalog = (Collection)unmarshaller.unmarshal(reader);
         
         reader.close();
-        logger.info("Catalog unmarshalled");
+        logger.info("Data unmarshalled");
         
         return catalog;
 	}

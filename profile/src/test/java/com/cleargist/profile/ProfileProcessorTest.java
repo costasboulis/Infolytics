@@ -348,7 +348,7 @@ public class ProfileProcessorTest {
 		
 		PurchaseProfileProcessor purchaseProfileProcessor = new PurchaseProfileProcessor();
 		try {
-			purchaseProfileProcessor.updateProfiles("TEST");
+			purchaseProfileProcessor.updateProfiles("test", Calendar.getInstance(), Calendar.getInstance(), Calendar.getInstance());
 		}
 		catch (Exception ex) {
 			assertTrue(false);
@@ -365,7 +365,7 @@ public class ProfileProcessorTest {
 	public void deleteUser() {
 		PurchaseProfileProcessor purchaseProfileProcessor = new PurchaseProfileProcessor();
 		try {
-			purchaseProfileProcessor.updateProfiles("TEST");
+			purchaseProfileProcessor.updateProfiles("test", Calendar.getInstance(), Calendar.getInstance(), Calendar.getInstance());
 		}
 		catch (Exception ex) {
 			assertTrue(false);
@@ -380,7 +380,7 @@ public class ProfileProcessorTest {
 	public void addAttributes() {
 		PurchaseProfileProcessor purchaseProfileProcessor = new PurchaseProfileProcessor();
 		try {
-			purchaseProfileProcessor.updateProfiles("TEST");
+			purchaseProfileProcessor.updateProfiles("test", Calendar.getInstance(), Calendar.getInstance(), Calendar.getInstance());
 		}
 		catch (Exception ex) {
 			assertTrue(false);
@@ -429,7 +429,7 @@ public class ProfileProcessorTest {
     	
     	// Now do a profile update
     	try {
-			purchaseProfileProcessor.updateProfiles("TEST");
+			purchaseProfileProcessor.updateProfiles("test", Calendar.getInstance(), Calendar.getInstance(), Calendar.getInstance());
 		}
 		catch (Exception ex) {
 			assertTrue(false);
@@ -500,7 +500,7 @@ public class ProfileProcessorTest {
     	// Do the update
     	PurchaseProfileProcessor purchaseProfileProcessor = new PurchaseProfileProcessor();
 		try {
-			purchaseProfileProcessor.updateProfiles("TEST");
+			purchaseProfileProcessor.updateProfiles("test", Calendar.getInstance(), Calendar.getInstance(), Calendar.getInstance());
 		}
 		catch (Exception ex) {
 			assertTrue(false);
@@ -511,17 +511,6 @@ public class ProfileProcessorTest {
 		assertTrue(profile.getAttributes().size() == 2);
 	}
 
-	@Test
-	public void test104() {
-		SessionDetailViewProfileProcessor pr = new SessionDetailViewProfileProcessor();
-	
-		try {
-			pr.updateProfiles("104");
-		} catch (Exception e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-	}
 }
 
 

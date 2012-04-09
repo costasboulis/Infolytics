@@ -2,9 +2,12 @@ package com.cleargist.model;
 
 import static org.junit.Assert.assertTrue;
 
+import java.util.Calendar;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.TimeZone;
 
 import org.apache.log4j.Logger;
 import org.junit.Test;
@@ -22,9 +25,11 @@ import com.amazonaws.services.simpledb.model.DeleteAttributesRequest;
 import com.amazonaws.services.simpledb.model.DeleteDomainRequest;
 import com.cleargist.data.DataHandler;
 import com.cleargist.data.jaxb.Collection;
+import com.cleargist.profile.SessionDetailViewProfileProcessor;
 
 public class CorrelationsModelUpdateTest {
 	private static final String AWS_CREDENTIALS = "/AwsCredentials.properties";
+	private static String SIMPLEDB_ENDPOINT = "https://sdb.eu-west-1.amazonaws.com";
 	private Logger logger = Logger.getLogger(getClass());
 	private String ACTIVITY_DOMAIN = "ACTIVITY_test";
 	private String PROFILE_DOMAIN = "PROFILE_test";
@@ -32,10 +37,12 @@ public class CorrelationsModelUpdateTest {
 	private String OTHER_MODEL_DOMAIN = "MODEL_CORRELATIONS_test_B";
 	private String STATS_BUCKET = "tmpstatstest";
 	public static String newline = System.getProperty("line.separator");
-		
-	private void cleanUp() throws Exception {
+	private static TimeZone TIME_ZONE = TimeZone.getTimeZone("GMT");	
+	
+	public void cleanUp() throws Exception {
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				CorrelationsModelUpdateTest.class.getResourceAsStream(AWS_CREDENTIALS)));
+		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
 		sdb.deleteDomain(new DeleteDomainRequest(ACTIVITY_DOMAIN));
 		sdb.deleteDomain(new DeleteDomainRequest(PROFILE_DOMAIN));
 		sdb.deleteDomain(new DeleteDomainRequest(MODEL_DOMAIN));
@@ -71,9 +78,11 @@ public class CorrelationsModelUpdateTest {
         sdb.deleteAttributes(deleteAttributesRequest);
 	}
 	
+	
 	@Test
 	public void updateModel() {
 		
+		/*
 		// Create model from existing profiles
 		try {
 			cleanUp();
@@ -93,8 +102,12 @@ public class CorrelationsModelUpdateTest {
 		try {
 			sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 					CorrelationsModelUpdateTest.class.getResourceAsStream(AWS_CREDENTIALS)));
+			sdb.setEndpoint(SIMPLEDB_ENDPOINT);
 			CreateDomainRequest createDomainRequest = new CreateDomainRequest();
 			createDomainRequest.setDomainName(ACTIVITY_DOMAIN);
+			sdb.createDomain(createDomainRequest);
+			createDomainRequest = new CreateDomainRequest();
+			createDomainRequest.setDomainName(PROFILE_DOMAIN);
 			sdb.createDomain(createDomainRequest);
 		}
 		catch (Exception ex) {
@@ -107,6 +120,17 @@ public class CorrelationsModelUpdateTest {
 		catch (Exception ex) {
 			assertTrue(false);
 		}
+		*/
+		
+		
+		SessionDetailViewProfileProcessor pr = new SessionDetailViewProfileProcessor();
+		try {
+			pr.createProfiles("test");
+		}
+		catch (Exception ex) {
+			assertTrue(false);
+		}
+		
 		CorrelationsModel model = new CorrelationsModel();
 		try {
 			model.createModel("test");
@@ -121,6 +145,13 @@ public class CorrelationsModelUpdateTest {
 		catch (Exception ex) {
 			assertTrue(false);
 		}
+		
+		
+		// Create model from incremental profiles
+		// ...
+		
+		
+		
 		assertTrue(true);
 	}
 }

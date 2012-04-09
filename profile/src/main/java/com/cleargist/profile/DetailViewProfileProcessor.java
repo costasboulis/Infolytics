@@ -22,7 +22,7 @@ public class DetailViewProfileProcessor extends ProfileProcessor {
 				else if (attribute.getName().equalsIgnoreCase("ITEM")) {
 					productID = attribute.getValue();
 				}
-				else if (attribute.getName().equalsIgnoreCase("EVENT") && attribute.getValue().equalsIgnoreCase("ITEM_PAGE")) {
+				else if (attribute.getName().equalsIgnoreCase("EVENT") && attribute.getValue().equalsIgnoreCase("ITEM_PAGE_VIEW")) {
 					itemPageFound = true;
 				}
 				
