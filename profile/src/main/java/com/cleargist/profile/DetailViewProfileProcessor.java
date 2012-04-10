@@ -9,7 +9,7 @@ import com.amazonaws.services.simpledb.model.Attribute;
 import com.amazonaws.services.simpledb.model.Item;
 
 public class DetailViewProfileProcessor extends ProfileProcessor {
-	protected List<Profile> createProfile(List<Item> rawData) throws Exception {
+	public List<Profile> createProfile(List<Item> rawData) throws Exception {
 		HashMap<String, HashMap<String, Float>> attributes = new HashMap<String, HashMap<String, Float>>();
 		for (Item item : rawData) {
 			String userID = null;

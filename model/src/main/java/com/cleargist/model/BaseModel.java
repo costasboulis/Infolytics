@@ -21,15 +21,11 @@ import com.amazonaws.services.simpledb.AmazonSimpleDBClient;
 import com.amazonaws.services.simpledb.model.Attribute;
 import com.amazonaws.services.simpledb.model.GetAttributesRequest;
 import com.amazonaws.services.simpledb.model.GetAttributesResult;
-import com.amazonaws.services.simpledb.model.Item;
 import com.amazonaws.services.simpledb.model.PutAttributesRequest;
 import com.amazonaws.services.simpledb.model.ReplaceableAttribute;
-import com.amazonaws.services.simpledb.model.SelectRequest;
-import com.amazonaws.services.simpledb.model.SelectResult;
 import com.cleargist.catalog.entity.jaxb.Catalog;
 
-
-// TODO: Set the TTL_CACHE according to the update schedule of each model. Need to access account table 
+ 
 
 public abstract class BaseModel implements Modelable {
 	private static final String AWS_CREDENTIALS = "/AwsCredentials.properties";
@@ -238,6 +234,7 @@ public abstract class BaseModel implements Modelable {
     		logger.error(errorMessage);
     		throw new Exception();
     	}
+    	sdb.setEndpoint(SIMPLEDB_ENDPOINT);
     	
     	String profileDomain = getProfileDomainName(tenantID);
     	GetAttributesRequest request = new GetAttributesRequest();
@@ -272,28 +269,14 @@ public abstract class BaseModel implements Modelable {
 	    	sb.append(baseModelName); sb.append(tenantID); sb.append("_A");
         	return sb.toString();
 		}
+		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
 		
-		String selectExpression = "select * from `" + MODEL_STATES_DOMAIN + "` where itemName() = '" + tenantID + "' limit 1";
-        SelectRequest selectRequest = new SelectRequest(selectExpression);
-        SelectResult selectResult = null;
-        try {
-        	selectResult = sdb.select(selectRequest);
-        }
-        catch (Exception ex) {
-			logger.warn("Error while searching for state for model " + baseModelName + " for tenant " + tenantID);
-			StringBuffer sb = new StringBuffer();
-	    	sb.append(baseModelName); sb.append(tenantID); sb.append("_A");
-        	return sb.toString();
-		}
-        List<Item> items = selectResult.getItems();
-        if (items == null || items.size() == 0) {
-        	logger.warn("Did not find state for model " + baseModelName + " for tenant " + tenantID);
-        	StringBuffer sb = new StringBuffer();
-        	sb.append(baseModelName); sb.append(tenantID); sb.append("_A");
-        	return sb.toString();
-        }
-        Item item = items.get(0);
-        for (Attribute attribute : item.getAttributes()) {
+		GetAttributesRequest request = new GetAttributesRequest();
+		request.setDomainName(MODEL_STATES_DOMAIN);
+		request.setItemName(tenantID);
+		GetAttributesResult result = sdb.getAttributes(request);
+		
+        for (Attribute attribute : result.getAttributes()) {
         	if (attribute.getName().startsWith(baseModelName)) {
         		return attribute.getValue();
         	}
@@ -314,11 +297,12 @@ public abstract class BaseModel implements Modelable {
 			logger.warn("Could not set value for model " + baseModelName + " for tenant " + tenantID);
 			return;
 		}
+		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
 		
 		List<ReplaceableAttribute> attributes = new ArrayList<ReplaceableAttribute>();
 		attributes.add(new ReplaceableAttribute(baseModelName, value, true));
 		try {
-			sdb.putAttributes(new PutAttributesRequest("MODEL_STATES", tenantID, attributes));
+			sdb.putAttributes(new PutAttributesRequest(MODEL_STATES_DOMAIN, tenantID, attributes));
 		}
 		catch (Exception ex) {
 			logger.warn("Could not set value for model " + baseModelName + " for tenant " + tenantID);

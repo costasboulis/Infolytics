@@ -66,51 +66,51 @@ public class DataSampler {
 		SimpleDateFormat formatter = new SimpleDateFormat(DATE_PATTERN);
     	formatter.setTimeZone(TIME_ZONE);
     	
-		Calendar oneHourBefore = Calendar.getInstance();
-		oneHourBefore.setTimeZone(TIME_ZONE);
+		Calendar tenMinutesBefore = Calendar.getInstance();
+		tenMinutesBefore.setTimeZone(TIME_ZONE);
 		Date currentDate = new Date();
-		oneHourBefore.setTimeInMillis(currentDate.getTime());     
-		oneHourBefore.add(Calendar.HOUR, -1);
+		tenMinutesBefore.setTimeInMillis(currentDate.getTime());     
+		tenMinutesBefore.add(Calendar.MINUTE, -10);
 		
-		Calendar oneHourPlusTenMinutes = Calendar.getInstance();
-		oneHourPlusTenMinutes.setTimeZone(TIME_ZONE);
-		oneHourPlusTenMinutes.setTime(oneHourBefore.getTime());
-		oneHourPlusTenMinutes.add(Calendar.MINUTE, 10);
+		Calendar tenMinutesPlusOneMinute = Calendar.getInstance();
+		tenMinutesPlusOneMinute.setTimeZone(TIME_ZONE);
+		tenMinutesPlusOneMinute.setTime(tenMinutesBefore.getTime());
+		tenMinutesPlusOneMinute.add(Calendar.MINUTE, 1);
 		
-		Calendar nowMinusTenMinutes = Calendar.getInstance();
-		nowMinusTenMinutes.setTimeZone(TIME_ZONE);
-		nowMinusTenMinutes.setTimeInMillis(currentDate.getTime());     
-		nowMinusTenMinutes.add(Calendar.MINUTE, -10);   
+		Calendar nowMinusOneMinute = Calendar.getInstance();
+		nowMinusOneMinute.setTimeZone(TIME_ZONE);
+		nowMinusOneMinute.setTimeInMillis(currentDate.getTime());     
+		nowMinusOneMinute.add(Calendar.MINUTE, -1);   
 		
 		String tenantID = "104";
 		String userActivityDomain = "ACTIVITY_" + tenantID;
 		DataHandler dh = new DataHandler();
 		
 		// Get activity from yesterday till one hour before (old activity)
-		String selectExpression = "select * from `" + userActivityDomain + "` where ACTDATE < '" + formatter.format(nowMinusTenMinutes.getTime()) + 
-																		   "' and ACTDATE > '" + formatter.format(oneHourBefore.getTime()) + "'" ;
+		String selectExpression = "select * from `" + userActivityDomain + "` where ACTDATE < '" + formatter.format(nowMinusOneMinute.getTime()) + 
+																		   "' and ACTDATE > '" + formatter.format(tenMinutesBefore.getTime()) + "'" ;
 		List<Item> oldData = querySimpleDB(selectExpression);
 		Collection collection = dh.readFromSimpleDB(oldData);
 		dh.marshallData(collection, "cleargist", "data.xsd", "cleargist", "activity104existing.xml.gz");
 		oldData = null;
 		
 		// Get activity of the last hour (incremental data)
-		selectExpression = "select * from `" + userActivityDomain + "` where ACTDATE > '" + formatter.format(nowMinusTenMinutes.getTime()) + "'";
+		selectExpression = "select * from `" + userActivityDomain + "` where ACTDATE > '" + formatter.format(nowMinusOneMinute.getTime()) + "'";
 		List<Item> incrementalData = querySimpleDB(selectExpression);
 		collection = dh.readFromSimpleDB(incrementalData);
 		dh.marshallData(collection, "cleargist", "data.xsd", "cleargist", "activity104incremental.xml.gz");
 		incrementalData = null;
 		
 		// Get activity before last hour (decremental data)
-		selectExpression = "select * from `" + userActivityDomain + "` where ACTDATE < '" + formatter.format(oneHourPlusTenMinutes.getTime()) + 
-		   															"' and ACTDATE > '" + formatter.format(oneHourBefore.getTime()) + "'" ;
+		selectExpression = "select * from `" + userActivityDomain + "` where ACTDATE < '" + formatter.format(tenMinutesPlusOneMinute.getTime()) + 
+		   															"' and ACTDATE > '" + formatter.format(tenMinutesBefore.getTime()) + "'" ;
 		List<Item> decrementalData = querySimpleDB(selectExpression);
 		collection = dh.readFromSimpleDB(decrementalData);
 		dh.marshallData(collection, "cleargist", "data.xsd", "cleargist", "activity104decremental.xml.gz");
 		decrementalData = null;
 		
 		// Get activity from yesterday till now (new activity)
-		selectExpression = "select * from `" + userActivityDomain + "` where ACTDATE > '" + formatter.format(oneHourBefore.getTime()) + "'";
+		selectExpression = "select * from `" + userActivityDomain + "` where ACTDATE > '" + formatter.format(tenMinutesBefore.getTime()) + "'";
 		List<Item> newData = querySimpleDB(selectExpression);
 		collection = dh.readFromSimpleDB(newData);
 		dh.marshallData(collection, "cleargist", "data.xsd", "cleargist", "activity104new.xml.gz");

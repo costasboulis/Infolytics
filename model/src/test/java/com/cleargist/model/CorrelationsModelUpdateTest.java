@@ -16,6 +16,7 @@ import com.amazonaws.auth.PropertiesCredentials;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.Bucket;
+import com.amazonaws.services.s3.model.Region;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.services.simpledb.AmazonSimpleDB;
 import com.amazonaws.services.simpledb.AmazonSimpleDBClient;
@@ -25,6 +26,7 @@ import com.amazonaws.services.simpledb.model.DeleteAttributesRequest;
 import com.amazonaws.services.simpledb.model.DeleteDomainRequest;
 import com.cleargist.data.DataHandler;
 import com.cleargist.data.jaxb.Collection;
+import com.cleargist.profile.Profile;
 import com.cleargist.profile.SessionDetailViewProfileProcessor;
 
 public class CorrelationsModelUpdateTest {
@@ -35,9 +37,10 @@ public class CorrelationsModelUpdateTest {
 	private String PROFILE_DOMAIN = "PROFILE_test";
 	private String MODEL_DOMAIN = "MODEL_CORRELATIONS_test_A";
 	private String OTHER_MODEL_DOMAIN = "MODEL_CORRELATIONS_test_B";
-	private String STATS_BUCKET = "tmpstatstest";
+	private String STATS_BUCKET = "tmpstatscorrelationstest";
 	public static String newline = System.getProperty("line.separator");
 	private static TimeZone TIME_ZONE = TimeZone.getTimeZone("GMT");	
+	
 	
 	public void cleanUp() throws Exception {
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
@@ -82,76 +85,97 @@ public class CorrelationsModelUpdateTest {
 	@Test
 	public void updateModel() {
 		
+		// Create model from scratch
 		/*
-		// Create model from existing profiles
 		try {
-			cleanUp();
-		}
-		catch (Exception ex) {
-			assertTrue(false);
-		}
-		DataHandler dh = new DataHandler();
-		Collection collection = null;
-		try {
-			collection = dh.unmarshallData("cleargist", "activity104existing.xml.gz");
-		}
-		catch (Exception ex) {
-			assertTrue(false);
-		}
-		AmazonSimpleDB sdb = null;
-		try {
-			sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
-					CorrelationsModelUpdateTest.class.getResourceAsStream(AWS_CREDENTIALS)));
-			sdb.setEndpoint(SIMPLEDB_ENDPOINT);
-			CreateDomainRequest createDomainRequest = new CreateDomainRequest();
-			createDomainRequest.setDomainName(ACTIVITY_DOMAIN);
-			sdb.createDomain(createDomainRequest);
-			createDomainRequest = new CreateDomainRequest();
-			createDomainRequest.setDomainName(PROFILE_DOMAIN);
-			sdb.createDomain(createDomainRequest);
-		}
-		catch (Exception ex) {
-			assertTrue(false);
-		}
-		
-		try {
-			dh.insertInSimpleDB(collection, "test");
+			createFullModel();
 		}
 		catch (Exception ex) {
 			assertTrue(false);
 		}
 		*/
+		// Create model from incremental profiles
+		try {
+			createIncrementalModel();
+		}
+		catch (Exception ex) {
+			assertTrue(false);
+		}
+		
+		assertTrue(true);
+	}
+	
+	private void createFullModel() throws Exception {
+		cleanUp();
+		DataHandler dh = new DataHandler();
+		Collection collection = dh.unmarshallData("cleargist", "activity104new.xml.gz");
+		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
+				CorrelationsModelUpdateTest.class.getResourceAsStream(AWS_CREDENTIALS)));
+		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
+		CreateDomainRequest createDomainRequest = new CreateDomainRequest();
+		createDomainRequest.setDomainName(ACTIVITY_DOMAIN);
+		sdb.createDomain(createDomainRequest);
+		createDomainRequest = new CreateDomainRequest();
+		createDomainRequest.setDomainName(PROFILE_DOMAIN);
+		sdb.createDomain(createDomainRequest);
+		
+		dh.insertInSimpleDB(collection, "test");
+		
 		
 		
 		SessionDetailViewProfileProcessor pr = new SessionDetailViewProfileProcessor();
-		try {
-			pr.createProfiles("test");
-		}
-		catch (Exception ex) {
-			assertTrue(false);
-		}
+		pr.createProfiles("test");
 		
 		CorrelationsModel model = new CorrelationsModel();
-		try {
-			model.createModel("test");
-		}
-		catch (Exception ex) {
-			assertTrue(false);
-		}
+		model.createModel("test");
 		
-		try {
-			model.writeModelToFile("test", "cleargist", "correlations104existing.txt", MODEL_DOMAIN);
-		}
-		catch (Exception ex) {
-			assertTrue(false);
-		}
+		String modelDomainName = model.getPrimaryModelDomainName("MODEL_CORRELATIONS_", "test");
+		model.writeModelToFile("test", "cleargist", "correlations104new.txt", modelDomainName);
+	}
+	
+	private void createIncrementalModel() throws Exception {
+		
+		// Start from a clean slate
+		cleanUp();
+		
+		// Get incremental / decremental data
+		DataHandler dh = new DataHandler();
+		Collection collection = dh.unmarshallData("cleargist", "activity104incremental.xml.gz");
+		SessionDetailViewProfileProcessor pr = new SessionDetailViewProfileProcessor();
+		List<Profile> incrementalProfiles = pr.createProfile(dh.toItems(collection));
+		collection = dh.unmarshallData("cleargist", "activity104decremental.xml.gz");
+		List<Profile> decrementalProfiles = pr.createProfile(dh.toItems(collection));
+		
+		// Get existing sufficient statistics
+		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
+				CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
+		s3.createBucket(STATS_BUCKET, Region.EU_Ireland);
+		s3.copyObject("cleargist", "stats104existing.txt", STATS_BUCKET, "merged.txt");
+		
+		// Get existing profiles
+		DataHandler dh2 = new DataHandler();
+		Collection collection2 = dh.unmarshallData("cleargist", "activity104existing.xml.gz");
+		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
+				CorrelationsModelUpdateTest.class.getResourceAsStream(AWS_CREDENTIALS)));
+		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
+		CreateDomainRequest createDomainRequest = new CreateDomainRequest();
+		createDomainRequest.setDomainName(ACTIVITY_DOMAIN);
+		sdb.createDomain(createDomainRequest);
+		createDomainRequest = new CreateDomainRequest();
+		createDomainRequest.setDomainName(PROFILE_DOMAIN);
+		sdb.createDomain(createDomainRequest);
+		dh2.insertInSimpleDB(collection2, "test");
+		SessionDetailViewProfileProcessor pr2 = new SessionDetailViewProfileProcessor();
+		pr2.createProfiles("test");
 		
 		
-		// Create model from incremental profiles
-		// ...
 		
+		// Now train the model
+		CorrelationsModel model = new CorrelationsModel();
+		model.updateModel("test", incrementalProfiles, decrementalProfiles);
 		
+		String modelDomainName = model.getPrimaryModelDomainName("MODEL_CORRELATIONS_", "test");
+		model.writeModelToFile("test", "cleargist", "correlations104update.txt", modelDomainName);
 		
-		assertTrue(true);
 	}
 }

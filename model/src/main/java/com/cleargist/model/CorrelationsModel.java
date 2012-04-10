@@ -27,7 +27,6 @@ import com.amazonaws.auth.PropertiesCredentials;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
-import com.amazonaws.services.s3.model.DeleteObjectRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
@@ -86,14 +85,21 @@ public class CorrelationsModel extends BaseModel {
 		calculateSufficientStatistics(bucketName, STATS_BASE_FILENAME, tenantID);
 		
 		mergeSufficientStatistics(tenantID);
-		// Remove the sufficient statistics file
+		
+		estimateModelParameters(tenantID);
+		
+		// Delete suff. stats directory
 		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
 				CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
 		String statsBucketName = getStatsBucketName(tenantID);
-    	String key = MERGED_STATS_FILENAME;
-		s3.deleteObject(new DeleteObjectRequest(statsBucketName, key));
+		ObjectListing objListing = s3.listObjects(statsBucketName);
+		if (objListing.getObjectSummaries().size() > 0) {
+			for (S3ObjectSummary objSummary : objListing.getObjectSummaries()) {
+				s3.deleteObject(bucketName, objSummary.getKey());
+			}
+		}
+		s3.deleteBucket(statsBucketName);
 		
-		estimateModelParameters(tenantID);
 		
 		// Now that the new model is ready swap the domain names
     	swapModelDomainNames(getDomainBasename(), tenantID);
@@ -902,7 +908,14 @@ public class CorrelationsModel extends BaseModel {
 					continue;
 				}
 				
-				float cc = Float.parseFloat(fields[i+1]);
+				float cc = 0.0f;
+				try {
+					cc = Float.parseFloat(fields[i+1]);
+				}
+				catch (NumberFormatException ex) {
+	        		logger.error("Cannot parse co-occurrence count " + fields[i+1] + " ... skipping");
+	        		continue;
+	        	}
             	
             	if (cc < COOCCURRENCE_THRESHOLD) {
 					continue;
@@ -960,50 +973,50 @@ public class CorrelationsModel extends BaseModel {
 	}
 	
 
-	private void writeSimpleDB(AmazonSimpleDB sdb, String SimpleDBDomain, List<ReplaceableItem> recsPairs) 
+	private void writeSimpleDB(AmazonSimpleDB sdb, String simpleDBDomain, List<ReplaceableItem> recsPairs) 
 	throws DuplicateItemNameException, InvalidParameterValueException, NumberDomainBytesExceededException, NumberSubmittedItemsExceededException, 
 	NumberSubmittedAttributesExceededException, NumberDomainAttributesExceededException, NumberItemAttributesExceededException, 
 	NoSuchDomainException, AmazonServiceException, AmazonClientException, Exception {
     	try {
-    		sdb.batchPutAttributes(new BatchPutAttributesRequest(SimpleDBDomain, recsPairs));
+    		sdb.batchPutAttributes(new BatchPutAttributesRequest(simpleDBDomain, recsPairs));
     	}
 		catch (DuplicateItemNameException ex) {
-    		String errorMessage = "Cannot write to SimpleDB domain " + SimpleDBDomain + " because of duplicate item names" + " " + ex.getStackTrace();
+    		String errorMessage = "Cannot write to SimpleDB domain " + simpleDBDomain + " because of duplicate item names" + " " + ex.getStackTrace();
     		logger.error(errorMessage);
     		throw new DuplicateItemNameException(errorMessage);
     	}
 		catch (InvalidParameterValueException ex) {
-    		String errorMessage = "Cannot write to SimpleDB domain " + SimpleDBDomain + " because of invalid parameter value" + " " + ex.getStackTrace();
+    		String errorMessage = "Cannot write to SimpleDB domain " + simpleDBDomain + " because of invalid parameter value" + " " + ex.getStackTrace();
     		logger.error(errorMessage);
     		throw new InvalidParameterValueException(errorMessage);
     	}
 		catch (NumberDomainBytesExceededException ex) {
-    		String errorMessage = "Cannot write to SimpleDB domain " + SimpleDBDomain + " because max number of domain bytes exceeded" + " " + ex.getStackTrace();
+    		String errorMessage = "Cannot write to SimpleDB domain " + simpleDBDomain + " because max number of domain bytes exceeded" + " " + ex.getStackTrace();
     		logger.error(errorMessage);
     		throw new NumberDomainBytesExceededException(errorMessage);
     	}
 		catch (NumberSubmittedItemsExceededException ex) {
-    		String errorMessage = "Cannot write to SimpleDB domain " + SimpleDBDomain + " because max number of submitted items exceeded" + " " + ex.getStackTrace();
+    		String errorMessage = "Cannot write to SimpleDB domain " + simpleDBDomain + " because max number of submitted items exceeded" + " " + ex.getStackTrace();
     		logger.error(errorMessage);
     		throw new NumberSubmittedItemsExceededException(errorMessage);
     	}
 		catch (NumberSubmittedAttributesExceededException ex) {
-    		String errorMessage = "Cannot write to SimpleDB domain " + SimpleDBDomain + " because max number of submitted attributes exceeded" + " " + ex.getStackTrace();
+    		String errorMessage = "Cannot write to SimpleDB domain " + simpleDBDomain + " because max number of submitted attributes exceeded" + " " + ex.getStackTrace();
     		logger.error(errorMessage);
     		throw new NumberSubmittedAttributesExceededException(errorMessage);
     	}
 		catch (NumberDomainAttributesExceededException ex) {
-    		String errorMessage = "Cannot write to SimpleDB domain " + SimpleDBDomain + " because max number of domain attributes exceeded" + " " + ex.getStackTrace();
+    		String errorMessage = "Cannot write to SimpleDB domain " + simpleDBDomain + " because max number of domain attributes exceeded" + " " + ex.getStackTrace();
     		logger.error(errorMessage);
     		throw new NumberDomainAttributesExceededException(errorMessage);
     	}
 		catch (NumberItemAttributesExceededException ex) {
-    		String errorMessage = "Cannot write to SimpleDB domain " + SimpleDBDomain + " because max number of item attributes exceeded" + " " + ex.getStackTrace();
+    		String errorMessage = "Cannot write to SimpleDB domain " + simpleDBDomain + " because max number of item attributes exceeded" + " " + ex.getStackTrace();
     		logger.error(errorMessage);
     		throw new NumberItemAttributesExceededException(errorMessage);
     	}
     	catch (NoSuchDomainException ex) {
-    		String errorMessage = "Cannot find SimpleDB domain " + SimpleDBDomain + " " + ex.getStackTrace();
+    		String errorMessage = "Cannot find SimpleDB domain " + simpleDBDomain + " " + ex.getStackTrace();
     		logger.error(errorMessage);
     		throw new NoSuchDomainException(errorMessage);
     	}
@@ -1041,6 +1054,7 @@ public class CorrelationsModel extends BaseModel {
 		
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
+		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
 		
 		boolean found = false;
 		for (String domainName : sdb.listDomains().getDomainNames()) {

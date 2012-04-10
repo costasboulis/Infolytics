@@ -219,7 +219,7 @@ public abstract class ProfileProcessor {
 	}
 	
 	// Gets as input the raw data, implements custom weighting, filtering logic and produces a profile of the form UID, <PID, VALUE>+
-	protected abstract List<Profile> createProfile(List<Item> rawData) throws Exception;
+	public abstract List<Profile> createProfile(List<Item> rawData) throws Exception;
 	
 	private String getProfileDomainName(String tenantID) {
 		return "PROFILE_" + tenantID;

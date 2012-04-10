@@ -317,30 +317,64 @@ public class DataHandler {
 		
 		return collection;
 	}
-	/**
-	 * Inserts collection of activity items into ACTIVITY domain 
-	 * 
-	 * @param collection
-	 * @param tenantID
-	 * @throws AmazonServiceException
-	 * @throws AmazonClientException
-	 * @throws IOException
-	 */
-	public void insertInSimpleDB(Collection collection, String tenantID) throws AmazonServiceException, AmazonClientException, IOException {
-		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
-				DataHandler.class.getResourceAsStream(AWS_CREDENTIALS)));
-		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
-    	
+	
+	private ReplaceableItem toItem(DataType data) {
 		SimpleDateFormat formatter = new SimpleDateFormat(DATE_PATTERN);
     	formatter.setTimeZone(TIME_ZONE);
-		String rawDataDomain = ACTIVITY_DOMAIN + tenantID;
-		List<ReplaceableItem> newData = new ArrayList<ReplaceableItem>();
+		List<ReplaceableAttribute> attributeList = new LinkedList<ReplaceableAttribute>();
+		String itemName = UUID.randomUUID().toString();
+		String productID = data.getItemId();
+		attributeList.add(new ReplaceableAttribute(ITEM_STRING, productID, true));
+		
+		StringBuffer sb = new StringBuffer();
+		int rating = -1;
+		boolean ratingFound = false;
+		if (data.getEvent().getName() == null) {
+			String ratingEvent = data.getEvent().getRatingAction().getName().toString();
+			sb.append(ratingEvent); 
+			rating = data.getEvent().getRatingAction().getRating();
+			ratingFound = true;
+		}
+		else {
+			String event = data.getEvent().getName().toString();
+			sb.append(event);
+		}
+		String event = sb.toString();
+		attributeList.add(new ReplaceableAttribute(EVENT_STRING, event, true));
+		
+		if (ratingFound) {
+			ReplaceableAttribute ratingAttribute = new ReplaceableAttribute(RATING_STRING, Integer.toString(rating), true);
+			attributeList.add(ratingAttribute);
+		}
+		
+		
+		String sessionID = data.getSession();
+		attributeList.add(new ReplaceableAttribute(SESSION_STRING, sessionID, true));
+		
+		String dateString = formatter.format(data.getTimeStamp().toGregorianCalendar().getTime());
+		attributeList.add(new ReplaceableAttribute(DATE_STRING, dateString, true));
+		
+		String userID = data.getUserId();
+		if (userID != null && !userID.isEmpty() && !userID.equals("0")) {
+			ReplaceableAttribute userAttribute = new ReplaceableAttribute(USER_STRING, userID, true);
+			attributeList.add(userAttribute);
+		}
+		
+		ReplaceableItem item = new ReplaceableItem(itemName);
+		item.setAttributes(attributeList);
+		
+		return item;
+	}
+	
+	public List<Item> toItems(Collection collection) {
+		SimpleDateFormat formatter = new SimpleDateFormat(DATE_PATTERN);
+    	formatter.setTimeZone(TIME_ZONE);
+		List<Item> items = new ArrayList<Item>();
 		for (DataType data : collection.getDataList().getData()) {
-			
-			List<ReplaceableAttribute> attributeList = new LinkedList<ReplaceableAttribute>();
+			List<Attribute> attributeList = new LinkedList<Attribute>();
 			String itemName = UUID.randomUUID().toString();
 			String productID = data.getItemId();
-			attributeList.add(new ReplaceableAttribute(ITEM_STRING, productID, true));
+			attributeList.add(new Attribute(ITEM_STRING, productID));
 			
 			StringBuffer sb = new StringBuffer();
 			int rating = -1;
@@ -356,29 +390,53 @@ public class DataHandler {
 				sb.append(event);
 			}
 			String event = sb.toString();
-			attributeList.add(new ReplaceableAttribute(EVENT_STRING, event, true));
+			attributeList.add(new Attribute(EVENT_STRING, event));
 			
 			if (ratingFound) {
-				ReplaceableAttribute ratingAttribute = new ReplaceableAttribute(RATING_STRING, Integer.toString(rating), true);
+				Attribute ratingAttribute = new Attribute(RATING_STRING, Integer.toString(rating));
 				attributeList.add(ratingAttribute);
 			}
 			
 			
 			String sessionID = data.getSession();
-			attributeList.add(new ReplaceableAttribute(SESSION_STRING, sessionID, true));
+			attributeList.add(new Attribute(SESSION_STRING, sessionID));
 			
 			String dateString = formatter.format(data.getTimeStamp().toGregorianCalendar().getTime());
-			attributeList.add(new ReplaceableAttribute(DATE_STRING, dateString, true));
+			attributeList.add(new Attribute(DATE_STRING, dateString));
 			
 			String userID = data.getUserId();
 			if (userID != null && !userID.isEmpty() && !userID.equals("0")) {
-				ReplaceableAttribute userAttribute = new ReplaceableAttribute(USER_STRING, userID, true);
+				Attribute userAttribute = new Attribute(USER_STRING, userID);
 				attributeList.add(userAttribute);
 			}
 			
-			ReplaceableItem item = new ReplaceableItem(itemName);
+			Item item = new Item();
+			item.setName(itemName);
 			item.setAttributes(attributeList);
-			newData.add(item);
+			
+			items.add(item);
+		}
+		return items;
+	}
+	/**
+	 * Inserts collection of activity items into ACTIVITY domain 
+	 * 
+	 * @param collection
+	 * @param tenantID
+	 * @throws AmazonServiceException
+	 * @throws AmazonClientException
+	 * @throws IOException
+	 */
+	public void insertInSimpleDB(Collection collection, String tenantID) throws AmazonServiceException, AmazonClientException, IOException {
+		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
+				DataHandler.class.getResourceAsStream(AWS_CREDENTIALS)));
+		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
+    	
+		String rawDataDomain = ACTIVITY_DOMAIN + tenantID;
+		List<ReplaceableItem> newData = new ArrayList<ReplaceableItem>();
+		for (DataType data : collection.getDataList().getData()) {
+			
+			newData.add(toItem(data));
 			
 			if (newData.size() >= 25) {
 				sdb.batchPutAttributes(new BatchPutAttributesRequest(rawDataDomain, newData));
