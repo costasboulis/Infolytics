@@ -248,10 +248,15 @@ public abstract class ProfileProcessor {
 			GetAttributesResult result = sdb.getAttributes(request);
 			boolean newUser = result.getAttributes().size() > 0 ? false : true;
 			for (Attribute attribute : result.getAttributes()) {
-				String value = attribute.getValue();
-				String[] parsedValue = value.split(";");
-				String productID = parsedValue[0];
-				float score = Float.parseFloat(parsedValue[1]);
+				String productID = attribute.getName();
+            	Float score = null;
+            	try {
+            		score = Float.parseFloat(attribute.getValue());
+            	}
+            	catch (NumberFormatException ex) {
+            		logger.error("Could not parse value " + attribute.getValue() + " ... skipping");
+            		continue;
+            	}
             	
 				productIDs.add(productID);
             		
@@ -262,10 +267,8 @@ public abstract class ProfileProcessor {
 				else {
 					// Update the score of the attribute
 					float updatedScore = score + incrementalScore.floatValue();
-					StringBuffer sb = new StringBuffer();
-					sb.append(productID); sb.append(";"); sb.append(updatedScore);
             			
-					ReplaceableAttribute att = new ReplaceableAttribute(attribute.getName(), sb.toString(), true);
+					ReplaceableAttribute att = new ReplaceableAttribute(attribute.getName(), Float.toString(updatedScore), true);
 					attributes.add(att);
 				}
 			}
@@ -279,10 +282,7 @@ public abstract class ProfileProcessor {
 				for (Map.Entry<String, Float> incrementalProfileAttributes : incrementalProfile.getAttributes().entrySet()) {
 					String productID = incrementalProfileAttributes.getKey();
 					float score = incrementalProfileAttributes.getValue().floatValue();
-        			StringBuffer sb = new StringBuffer();
-        			sb.append(productID); sb.append(";"); sb.append(score);
-        			String attributeName = "Attribute_" + productID;
-					ReplaceableAttribute att = new ReplaceableAttribute(attributeName, sb.toString(), true);
+					ReplaceableAttribute att = new ReplaceableAttribute(productID, Float.toString(score), true);
         			attributes.add(att);
 				}
 				item.setAttributes(attributes);
@@ -295,10 +295,7 @@ public abstract class ProfileProcessor {
 					String productID = incrementalProfileAttributes.getKey();
 					if (!productIDs.contains(productID)) {
 						float score = incrementalProfileAttributes.getValue().floatValue();
-	        			StringBuffer sb = new StringBuffer();
-	        			sb.append(productID); sb.append(";"); sb.append(score);
-	        			String attributeName = "Attribute_" + productID;
-						ReplaceableAttribute att = new ReplaceableAttribute(attributeName, sb.toString(), true);
+						ReplaceableAttribute att = new ReplaceableAttribute(productID, Float.toString(score), true);
 	        			attributes.add(att);
 					}
 				}
@@ -323,10 +320,15 @@ public abstract class ProfileProcessor {
 			request.setItemName(userID);
 			GetAttributesResult result = sdb.getAttributes(request);
 			for (Attribute attribute : result.getAttributes()) {
-				String value = attribute.getValue();
-				String[] parsedValue = value.split(";");
-				String productID = parsedValue[0];
-				float score = Float.parseFloat(parsedValue[1]);
+				String productID = attribute.getName();
+            	Float score = null;
+            	try {
+            		score = Float.parseFloat(attribute.getValue());
+            	}
+            	catch (NumberFormatException ex) {
+            		logger.error("Could not parse value " + attribute.getValue() + " ... skipping");
+            		continue;
+            	}
             		
 				Float decrementalScore = decrementalProfile.getAttributes().get(productID);
 				if (decrementalScore == null) {
@@ -339,11 +341,8 @@ public abstract class ProfileProcessor {
 						// delete attribute
 						deleteAttributes.add(attribute);
 					}
-					else {
-						StringBuffer sb = new StringBuffer();
-						sb.append(productID); sb.append(";"); sb.append(updatedScore);
-	            			
-						ReplaceableAttribute att = new ReplaceableAttribute(attribute.getName(), sb.toString(), true);
+					else {	
+						ReplaceableAttribute att = new ReplaceableAttribute(productID, Float.toString(updatedScore), true);
 						attributes.add(att);
 					}
 					

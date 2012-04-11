@@ -276,6 +276,12 @@ public abstract class BaseModel implements Modelable {
 		request.setItemName(tenantID);
 		GetAttributesResult result = sdb.getAttributes(request);
 		
+		if (result.getAttributes().size() == 0) {
+			logger.warn("No entry found in domain " + MODEL_STATES_DOMAIN + " for tenant " + tenantID);
+			StringBuffer sb = new StringBuffer();
+	    	sb.append(baseModelName); sb.append(tenantID); sb.append("_A");
+	    	return sb.toString();
+		}
         for (Attribute attribute : result.getAttributes()) {
         	if (attribute.getName().startsWith(baseModelName)) {
         		return attribute.getValue();
@@ -327,7 +333,7 @@ public abstract class BaseModel implements Modelable {
         	return sb.toString();
     	}
     	else {
-    		logger.warn("Could not find bacup model for " + baseModelName + " for tenant " + tenantID);
+    		logger.warn("Could not find backup model for " + baseModelName + " for tenant " + tenantID);
     		sb = new StringBuffer();
         	sb.append(baseModelName); sb.append(tenantID); sb.append("_B");
         	return sb.toString();

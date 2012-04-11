@@ -293,7 +293,6 @@ public class CorrelationsModel extends BaseModel {
 	private void mergeSufficientStatistics(String tenantID, String mergedStatsFilename, S3Object statsFile) 
 	throws AmazonServiceException, AmazonClientException, IOException, Exception {
     	// Read stats file into memory
-		String bucketName = statsFile.getBucketName() + tenantID;
     	HashMap<String, HashMap<String, Float>> SS1 = new HashMap<String, HashMap<String, Float>>();
 		HashMap<String, Float> SS0 = new HashMap<String, Float>();
 		float numberOfProfiles = 0.0f;
@@ -369,7 +368,7 @@ public class CorrelationsModel extends BaseModel {
 				CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
     	
 		BufferedWriter out = null;
-		String tmpFilename = mergedStatsFilename + tenantID;
+		String tmpFilename = "correlations" + mergedStatsFilename + tenantID;
 		File localMergedFile = new File(tmpFilename);
 		try {
 			out = new BufferedWriter(new FileWriter(localMergedFile));
@@ -379,7 +378,7 @@ public class CorrelationsModel extends BaseModel {
 			throw new Exception();
 		}
 		
-		
+		String bucketName = statsFile.getBucketName();
     	S3Object mergedFile = s3.getObject(bucketName, mergedStatsFilename);
     	try {
     		BufferedReader reader = new BufferedReader(new InputStreamReader(mergedFile.getObjectContent()));
@@ -415,10 +414,14 @@ public class CorrelationsModel extends BaseModel {
             		out.write(line + newline);
             	}
             	else {
-            		StringBuffer sb = new StringBuffer();
-            		sb.append(sourceID); sb.append(";"); sb.append(f.floatValue() + score);
-            		sb.append(newline);
-            		out.write(sb.toString());
+            		float newValue = f.floatValue() + score;
+            		if (newValue != 0.0f) {
+            			StringBuffer sb = new StringBuffer();
+            			sb.append(sourceID); sb.append(";"); sb.append(newValue);
+                		sb.append(newline);
+                		out.write(sb.toString());
+            		}
+            		
             		
             		SS0.remove(sourceID);
             	}
@@ -450,16 +453,23 @@ public class CorrelationsModel extends BaseModel {
     				// merge the two lines
     				StringBuffer sb = new StringBuffer();
     				sb.append(sourceID);
+    				boolean itemFound = false;
     				for (int i = 1; i < fields.length - 1; i = i + 2) {
     					String targetID = fields[i];
     					float score = Float.parseFloat(fields[i+1]);
     					
     					Float f = hm.get(targetID);
     					if (f == null) {
+    						itemFound = true;
     						sb.append(";"); sb.append(targetID); sb.append(";"); sb.append(score);
     					}
     					else {
-    						sb.append(";"); sb.append(targetID); sb.append(";"); sb.append(f.floatValue() + score);
+    						float newValue = f.floatValue() + score;
+    						if (newValue != 0.0f) {
+    							itemFound = true;
+    							sb.append(";"); sb.append(targetID); sb.append(";"); sb.append(newValue);
+    						}
+    						
     						
     						hm.remove(targetID);
     					}
@@ -468,7 +478,10 @@ public class CorrelationsModel extends BaseModel {
     					sb.append(";"); sb.append(me.getKey()); sb.append(";"); sb.append(me.getValue());
     				}
     				sb.append(newline);
-    				out.write(sb.toString());
+    				if (itemFound) {
+    					out.write(sb.toString());
+    				}
+    				
     				
     				SS1.remove(sourceID);
     			}
@@ -503,6 +516,8 @@ public class CorrelationsModel extends BaseModel {
     	PutObjectRequest r = new PutObjectRequest(bucketName, mergedStatsFilename, localMergedFile);
     	r.setStorageClass(StorageClass.ReducedRedundancy);
     	s3.putObject(r);
+    	
+    	localMergedFile.delete();
 	}
 	
 	
@@ -515,7 +530,10 @@ public class CorrelationsModel extends BaseModel {
 		HashMap<String, HashMap<String, Float>> SS1 = new HashMap<String, HashMap<String, Float>>();
 		HashMap<String, Float> SS0 = new HashMap<String, Float>();
 		float numberOfProfiles = 0.0f;
+		HashSet<String> hs = new HashSet<String>();
 		for (Profile incrementalProfile : incrementalProfiles) {
+			hs.add(incrementalProfile.getUserID());
+			
 			// Retrieve existing profile
 			GetAttributesRequest request = new GetAttributesRequest();
     		request.setDomainName(getProfileDomainName(tenantID));
@@ -528,16 +546,22 @@ public class CorrelationsModel extends BaseModel {
     			existingProfile = new Profile();
     			existingProfile.setUserID(incrementalProfile.getUserID());
     			for (Attribute attribute : attributes) {
-                	String[] fields = attribute.getValue().split(";");
-                	String productID = fields[0];
-                	Float score = Float.parseFloat(fields[1]);
+                	String productID = attribute.getName();
+                	Float score = null;
+                	try {
+                		score = Float.parseFloat(attribute.getValue());
+                	}
+                	catch (NumberFormatException ex) {
+                		logger.error("Could not parse value " + attribute.getValue() + " ... skipping");
+                		continue;
+                	}
                 	
                 	existingProfile.add(productID, score);
     			}
     		}
             
     		// Now update the stats 
-    		updateStats(existingProfile, incrementalProfile, true, SS1, SS0);
+    		updateIncrementalStats(existingProfile, incrementalProfile, SS1, SS0);
     		if (existingProfile == null) {
     			numberOfProfiles += 1.0f;
     		}
@@ -557,9 +581,16 @@ public class CorrelationsModel extends BaseModel {
     			existingProfile = new Profile();
     			existingProfile.setUserID(decrementalProfile.getUserID());
     			for (Attribute attribute : attributes) {
-                	String[] fields = attribute.getValue().split(";");
-                	String productID = fields[0];
-                	Float score = Float.parseFloat(fields[1]);
+    				String productID = attribute.getName();
+                	Float score = null;
+                	try {
+                		score = Float.parseFloat(attribute.getValue());
+                	}
+                	catch (NumberFormatException ex) {
+                		logger.error("Could not parse value " + attribute.getValue() + " ... skipping");
+                		continue;
+                	}
+                	
                 	
                 	existingProfile.add(productID, score);
     			}
@@ -570,8 +601,8 @@ public class CorrelationsModel extends BaseModel {
             }
             
     		// Now update the stats
-    		updateStats(existingProfile, decrementalProfile, false, SS1, SS0);
-    		if (existingProfile.equals(decrementalProfile)) {
+    		boolean deletedExistingProfile = updateDecrementalStats(existingProfile, decrementalProfile, SS1, SS0);
+    		if (deletedExistingProfile && !hs.contains(decrementalProfile.getUserID())) {
     			numberOfProfiles -= 1.0f;
     		}
 		}
@@ -584,16 +615,69 @@ public class CorrelationsModel extends BaseModel {
 		if (!s3.doesBucketExist(bucketName)) {
 			s3.createBucket(bucketName, Region.EU_Ireland);
 		}
+		String incrStatsKeyBase = STATS_BASE_FILENAME + "_INCREMENTAL_";
 		String incrStatsKey = UUID.randomUUID().toString();
-		writeSufficientStatistics(tenantID, bucketName, STATS_BASE_FILENAME + "_INCREMENTAL_", numberOfProfiles, SS1, SS0, incrStatsKey);
+		writeSufficientStatistics(tenantID, bucketName, incrStatsKeyBase, numberOfProfiles, SS1, SS0, incrStatsKey);
 		
-		return incrStatsKey;
+		return incrStatsKeyBase + incrStatsKey;
 	}
 	
-	private void updateStats(Profile existingProfile, Profile incrementalProfile, boolean doIncrement,
+	/**
+	 * Returns true if the entire existing profile has been deleted
+	 * 
+	 * @param existingProfile
+	 * @param decrementalProfile
+	 * @param SS1
+	 * @param SS0
+	 * @return
+	 */
+	private boolean updateDecrementalStats(Profile existingProfile, Profile decrementalProfile,
+			HashMap<String, HashMap<String, Float>> SS1, HashMap<String, Float> SS0) {
+		
+		HashSet<String> hs = new HashSet<String>();
+		for (String s : decrementalProfile.getAttributes().keySet()) {
+			hs.add(s);
+		}
+		List<String> productIDs = new ArrayList<String>();
+		for (String s : hs) {
+			productIDs.add(s);
+		}
+		Collections.sort(productIDs);
+		
+		int numRemovedAttributes = 0;
+		for (int i = 0; i < productIDs.size(); i ++) {
+			String productI = productIDs.get(i);
+			float decrementalValue = decrementalProfile.getAttributes().get(productI);
+			
+			float existingValue = existingProfile.getAttributes().get(productI);
+			
+			if (existingValue == decrementalValue) {
+				// Remove attribute
+				numRemovedAttributes ++;
+				SS0.remove(productI);
+				SS1.remove(productI);
+				for (int j = 0; j < i; j ++) {
+					String productJ = productIDs.get(j);
+					HashMap<String, Float> hm = SS1.get(productJ);
+					if (hm != null) {
+						hm.remove(productI);
+					}
+				}
+			}
+		}
+		
+		if (numRemovedAttributes == existingProfile.getAttributes().size()) {
+			// Deleted the entire existing profile
+			return true;
+		}
+		else {
+			return false;
+		}
+	}
+	
+	private void updateIncrementalStats(Profile existingProfile, Profile incrementalProfile,
 										HashMap<String, HashMap<String, Float>> SS1, HashMap<String, Float> SS0) {
 		
-		float multiplier = doIncrement ? 1.0f : -1.0f;
 		HashSet<String> hs = new HashSet<String>();
 		if (existingProfile != null) {
 			for (String s : existingProfile.getAttributes().keySet()) {
@@ -611,14 +695,15 @@ public class CorrelationsModel extends BaseModel {
 		
 		for (int i = 0; i < productIDs.size(); i ++) {
 			String productI = productIDs.get(i);
-			boolean isIncrementalProfileAttribute = incrementalProfile.getAttributes().get(productI) != null ? true : false;
-			if (isIncrementalProfileAttribute) {
+			boolean isIncrementalProductI = incrementalProfile.getAttributes().get(productI) != null &&
+											(existingProfile == null || existingProfile.getAttributes().get(productI) == null) ? true : false;
+			if (isIncrementalProductI) {
 				Float f = SS0.get(productI);
 				if (f == null) {
-					SS0.put(productI, multiplier * 1.0f);
+					SS0.put(productI, 1.0f);
 				}
 				else {
-					SS0.put(productI, f.floatValue() + multiplier * 1.0f);
+					SS0.put(productI, f.floatValue() + 1.0f);
 				}
 			}
 			
@@ -630,14 +715,16 @@ public class CorrelationsModel extends BaseModel {
 			}
 			for (int j = i + 1; j < productIDs.size(); j ++) {
 				String productJ = productIDs.get(j);
-				
-				if (isIncrementalProfileAttribute || incrementalProfile.getAttributes().containsKey(productJ)) {
+				boolean isIncrementalProductJ = incrementalProfile.getAttributes().get(productJ) != null &&
+												(existingProfile == null || existingProfile.getAttributes().get(productJ) == null) ? true : false;
+				if (isIncrementalProductI || isIncrementalProductJ) {
 					Float count = hm.get(productJ);
 					if (count == null) {
-						hm.put(productJ, multiplier * 1.0f);
+						hm.put(productJ, 1.0f);
 					}
 					else {
-						hm.put(productJ, count.floatValue() + multiplier * 1.0f);
+						float newValue = count.floatValue() + 1.0f;
+						hm.put(productJ, newValue);
 					}
 				}
 				
@@ -903,8 +990,9 @@ public class CorrelationsModel extends BaseModel {
 			
 			for (int i = 1; i < fields.length - 1; i = i + 2) {
 				String targetID = fields[i];
+				float cooccurrenceCount = Float.parseFloat(fields[i + 1]);
 				
-				if (targetID.equals(sourceID)) {
+				if (targetID.equals(sourceID) || cooccurrenceCount <= 0.0f) {
 					continue;
 				}
 				

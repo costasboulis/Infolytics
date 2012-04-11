@@ -2,8 +2,7 @@ package com.cleargist.model;
 
 import static org.junit.Assert.assertTrue;
 
-import java.util.Calendar;
-import java.util.Date;
+
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -96,7 +95,7 @@ public class CorrelationsModelUpdateTest {
 		*/
 		// Create model from incremental profiles
 		try {
-			createIncrementalModel();
+			createIncrementalModel("incremental.xml.gz", "decremental.xml.gz", "existing.xml.gz", "existingStats.txt");
 		}
 		catch (Exception ex) {
 			assertTrue(false);
@@ -133,28 +132,28 @@ public class CorrelationsModelUpdateTest {
 		model.writeModelToFile("test", "cleargist", "correlations104new.txt", modelDomainName);
 	}
 	
-	private void createIncrementalModel() throws Exception {
+	private void createIncrementalModel(String incrementalKey, String decrementalKey, String existingKey, String existingStatsKey) throws Exception {
 		
 		// Start from a clean slate
 		cleanUp();
 		
 		// Get incremental / decremental data
 		DataHandler dh = new DataHandler();
-		Collection collection = dh.unmarshallData("cleargist", "activity104incremental.xml.gz");
+		Collection collection = dh.unmarshallData("cleargist", incrementalKey);
 		SessionDetailViewProfileProcessor pr = new SessionDetailViewProfileProcessor();
 		List<Profile> incrementalProfiles = pr.createProfile(dh.toItems(collection));
-		collection = dh.unmarshallData("cleargist", "activity104decremental.xml.gz");
+		collection = dh.unmarshallData("cleargist", decrementalKey);
 		List<Profile> decrementalProfiles = pr.createProfile(dh.toItems(collection));
 		
 		// Get existing sufficient statistics
 		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
 				CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
 		s3.createBucket(STATS_BUCKET, Region.EU_Ireland);
-		s3.copyObject("cleargist", "stats104existing.txt", STATS_BUCKET, "merged.txt");
+		s3.copyObject("cleargist", existingStatsKey, STATS_BUCKET, "merged.txt");
 		
 		// Get existing profiles
 		DataHandler dh2 = new DataHandler();
-		Collection collection2 = dh.unmarshallData("cleargist", "activity104existing.xml.gz");
+		Collection collection2 = dh.unmarshallData("cleargist", existingKey);
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				CorrelationsModelUpdateTest.class.getResourceAsStream(AWS_CREDENTIALS)));
 		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
@@ -172,10 +171,11 @@ public class CorrelationsModelUpdateTest {
 		
 		// Now train the model
 		CorrelationsModel model = new CorrelationsModel();
+		model.setModelDomainName("MODEL_CORRELATIONS_", MODEL_DOMAIN, "test");
 		model.updateModel("test", incrementalProfiles, decrementalProfiles);
 		
-		String modelDomainName = model.getPrimaryModelDomainName("MODEL_CORRELATIONS_", "test");
-		model.writeModelToFile("test", "cleargist", "correlations104update.txt", modelDomainName);
+//		String modelDomainName = model.getPrimaryModelDomainName("MODEL_CORRELATIONS_", "test");
+//		model.writeModelToFile("test", "cleargist", "correlations104update.txt", modelDomainName);
 		
 	}
 }
