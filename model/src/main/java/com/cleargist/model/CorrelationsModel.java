@@ -15,6 +15,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 
@@ -633,36 +634,77 @@ public class CorrelationsModel extends BaseModel {
 	 */
 	private boolean updateDecrementalStats(Profile existingProfile, Profile decrementalProfile,
 			HashMap<String, HashMap<String, Float>> SS1, HashMap<String, Float> SS0) {
-		
-		HashSet<String> hs = new HashSet<String>();
-		for (String s : decrementalProfile.getAttributes().keySet()) {
-			hs.add(s);
-		}
-		List<String> productIDs = new ArrayList<String>();
-		for (String s : hs) {
-			productIDs.add(s);
-		}
-		Collections.sort(productIDs);
-		
-		int numRemovedAttributes = 0;
-		for (int i = 0; i < productIDs.size(); i ++) {
-			String productI = productIDs.get(i);
-			float decrementalValue = decrementalProfile.getAttributes().get(productI);
+	
+		// Determine the attributes that are removed
+		List<String> attributes = new ArrayList<String>();
+		for (Map.Entry<String, Float> me : decrementalProfile.getAttributes().entrySet()) {
+			String att = me.getKey();
+			float decrementalValue = me.getValue();
 			
-			float existingValue = existingProfile.getAttributes().get(productI);
+			float existingValue = existingProfile.getAttributes().get(att);
 			
 			if (existingValue == decrementalValue) {
 				// Remove attribute
-				numRemovedAttributes ++;
-				SS0.remove(productI);
-				SS1.remove(productI);
-				for (int j = 0; j < i; j ++) {
-					String productJ = productIDs.get(j);
-					HashMap<String, Float> hm = SS1.get(productJ);
-					if (hm != null) {
-						hm.remove(productI);
+				attributes.add(att);
+			}
+		}
+		
+		int numRemovedAttributes = attributes.size();
+		if (numRemovedAttributes == 0) {
+			return false;
+		}
+		
+		for (String existingAttribute : existingProfile.getAttributes().keySet()) {
+			if (!attributes.contains(existingAttribute)) {
+				attributes.add(existingAttribute);
+			}
+		}
+		Collections.sort(attributes);
+		
+		for (int i = 0; i < attributes.size(); i ++) {
+			String productI = attributes.get(i);
+			boolean isDecrementalProductI = decrementalProfile.getAttributes().get(productI) != null ? true : false;
+			if (isDecrementalProductI) {
+				Float f = SS0.get(productI);
+				if (f == null) {
+					SS0.put(productI, -1.0f);
+				}
+				else {
+					float newValue = f.floatValue() - 1.0f;
+					if (newValue != 0.0f) {
+						SS0.put(productI, newValue);
+					}
+					else {
+						SS0.remove(productI);
 					}
 				}
+			}
+			
+			
+			HashMap<String, Float> hm = SS1.get(productI);
+			if (hm == null) {
+				hm = new HashMap<String, Float>();
+				SS1.put(productI, hm);
+			}
+			for (int j = i + 1; j < attributes.size(); j ++) {
+				String productJ = attributes.get(j);
+				boolean isDecrementalProductJ = decrementalProfile.getAttributes().get(productJ) != null ? true : false;
+				if (isDecrementalProductI || isDecrementalProductJ) {
+					Float count = hm.get(productJ);
+					if (count == null) {
+						hm.put(productJ, 1.0f);
+					}
+					else {
+						float newValue = count.floatValue() - 1.0f;
+						if (newValue != 0.0f) {
+							hm.put(productJ, newValue);
+						}
+						else {
+							hm.remove(productJ);
+						}
+					}
+				}
+				
 			}
 		}
 		
