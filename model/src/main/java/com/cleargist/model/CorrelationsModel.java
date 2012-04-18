@@ -15,7 +15,6 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 
@@ -777,13 +776,7 @@ public class CorrelationsModel extends BaseModel {
 		for (Item item : items) {
 			List<String> productIDs = new ArrayList<String>();
 			for (Attribute attribute : item.getAttributes()) {
-				if (attribute.getName().startsWith("Attribute")) {
-					String value = attribute.getValue();
-					String[] parsedValue = value.split(";");
-					String productID = parsedValue[0];
-					
-					productIDs.add(productID);
-				}
+				productIDs.add(attribute.getName());
 			}
 			Collections.sort(productIDs);
 			

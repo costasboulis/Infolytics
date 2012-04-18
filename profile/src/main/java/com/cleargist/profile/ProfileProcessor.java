@@ -543,6 +543,13 @@ public abstract class ProfileProcessor {
     	}
 	}
 	
+	public void updateProfiles(String tenantID, List<Item> incrementalItems, List<Item> decrementalItems) throws Exception {
+		List<Profile> incrementalProfiles = createProfile(incrementalItems);
+		List<Profile> decrementalProfiles = createProfile(decrementalItems);
+		
+		updateProfilesSimpleDB(incrementalProfiles, decrementalProfiles, tenantID);
+	}
+	
 	public void updateProfiles(String tenantID, Calendar currentDateFrom, Calendar lastUpdate, Calendar lastUpdateFrom) throws Exception {
 		List<List<Item>> newData = getDataSinceLastUpdate(tenantID, currentDateFrom, lastUpdate, lastUpdateFrom);
 		List<Item> incrementalData = newData.get(0);
