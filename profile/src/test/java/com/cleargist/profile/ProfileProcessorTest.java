@@ -608,9 +608,11 @@ public class ProfileProcessorTest {
 		Collection collection = dh.unmarshallData("cleargist", "activity104incremental.xml.gz");
 		dh.insertInSimpleDB(collection, "test");
 		pr.createProfiles("test");
+		Thread.sleep(5000); // SimpleDB is eventually consistent, wait till we are sure that insertions are in
 		
 		// Add incremental & decremental data
 		pr.updateProfiles("test", new ArrayList<Item>(), new ArrayList<Item>());
+		Thread.sleep(5000); // SimpleDB is eventually consistent, wait till we are sure that insertions are in
 		
 		// Write profiles in file
 		writeProfilesInFile("profilesIncremental.txt");
@@ -620,6 +622,7 @@ public class ProfileProcessorTest {
 		collection = dh.unmarshallData("cleargist", "activity104incremental.xml.gz");
 		dh.insertInSimpleDB(collection, "test");
 		pr.createProfiles("test");
+		Thread.sleep(5000); // SimpleDB is eventually consistent, wait till we are sure that insertions are in
 		
 		writeProfilesInFile("profilesBatch.txt");
 		
@@ -631,9 +634,9 @@ public class ProfileProcessorTest {
 		s3.deleteObject("cleargist", "profilesBatch.txt");
 	}
 
-	@Ignore
+	
 	@Test
-	public void testWithRealData() throws Exception {
+	public void testWithRealDataB() throws Exception {
 		
 		cleanUp();
 		SessionDetailViewProfileProcessor pr = new SessionDetailViewProfileProcessor();
@@ -643,11 +646,92 @@ public class ProfileProcessorTest {
 		Collection collection = dh.unmarshallData("cleargist", "activity104existing.xml.gz");
 		dh.insertInSimpleDB(collection, "test");
 		pr.createProfiles("test");
+		Thread.sleep(5000); // SimpleDB is eventually consistent, wait till we are sure that insertions are in
+		
+		// Add incremental & decremental data
+		Collection incrementalCollection = dh.unmarshallData("cleargist", "activity104incremental.xml.gz");
+		List<Item> incItems = dh.toItems(incrementalCollection);
+		pr.updateProfiles("test", incItems, new ArrayList<Item>());
+		Thread.sleep(5000); // SimpleDB is eventually consistent, wait till we are sure that insertions are in
+		
+		// Write profiles in file
+		writeProfilesInFile("profilesIncremental.txt");
+		
+		// Create batch profiles
+		cleanUp();
+		collection = dh.unmarshallData("cleargist", "activity104existingPlusIncremental.xml.gz");
+		dh.insertInSimpleDB(collection, "test");
+		pr.createProfiles("test");
+		Thread.sleep(5000); // SimpleDB is eventually consistent, wait till we are sure that insertions are in
+		
+		writeProfilesInFile("profilesBatch.txt");
+		
+		assertTrue(areCorrelationsEqual("cleargist", "profilesIncremental.txt", "profilesBatch.txt"));
+		
+		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
+				ProfileProcessorTest.class.getResourceAsStream(AWS_CREDENTIALS)));
+		s3.deleteObject("cleargist", "profilesIncremental.txt");
+		s3.deleteObject("cleargist", "profilesBatch.txt");
+	}
+	
+	
+	@Test
+	public void testWithRealDataC() throws Exception {
+		
+		cleanUp();
+		SessionDetailViewProfileProcessor pr = new SessionDetailViewProfileProcessor();
+		
+		// Create profiles
+		DataHandler dh = new DataHandler();
+		Collection collection = dh.unmarshallData("cleargist", "activity104existing.xml.gz");
+		dh.insertInSimpleDB(collection, "test");
+		pr.createProfiles("test");
+		Thread.sleep(5000); // SimpleDB is eventually consistent, wait till we are sure that insertions are in
+		
+		// Add incremental & decremental data
+		Collection decrementalCollection = dh.unmarshallData("cleargist", "activity104decremental.xml.gz");
+		pr.updateProfiles("test", new ArrayList<Item>(), dh.toItems(decrementalCollection));
+		Thread.sleep(5000); // SimpleDB is eventually consistent, wait till we are sure that insertions are in
+		
+		// Write profiles in file
+		writeProfilesInFile("profilesIncremental.txt");
+		
+		// Create batch profiles
+		cleanUp();
+		collection = dh.unmarshallData("cleargist", "activity104existingMinusDecremental.xml.gz");
+		dh.insertInSimpleDB(collection, "test");
+		pr.createProfiles("test");
+		Thread.sleep(5000); // SimpleDB is eventually consistent, wait till we are sure that insertions are in
+		
+		writeProfilesInFile("profilesBatch.txt");
+		
+		assertTrue(areCorrelationsEqual("cleargist", "profilesIncremental.txt", "profilesBatch.txt"));
+		
+		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
+				ProfileProcessorTest.class.getResourceAsStream(AWS_CREDENTIALS)));
+		s3.deleteObject("cleargist", "profilesIncremental.txt");
+		s3.deleteObject("cleargist", "profilesBatch.txt");
+	}
+	
+	
+	@Test
+	public void testWithRealDataD() throws Exception {
+		
+		cleanUp();
+		SessionDetailViewProfileProcessor pr = new SessionDetailViewProfileProcessor();
+		
+		// Create profiles
+		DataHandler dh = new DataHandler();
+		Collection collection = dh.unmarshallData("cleargist", "activity104existing.xml.gz");
+		dh.insertInSimpleDB(collection, "test");
+		pr.createProfiles("test");
+		Thread.sleep(5000); // SimpleDB is eventually consistent, wait till we are sure that insertions are in
 		
 		// Add incremental & decremental data
 		Collection incrementalCollection = dh.unmarshallData("cleargist", "activity104incremental.xml.gz");
 		Collection decrementalCollection = dh.unmarshallData("cleargist", "activity104decremental.xml.gz");
 		pr.updateProfiles("test", dh.toItems(incrementalCollection), dh.toItems(decrementalCollection));
+		Thread.sleep(5000); // SimpleDB is eventually consistent, wait till we are sure that insertions are in
 		
 		// Write profiles in file
 		writeProfilesInFile("profilesIncremental.txt");
@@ -657,6 +741,7 @@ public class ProfileProcessorTest {
 		collection = dh.unmarshallData("cleargist", "activity104new.xml.gz");
 		dh.insertInSimpleDB(collection, "test");
 		pr.createProfiles("test");
+		Thread.sleep(5000); // SimpleDB is eventually consistent, wait till we are sure that insertions are in
 		
 		writeProfilesInFile("profilesBatch.txt");
 		

@@ -71,20 +71,20 @@ public class DataSampler {
 		now.setTimeZone(TIME_ZONE);
 		now.setTimeInMillis(currentDate.getTime()); 
 		
-		Calendar tenMinutesBefore = Calendar.getInstance();
-		tenMinutesBefore.setTimeZone(TIME_ZONE);
-		tenMinutesBefore.setTimeInMillis(currentDate.getTime());     
-		tenMinutesBefore.add(Calendar.MINUTE, -10);
+		Calendar oldest = Calendar.getInstance();
+		oldest.setTimeZone(TIME_ZONE);
+		oldest.setTimeInMillis(currentDate.getTime());     
+		oldest.add(Calendar.MINUTE, -3);
 		
-		Calendar tenMinutesPlusOneMinute = Calendar.getInstance();
-		tenMinutesPlusOneMinute.setTimeZone(TIME_ZONE);
-		tenMinutesPlusOneMinute.setTime(tenMinutesBefore.getTime());
-		tenMinutesPlusOneMinute.add(Calendar.MINUTE, 1);
+		Calendar oldestPlusOne = Calendar.getInstance();
+		oldestPlusOne.setTimeZone(TIME_ZONE);
+		oldestPlusOne.setTime(oldest.getTime());
+		oldestPlusOne.add(Calendar.SECOND, 30);
 		
-		Calendar nowMinusOneMinute = Calendar.getInstance();
-		nowMinusOneMinute.setTimeZone(TIME_ZONE);
-		nowMinusOneMinute.setTimeInMillis(currentDate.getTime());     
-		nowMinusOneMinute.add(Calendar.MINUTE, -1);   
+		Calendar nowMinusOne = Calendar.getInstance();
+		nowMinusOne.setTimeZone(TIME_ZONE);
+		nowMinusOne.setTimeInMillis(currentDate.getTime());     
+		nowMinusOne.add(Calendar.SECOND, -30);   
 		
 		
 		
@@ -93,15 +93,15 @@ public class DataSampler {
 		DataHandler dh = new DataHandler();
 		
 		// Get existing activity
-		String selectExpression = "select * from `" + userActivityDomain + "` where ACTDATE < '" + formatter.format(nowMinusOneMinute.getTime()) + 
-																		   "' and ACTDATE > '" + formatter.format(tenMinutesBefore.getTime()) + "'" ;
+		String selectExpression = "select * from `" + userActivityDomain + "` where ACTDATE < '" + formatter.format(nowMinusOne.getTime()) + 
+																		   "' and ACTDATE > '" + formatter.format(oldest.getTime()) + "'" ;
 		List<Item> oldData = querySimpleDB(selectExpression);
 		Collection collection = dh.readFromSimpleDB(oldData);
 		dh.marshallData(collection, "cleargist", "data.xsd", "cleargist", "activity104existing.xml.gz");
 		oldData = null;
 		
 		// Get incremental data
-		selectExpression = "select * from `" + userActivityDomain + "` where ACTDATE > '" + formatter.format(nowMinusOneMinute.getTime()) + "'" +
+		selectExpression = "select * from `" + userActivityDomain + "` where ACTDATE > '" + formatter.format(nowMinusOne.getTime()) + "'" +
 																	" and ACTDATE < '" + formatter.format(now.getTime()) + "'";
 		List<Item> incrementalData = querySimpleDB(selectExpression);
 		collection = dh.readFromSimpleDB(incrementalData);
@@ -109,15 +109,15 @@ public class DataSampler {
 		incrementalData = null;
 		
 		// Get decremental data
-		selectExpression = "select * from `" + userActivityDomain + "` where ACTDATE < '" + formatter.format(tenMinutesPlusOneMinute.getTime()) + 
-		   															"' and ACTDATE > '" + formatter.format(tenMinutesBefore.getTime()) + "'" ;
+		selectExpression = "select * from `" + userActivityDomain + "` where ACTDATE < '" + formatter.format(oldestPlusOne.getTime()) + 
+		   															"' and ACTDATE > '" + formatter.format(oldest.getTime()) + "'" ;
 		List<Item> decrementalData = querySimpleDB(selectExpression);
 		collection = dh.readFromSimpleDB(decrementalData);
 		dh.marshallData(collection, "cleargist", "data.xsd", "cleargist", "activity104decremental.xml.gz");
 		decrementalData = null;
 		
 		// Get new activity
-		selectExpression = "select * from `" + userActivityDomain + "` where ACTDATE > '" + formatter.format(tenMinutesPlusOneMinute.getTime()) + "'" +
+		selectExpression = "select * from `" + userActivityDomain + "` where ACTDATE > '" + formatter.format(oldestPlusOne.getTime()) + "'" +
 																	" and ACTDATE < '" + formatter.format(now.getTime()) + "'";
 		List<Item> newData = querySimpleDB(selectExpression);
 		collection = dh.readFromSimpleDB(newData);
@@ -125,7 +125,7 @@ public class DataSampler {
 		newData = null;
 		
 		// Get existing + incremental data
-		selectExpression = "select * from `" + userActivityDomain + "` where ACTDATE > '" + formatter.format(tenMinutesBefore.getTime()) + "'" +
+		selectExpression = "select * from `" + userActivityDomain + "` where ACTDATE > '" + formatter.format(oldest.getTime()) + "'" +
 																	" and ACTDATE < '" + formatter.format(now.getTime()) + "'";
 		List<Item> existingAndIncremental = querySimpleDB(selectExpression);
 		collection = dh.readFromSimpleDB(existingAndIncremental);
@@ -133,8 +133,8 @@ public class DataSampler {
 		existingAndIncremental = null;
 		
 		// Get existing - decremental data
-		selectExpression = "select * from `" + userActivityDomain + "` where ACTDATE > '" + formatter.format(tenMinutesPlusOneMinute.getTime()) + "'" +
-																	" and ACTDATE < '" + formatter.format(nowMinusOneMinute.getTime()) + "'";
+		selectExpression = "select * from `" + userActivityDomain + "` where ACTDATE > '" + formatter.format(oldestPlusOne.getTime()) + "'" +
+																	" and ACTDATE < '" + formatter.format(nowMinusOne.getTime()) + "'";
 		List<Item> existingMinusDecremental = querySimpleDB(selectExpression);
 		collection = dh.readFromSimpleDB(existingMinusDecremental);
 		dh.marshallData(collection, "cleargist", "data.xsd", "cleargist", "activity104existingMinusDecremental.xml.gz");

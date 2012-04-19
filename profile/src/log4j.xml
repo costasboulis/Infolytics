@@ -6,7 +6,7 @@
     <layout class="org.apache.log4j.SimpleLayout"/>
   </appender>
   <root>
-    <priority value ="info" />
+    <priority value ="warn" />
     <appender-ref ref="ConsoleAppender"/>
   </root>
 </log4j:configuration>
