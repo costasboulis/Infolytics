@@ -451,6 +451,7 @@ public class CorrelationsModel extends BaseModel {
     			}
     			
     			String sourceID = fields[0];
+    			
     			HashMap<String, Float> hm = SS1.get(sourceID);
     			if (hm == null) {
     				out.write(line + newline);
@@ -481,6 +482,7 @@ public class CorrelationsModel extends BaseModel {
     					}
     				}
     				for (Map.Entry<String, Float> me : hm.entrySet()) {
+    					itemFound = true;
     					sb.append(";"); sb.append(me.getKey()); sb.append(";"); sb.append(me.getValue());
     				}
     				sb.append(newline);
@@ -927,8 +929,8 @@ public class CorrelationsModel extends BaseModel {
 			boolean found = false;
 			HashMap<String, Float> hm = SS1.get(sourceID);
 			if (hm != null) {
-				found = true;
 				for (Map.Entry<String, Float> me : hm.entrySet()) {
+					found = true;
 					sb.append(";"); sb.append(me.getKey()); sb.append(";"); sb.append(me.getValue());
 				}
 			}

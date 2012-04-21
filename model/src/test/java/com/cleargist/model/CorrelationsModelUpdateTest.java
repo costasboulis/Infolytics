@@ -88,7 +88,66 @@ public class CorrelationsModelUpdateTest {
 	@Test
 	public void updateModelA() throws Exception {
 		
-		createFullModel("activity104new.xml.gz");
+		createFullModel("activity104existing.xml.gz");
+		
+		createIncrementalModel(null, null, "activity104existing.xml.gz");
+		
+		String incrementalCorrelationsKey = "statsIncremental.txt";
+		String batchCorrelationsKey = "statsBatch.txt";
+		boolean b = areStatsEqual("cleargist", incrementalCorrelationsKey, batchCorrelationsKey);;
+		
+		assertTrue(b);
+		
+		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
+				CorrelationsModelUpdateTest.class.getResourceAsStream(AWS_CREDENTIALS)));
+		s3.deleteObject("cleargist", incrementalCorrelationsKey);
+		s3.deleteObject("cleargist", batchCorrelationsKey);
+	}
+	
+	
+	@Test
+	public void updateModelB() throws Exception {
+		
+		createFullModel("activity104existingPlusIncremental.xml.gz");
+		
+		createIncrementalModel("activity104incremental.xml.gz", null, "activity104existing.xml.gz");
+		
+		String incrementalCorrelationsKey = "statsIncremental.txt";
+		String batchCorrelationsKey = "statsBatch.txt";
+		boolean b = areStatsEqual("cleargist", incrementalCorrelationsKey, batchCorrelationsKey);;
+		
+		assertTrue(b);
+		
+		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
+				CorrelationsModelUpdateTest.class.getResourceAsStream(AWS_CREDENTIALS)));
+		s3.deleteObject("cleargist", incrementalCorrelationsKey);
+		s3.deleteObject("cleargist", batchCorrelationsKey);
+	}
+	
+	
+	@Test
+	public void updateModelC() throws Exception {
+		
+		createFullModel("activity104existingMinusDecremental.xml.gz");
+		
+		createIncrementalModel(null, "activity104decremental.xml.gz", "activity104existing.xml.gz");
+		
+		String incrementalCorrelationsKey = "statsIncremental.txt";
+		String batchCorrelationsKey = "statsBatch.txt";
+		boolean b = areStatsEqual("cleargist", incrementalCorrelationsKey, batchCorrelationsKey);;
+		
+		assertTrue(b);
+		
+		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
+				CorrelationsModelUpdateTest.class.getResourceAsStream(AWS_CREDENTIALS)));
+		s3.deleteObject("cleargist", incrementalCorrelationsKey);
+		s3.deleteObject("cleargist", batchCorrelationsKey);
+	}
+	
+	@Test
+	public void updateModelD() throws Exception {
+		
+//		createFullModel("activity104new.xml.gz");
 		
 		createIncrementalModel("activity104incremental.xml.gz", "activity104decremental.xml.gz", "activity104existing.xml.gz");
 		
@@ -97,6 +156,11 @@ public class CorrelationsModelUpdateTest {
 		boolean b = areStatsEqual("cleargist", incrementalCorrelationsKey, batchCorrelationsKey);;
 		
 		assertTrue(b);
+		
+//		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
+//				CorrelationsModelUpdateTest.class.getResourceAsStream(AWS_CREDENTIALS)));
+//		s3.deleteObject("cleargist", incrementalCorrelationsKey);
+//		s3.deleteObject("cleargist", batchCorrelationsKey);
 	}
 	
 	@Ignore
@@ -176,7 +240,7 @@ public class CorrelationsModelUpdateTest {
 		
 		// Get incremental / decremental data
 		DataHandler dh = new DataHandler();
-		Collection collection = dh.unmarshallData("cleargist", incrementalKey);
+		Collection collection = null;
 		SessionDetailViewProfileProcessor pr = new SessionDetailViewProfileProcessor();
 		List<Profile> incrementalProfiles = null;
 		if (incrementalKey != null) {
@@ -217,6 +281,7 @@ public class CorrelationsModelUpdateTest {
 			SessionDetailViewProfileProcessor pr2 = new SessionDetailViewProfileProcessor();
 			pr2.createProfiles("test");
 			Thread.sleep(5000); // SimpleDB is eventually consistent, wait till we are sure that insertions are in
+			
 			
 			CorrelationsModel model = new CorrelationsModel();
 			model.createModel("test", false);
@@ -292,7 +357,7 @@ public class CorrelationsModelUpdateTest {
 		line = reader.readLine();
 		float numberOfProfilesB = Float.parseFloat(line);
 		if (numberOfProfilesA != numberOfProfilesB) {
-			assertTrue(numberOfProfilesA == numberOfProfilesB);
+			return false;
 		}
 		int sizeSS0B = 0;
 		while ((line = reader.readLine()) != null) {
@@ -304,12 +369,21 @@ public class CorrelationsModelUpdateTest {
 			float countB = Float.parseFloat(fields[1]);
 			
 			Float countA = SS0A.get(sourceID);
-			assertTrue(countA != null);
-			assertTrue(countA.floatValue() == countB);
+			if (countA == null) {
+				logger.error("No SS0 stat for id " + sourceID);
+				return false;
+			}
+			if (countA.floatValue() != countB) {
+				logger.error("Different SS0 values for id " + sourceID);
+				return false;
+			}
 			
 			sizeSS0B ++;
 		}
-		assertTrue(sizeSS0B == SS0A.size());
+		if (sizeSS0B != SS0A.size()) {
+			logger.error("Different sizes between SS0 stats");
+			return false;
+		}
 		
 		int sizeSS1B = 0;
 		do {
@@ -318,23 +392,27 @@ public class CorrelationsModelUpdateTest {
 			
 			HashMap<String, Float> hmA = SS1A.get(sourceID);
 			if (hmA == null) {
+				logger.error("No SS1 stats for id " + sourceID);
 				return false;
 			}
 			HashMap<String, Float> hmB = new HashMap<String, Float>();
 			for (int i = 1; i < fields.length; i = i + 2) {
 				Float fA = hmA.get(fields[i]);
 				if (fA == null) {
+					logger.error("Could not find SS1 stats for id " + sourceID);
 					return false;
 				}
 				
 				Float fB = Float.parseFloat(fields[i+1]);
 				if (fA.floatValue() != fB.floatValue()) {
+					logger.error("Different value for SS1 stats for id " + sourceID);
 					return false;
 				}
 				hmB.put(fields[i], fB);
 			}
 			
 			if (hmA.size() != hmB.size()) {
+				logger.error("Different sizes of SS1 for id " + sourceID);
 				return false;
 			}
 			
@@ -344,6 +422,7 @@ public class CorrelationsModelUpdateTest {
 		reader.close();
 		
 		if (sizeSS1B != SS1A.size()) {
+			logger.error("Different sizes of SS1 between the two files");
 			return false;
 		}
 		
