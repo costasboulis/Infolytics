@@ -37,8 +37,10 @@ import com.amazonaws.services.simpledb.AmazonSimpleDB;
 import com.amazonaws.services.simpledb.AmazonSimpleDBClient;
 import com.amazonaws.services.simpledb.model.Attribute;
 import com.amazonaws.services.simpledb.model.AttributeDoesNotExistException;
+import com.amazonaws.services.simpledb.model.BatchDeleteAttributesRequest;
 import com.amazonaws.services.simpledb.model.BatchPutAttributesRequest;
 import com.amazonaws.services.simpledb.model.CreateDomainRequest;
+import com.amazonaws.services.simpledb.model.DeletableItem;
 import com.amazonaws.services.simpledb.model.DeleteAttributesRequest;
 import com.amazonaws.services.simpledb.model.DeleteDomainRequest;
 import com.amazonaws.services.simpledb.model.DuplicateItemNameException;
@@ -65,6 +67,7 @@ public abstract class ProfileProcessor {
 	private static final String DATE_PATTERN = "yyMMddHHmmssSSSZ";
 	public static String newline = System.getProperty("line.separator");
 	protected List<ReplaceableItem> items = new ArrayList<ReplaceableItem>();
+	protected List<DeletableItem> deletedItems = new ArrayList<DeletableItem>();
 	private Logger logger = Logger.getLogger(getClass());
 	private static String SIMPLEDB_ENDPOINT = "https://sdb.eu-west-1.amazonaws.com";
 	private static int MAX_PROFILES_PER_FILE = 50000;
@@ -238,6 +241,8 @@ public abstract class ProfileProcessor {
     	// Do the incremental profiles
 		for (Profile incrementalProfile : incrementalProfiles) {
 			String userID = incrementalProfile.getUserID();
+			ReplaceableItem item = new ReplaceableItem();
+			item.setName(userID);
 			
 			List<ReplaceableAttribute> attributes = new LinkedList<ReplaceableAttribute>();
 			HashSet<String> productIDs = new HashSet<String>();
@@ -246,7 +251,8 @@ public abstract class ProfileProcessor {
 			request.setDomainName(profileDomain);
 			request.setItemName(userID);
 			GetAttributesResult result = sdb.getAttributes(request);
-			boolean newUser = result.getAttributes().size() > 0 ? false : true;
+			
+			// Update attributes
 			for (Attribute attribute : result.getAttributes()) {
 				String productID = attribute.getName();
             	Float score = null;
@@ -273,39 +279,22 @@ public abstract class ProfileProcessor {
 				}
 			}
 			
-			
-			
-			if (newUser) {
-				// Add new user
-				ReplaceableItem item = new ReplaceableItem();
-				item.setName(userID);
-				for (Map.Entry<String, Float> incrementalProfileAttributes : incrementalProfile.getAttributes().entrySet()) {
-					String productID = incrementalProfileAttributes.getKey();
+			// Add new attributes
+			for (Map.Entry<String, Float> incrementalProfileAttributes : incrementalProfile.getAttributes().entrySet()) {
+				String productID = incrementalProfileAttributes.getKey();
+				if (!productIDs.contains(productID)) {
 					float score = incrementalProfileAttributes.getValue().floatValue();
 					ReplaceableAttribute att = new ReplaceableAttribute(productID, Float.toString(score), true);
         			attributes.add(att);
 				}
-				item.setAttributes(attributes);
-				addUserProfile(sdb, profileDomain, item, false);
 			}
-			else {
-				// Update only the attributes
-				// Get the new attributes
-				for (Map.Entry<String, Float> incrementalProfileAttributes : incrementalProfile.getAttributes().entrySet()) {
-					String productID = incrementalProfileAttributes.getKey();
-					if (!productIDs.contains(productID)) {
-						float score = incrementalProfileAttributes.getValue().floatValue();
-						ReplaceableAttribute att = new ReplaceableAttribute(productID, Float.toString(score), true);
-	        			attributes.add(att);
-					}
-				}
-				
-				// Update the profiles
-				updateAttributes(sdb, profileDomain, userID, attributes);
-			}
-			
+			item.setAttributes(attributes);
+			batchInsert(sdb, profileDomain, item, false);
 		
 		}
+		// Write any remaining - less than 25 - profiles
+		batchInsert(sdb, profileDomain, null, true);
+		
 		
 		// Now do the decremental profiles
 		for (Profile decrementalProfile : decrementalProfiles) {
@@ -349,57 +338,29 @@ public abstract class ProfileProcessor {
 				}
 			}
 			
-			// Update the profiles
-			updateAttributes(sdb, profileDomain, userID, attributes);
+			if (attributes.size() > 0) {
+				// Update attributes
+				ReplaceableItem item = new ReplaceableItem();
+				item.setName(userID);
+				item.setAttributes(attributes);
+				batchInsert(sdb, profileDomain, item, false);
+			}
 			
-			// Delete attributes
 			if (deleteAttributes.size() > 0) {
-				try {
-					sdb.deleteAttributes(new DeleteAttributesRequest(profileDomain, userID, deleteAttributes));
-				}
-				catch (InvalidParameterValueException ex) {
-		    		String errorMessage = "Cannot delete from domain " + profileDomain + " because of invalid parameter value" + " " + ex.getStackTrace();
-		    		logger.error(errorMessage);
-		    		throw new InvalidParameterValueException(errorMessage);
-		    	}
-				catch (NoSuchDomainException ex) {
-		    		String errorMessage = "Cannot delete from domain " + profileDomain + " " + ex.getStackTrace();
-		    		logger.error(errorMessage);
-		    		throw new NoSuchDomainException(errorMessage);
-		    	}
-				catch (AttributeDoesNotExistException ex) {
-		    		String errorMessage = "Cannot delete from domain " + profileDomain + " " + ex.getStackTrace();
-		    		logger.error(errorMessage);
-		    		throw new AttributeDoesNotExistException(errorMessage);
-		    	}
-				catch (MissingParameterException ex) {
-		    		String errorMessage = "Cannot delete from domain " + profileDomain + " " + ex.getStackTrace();
-		    		logger.error(errorMessage);
-		    		throw new MissingParameterException(errorMessage);
-		    	}
-				catch (AmazonServiceException ase) {
-		    		String errorMessage = "Cannot delete from domain, Amazon Service error (" + ase.getErrorType().toString() + ")" + " " + ase.getStackTrace();
-		    		logger.error(errorMessage);
-		    		throw new AmazonServiceException(errorMessage);
-		        }
-		    	catch (AmazonClientException ace) {
-		            String errorMessage = "Caught an AmazonClientException, which means the client encountered "
-		                + "a serious internal problem while trying to communicate with SimpleDB, "
-		                + "such as not being able to access the network " + " " + ace.getStackTrace();
-		            logger.error(errorMessage);
-		    		throw new AmazonClientException(errorMessage);
-		        }
-		    	catch (Exception ex) {
-		    		String errorMessage = "Cannot delete from SimpleDB";
-		    		logger.error(errorMessage);
-		    		throw new Exception();
-		    	}
+				// Delete attributes and possibly profiles
+				DeletableItem item = new DeletableItem();
+				item.setName(userID);
+				item.setAttributes(deleteAttributes);
+				batchDelete(sdb, profileDomain, item, false);
 			}
 			
 		}
+		// Write any remaining - less than 25 attributes
+		batchInsert(sdb, profileDomain, null, true);
 		
-		// Write any remaining - less than 25 - profiles
-		addUserProfile(sdb, profileDomain, null, true);
+		// Delete any remaining - less than 25 profiles / attributes
+		batchDelete(sdb, profileDomain, null, true);
+		
 	}
 	
 	private void updateProfilesS3(HashMap<String, Profile> incrementalProfiles, HashMap<String, Profile> decrementalProfiles, 
@@ -616,58 +577,36 @@ public abstract class ProfileProcessor {
 		updateProfilesSimpleDB(incrementalProfiles, decrementalProfiles, tenantID);
 	}
 	
-	private void updateAttributes(AmazonSimpleDB sdb, String profileDomain, String userID, List<ReplaceableAttribute> attributes) throws Exception {
-		if (attributes.size() == 0) {
+	
+	private void batchDelete(AmazonSimpleDB sdb, String domain, DeletableItem profile, boolean forceDelete) 
+	throws DuplicateItemNameException, InvalidParameterValueException, NumberDomainBytesExceededException, NumberSubmittedItemsExceededException, 
+	NumberSubmittedAttributesExceededException, NumberDomainAttributesExceededException, NumberItemAttributesExceededException, 
+	NoSuchDomainException, AmazonServiceException, AmazonClientException, Exception {
+		
+		
+		if (profile != null) {
+			deletedItems.add(profile);
+		}
+		
+		if (!forceDelete) {
+			if (deletedItems.size() < 25) {
+				return;
+			}
+		}
+		
+		if (deletedItems.size() == 0) {
 			return;
 		}
-		try {
-			sdb.putAttributes(new PutAttributesRequest(profileDomain, userID, attributes));
-		}
-		catch (InvalidParameterValueException ex) {
-    		String errorMessage = "Cannot write to SimpleDB domain " + profileDomain + " because of invalid parameter value" + " " + ex.getStackTrace();
-    		logger.error(errorMessage);
-    		throw new InvalidParameterValueException(errorMessage);
-    	}
-		catch (NumberDomainBytesExceededException ex) {
-    		String errorMessage = "Cannot write to SimpleDB domain " + profileDomain + " because max number of domain bytes exceeded" + " " + ex.getStackTrace();
-    		logger.error(errorMessage);
-    		throw new NumberDomainBytesExceededException(errorMessage);
-    	}
-		catch (NumberDomainAttributesExceededException ex) {
-    		String errorMessage = "Cannot write to SimpleDB domain " + profileDomain + " because max number of domain attributes exceeded" + " " + ex.getStackTrace();
-    		logger.error(errorMessage);
-    		throw new NumberDomainAttributesExceededException(errorMessage);
-    	}
-		catch (NumberItemAttributesExceededException ex) {
-    		String errorMessage = "Cannot write to SimpleDB domain " + profileDomain + " because max number of item attributes exceeded" + " " + ex.getStackTrace();
-    		logger.error(errorMessage);
-    		throw new NumberItemAttributesExceededException(errorMessage);
-    	}
-    	catch (NoSuchDomainException ex) {
-    		String errorMessage = "Cannot find SimpleDB domain " + profileDomain + " " + ex.getStackTrace();
-    		logger.error(errorMessage);
-    		throw new NoSuchDomainException(errorMessage);
-    	}
-    	catch (AmazonServiceException ase) {
-    		String errorMessage = "Cannot write in SimpleDB, Amazon Service error (" + ase.getErrorType().toString() + ")" + " " + ase.getStackTrace();
-    		logger.error(errorMessage);
-    		throw new AmazonServiceException(errorMessage);
-        }
-    	catch (AmazonClientException ace) {
-            String errorMessage = "Caught an AmazonClientException, which means the client encountered "
-                + "a serious internal problem while trying to communicate with SimpleDB, "
-                + "such as not being able to access the network " + " " + ace.getStackTrace();
-            logger.error(errorMessage);
-    		throw new AmazonClientException(errorMessage);
-        }
-    	catch (Exception ex) {
-    		String errorMessage = "Cannot write to SimpleDB";
-    		logger.error(errorMessage);
-    		throw new Exception();
-    	}
-	}
+		
+		BatchDeleteAttributesRequest batchDeleteArgumentsRequest = new BatchDeleteAttributesRequest();
+		batchDeleteArgumentsRequest.setDomainName(domain);
+		batchDeleteArgumentsRequest.setItems(deletedItems);
+		sdb.batchDeleteAttributes(batchDeleteArgumentsRequest);
+    	
+		deletedItems = new ArrayList<DeletableItem>();
+    }
 	
-	private void addUserProfile(AmazonSimpleDB sdb, String SimpleDBDomain, ReplaceableItem profile, boolean forceWrite) 
+	private void batchInsert(AmazonSimpleDB sdb, String domain, ReplaceableItem profile, boolean forceWrite) 
 	throws DuplicateItemNameException, InvalidParameterValueException, NumberDomainBytesExceededException, NumberSubmittedItemsExceededException, 
 	NumberSubmittedAttributesExceededException, NumberDomainAttributesExceededException, NumberItemAttributesExceededException, 
 	NoSuchDomainException, AmazonServiceException, AmazonClientException, Exception {
@@ -688,45 +627,45 @@ public abstract class ProfileProcessor {
 		}
 		
     	try {
-    		sdb.batchPutAttributes(new BatchPutAttributesRequest(SimpleDBDomain, items));
+    		sdb.batchPutAttributes(new BatchPutAttributesRequest(domain, items));
     	}
 		catch (DuplicateItemNameException ex) {
-    		String errorMessage = "Cannot write to SimpleDB domain " + SimpleDBDomain + " because of duplicate item names" + " " + ex.getStackTrace();
+    		String errorMessage = "Cannot write to SimpleDB domain " + domain + " because of duplicate item names" + " " + ex.getStackTrace();
     		logger.error(errorMessage);
     		throw new DuplicateItemNameException(errorMessage);
     	}
 		catch (InvalidParameterValueException ex) {
-    		String errorMessage = "Cannot write to SimpleDB domain " + SimpleDBDomain + " because of invalid parameter value" + " " + ex.getStackTrace();
+    		String errorMessage = "Cannot write to SimpleDB domain " + domain + " because of invalid parameter value" + " " + ex.getStackTrace();
     		logger.error(errorMessage);
     		throw new InvalidParameterValueException(errorMessage);
     	}
 		catch (NumberDomainBytesExceededException ex) {
-    		String errorMessage = "Cannot write to SimpleDB domain " + SimpleDBDomain + " because max number of domain bytes exceeded" + " " + ex.getStackTrace();
+    		String errorMessage = "Cannot write to SimpleDB domain " + domain + " because max number of domain bytes exceeded" + " " + ex.getStackTrace();
     		logger.error(errorMessage);
     		throw new NumberDomainBytesExceededException(errorMessage);
     	}
 		catch (NumberSubmittedItemsExceededException ex) {
-    		String errorMessage = "Cannot write to SimpleDB domain " + SimpleDBDomain + " because max number of submitted items exceeded" + " " + ex.getStackTrace();
+    		String errorMessage = "Cannot write to SimpleDB domain " + domain + " because max number of submitted items exceeded" + " " + ex.getStackTrace();
     		logger.error(errorMessage);
     		throw new NumberSubmittedItemsExceededException(errorMessage);
     	}
 		catch (NumberSubmittedAttributesExceededException ex) {
-    		String errorMessage = "Cannot write to SimpleDB domain " + SimpleDBDomain + " because max number of submitted attributes exceeded" + " " + ex.getStackTrace();
+    		String errorMessage = "Cannot write to SimpleDB domain " + domain + " because max number of submitted attributes exceeded" + " " + ex.getStackTrace();
     		logger.error(errorMessage);
     		throw new NumberSubmittedAttributesExceededException(errorMessage);
     	}
 		catch (NumberDomainAttributesExceededException ex) {
-    		String errorMessage = "Cannot write to SimpleDB domain " + SimpleDBDomain + " because max number of domain attributes exceeded" + " " + ex.getStackTrace();
+    		String errorMessage = "Cannot write to SimpleDB domain " + domain + " because max number of domain attributes exceeded" + " " + ex.getStackTrace();
     		logger.error(errorMessage);
     		throw new NumberDomainAttributesExceededException(errorMessage);
     	}
 		catch (NumberItemAttributesExceededException ex) {
-    		String errorMessage = "Cannot write to SimpleDB domain " + SimpleDBDomain + " because max number of item attributes exceeded" + " " + ex.getStackTrace();
+    		String errorMessage = "Cannot write to SimpleDB domain " + domain + " because max number of item attributes exceeded" + " " + ex.getStackTrace();
     		logger.error(errorMessage);
     		throw new NumberItemAttributesExceededException(errorMessage);
     	}
     	catch (NoSuchDomainException ex) {
-    		String errorMessage = "Cannot find SimpleDB domain " + SimpleDBDomain + " " + ex.getStackTrace();
+    		String errorMessage = "Cannot find SimpleDB domain " + domain + " " + ex.getStackTrace();
     		logger.error(errorMessage);
     		throw new NoSuchDomainException(errorMessage);
     	}

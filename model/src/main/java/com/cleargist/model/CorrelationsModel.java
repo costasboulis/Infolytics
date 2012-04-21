@@ -77,7 +77,11 @@ public class CorrelationsModel extends BaseModel {
 		this.topCorrelations = 10;
 	}
 	
-	public void createModel(String tenantID) 
+	public void createModel(String tenantID)  throws AmazonServiceException, AmazonClientException, Exception {
+		createModel(tenantID, true);
+	}
+	
+	public void createModel(String tenantID, boolean deleteStatsDirectory) 
 	throws AmazonServiceException, AmazonClientException, Exception {
 		
 		String bucketName = getStatsBucketName(tenantID);
@@ -88,17 +92,19 @@ public class CorrelationsModel extends BaseModel {
 		
 		estimateModelParameters(tenantID);
 		
-		// Delete suff. stats directory
-		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
-				CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
-		String statsBucketName = getStatsBucketName(tenantID);
-		ObjectListing objListing = s3.listObjects(statsBucketName);
-		if (objListing.getObjectSummaries().size() > 0) {
-			for (S3ObjectSummary objSummary : objListing.getObjectSummaries()) {
-				s3.deleteObject(bucketName, objSummary.getKey());
+		if (deleteStatsDirectory) {
+			AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
+					CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
+			String statsBucketName = getStatsBucketName(tenantID);
+			ObjectListing objListing = s3.listObjects(statsBucketName);
+			if (objListing.getObjectSummaries().size() > 0) {
+				for (S3ObjectSummary objSummary : objListing.getObjectSummaries()) {
+					s3.deleteObject(bucketName, objSummary.getKey());
+				}
 			}
+			s3.deleteBucket(statsBucketName);
 		}
-		s3.deleteBucket(statsBucketName);
+		
 		
 		
 		// Now that the new model is ready swap the domain names
