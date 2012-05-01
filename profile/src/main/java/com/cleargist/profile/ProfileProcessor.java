@@ -10,13 +10,17 @@ import java.io.InputStreamReader;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Date;
+import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.TimeZone;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import org.apache.log4j.Logger;
 
@@ -36,26 +40,22 @@ import com.amazonaws.services.s3.model.StorageClass;
 import com.amazonaws.services.simpledb.AmazonSimpleDB;
 import com.amazonaws.services.simpledb.AmazonSimpleDBClient;
 import com.amazonaws.services.simpledb.model.Attribute;
-import com.amazonaws.services.simpledb.model.AttributeDoesNotExistException;
 import com.amazonaws.services.simpledb.model.BatchDeleteAttributesRequest;
 import com.amazonaws.services.simpledb.model.BatchPutAttributesRequest;
 import com.amazonaws.services.simpledb.model.CreateDomainRequest;
 import com.amazonaws.services.simpledb.model.DeletableItem;
-import com.amazonaws.services.simpledb.model.DeleteAttributesRequest;
 import com.amazonaws.services.simpledb.model.DeleteDomainRequest;
 import com.amazonaws.services.simpledb.model.DuplicateItemNameException;
 import com.amazonaws.services.simpledb.model.GetAttributesRequest;
 import com.amazonaws.services.simpledb.model.GetAttributesResult;
 import com.amazonaws.services.simpledb.model.InvalidParameterValueException;
 import com.amazonaws.services.simpledb.model.Item;
-import com.amazonaws.services.simpledb.model.MissingParameterException;
 import com.amazonaws.services.simpledb.model.NoSuchDomainException;
 import com.amazonaws.services.simpledb.model.NumberDomainAttributesExceededException;
 import com.amazonaws.services.simpledb.model.NumberDomainBytesExceededException;
 import com.amazonaws.services.simpledb.model.NumberItemAttributesExceededException;
 import com.amazonaws.services.simpledb.model.NumberSubmittedAttributesExceededException;
 import com.amazonaws.services.simpledb.model.NumberSubmittedItemsExceededException;
-import com.amazonaws.services.simpledb.model.PutAttributesRequest;
 import com.amazonaws.services.simpledb.model.ReplaceableAttribute;
 import com.amazonaws.services.simpledb.model.ReplaceableItem;
 import com.amazonaws.services.simpledb.model.SelectRequest;
@@ -64,14 +64,15 @@ import com.amazonaws.services.simpledb.model.SelectResult;
 
 public abstract class ProfileProcessor {
 	private static final String AWS_CREDENTIALS = "/AwsCredentials.properties";
-	private static final String DATE_PATTERN = "yyMMddHHmmssSSSZ";
 	public static String newline = System.getProperty("line.separator");
 	protected List<ReplaceableItem> items = new ArrayList<ReplaceableItem>();
 	protected List<DeletableItem> deletedItems = new ArrayList<DeletableItem>();
 	private Logger logger = Logger.getLogger(getClass());
 	private static String SIMPLEDB_ENDPOINT = "https://sdb.eu-west-1.amazonaws.com";
-	private static int MAX_PROFILES_PER_FILE = 50000;
-	private static TimeZone TIME_ZONE = TimeZone.getTimeZone("GMT");
+	private static final int NO_OF_THREADS_TO_RUN = 6;
+	private static final int MAX_RECORDS_TO_PROCESS = 25;
+	private static final int FIXED_NO_OF_THREADS_OPER = 50;
+	
 	
 	public static List<Item> querySimpleDB(String selectExpression) throws AmazonServiceException, AmazonClientException, Exception{
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
@@ -82,10 +83,7 @@ public abstract class ProfileProcessor {
 		String selectExpressionWithLimit = selectExpression + " limit 2500";
 		SelectRequest selectRequest = new SelectRequest(selectExpressionWithLimit);
 		List<Item> allItems = new LinkedList<Item>();
-		int count  =0;
 		do {
-//			count ++;
-//			logger.debug("count ::: " + count);
 			
 		    if (resultNextToken != null) {
 		    	selectRequest.setNextToken(resultNextToken);
@@ -107,14 +105,27 @@ public abstract class ProfileProcessor {
 		return allItems;
 	}
 	
-	protected List<List<Item>> getDataSinceLastUpdate(String tenantID, Calendar currentDateFrom, Calendar lastUpdate, Calendar lastUpdateFrom) throws Exception {
-		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
-				ProfileProcessor.class.getResourceAsStream(AWS_CREDENTIALS)));
-		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
+	protected List<Future<List<Item>>> getDataSinceLastUpdate(String tenantID, String latestProfile, int profHorizon) throws Exception {
+		String datePattern = "yyMMddHHmmssSSSZ";
+        Date latestProfileDate = (new SimpleDateFormat(datePattern)).parse(latestProfile);
+        Calendar lastUpdate = new GregorianCalendar();
+        lastUpdate.setTime(latestProfileDate);
+        
+        Date today = new Date();
+        Calendar toDate = new GregorianCalendar();
+        toDate.setTime(today);
+        toDate.add(Calendar.MONTH, -profHorizon);
+        
+        Calendar fromDate = new GregorianCalendar();
+        fromDate.setTime(lastUpdate.getTime());
+        fromDate.add(Calendar.MONTH, -profHorizon);
+        
+        return getDataSinceLastUpdate(tenantID, toDate, lastUpdate, fromDate);
+	}
+	
+	protected List<Future<List<Item>>> getDataSinceLastUpdate(String tenantID, Calendar toDate, Calendar lastUpdate, Calendar fromDate) throws Exception {
 		
-    	SimpleDateFormat formatter = new SimpleDateFormat(DATE_PATTERN);
-    	formatter.setTimeZone(TIME_ZONE);
-    	
+		
     	/*
     	RecommendationsDAO recsDAO = new RecommendationsDAOImpl();
     	Tenant tenant = recsDAO.getTenantById(tenantID);
@@ -184,41 +195,23 @@ public abstract class ProfileProcessor {
     	}
     	*/
     	
-    	/*
-    	// dummy last update
-		Calendar currentDateFrom = Calendar.getInstance();
-		currentDateFrom.setTimeZone(TIME_ZONE);
-		Date currentDate = new Date();
-		currentDateFrom.setTimeInMillis(currentDate.getTime());     
-		currentDateFrom.add(Calendar.MONTH, -6);      // Profile horizon, retrieve this from tenant profile
-		
-		Calendar lastUpdate = Calendar.getInstance();
-		lastUpdate.setTimeZone(TIME_ZONE);
-    	lastUpdate.set(2012, 3, 3, 4, 56, 20);       // Last update, retrieve this from tenant profile
-//		lastUpdate.setTime(currentDate); 
-		
-		Calendar lastUpdateFrom = Calendar.getInstance();
-		lastUpdateFrom.setTimeZone(TIME_ZONE);
-		lastUpdateFrom.setTimeInMillis(lastUpdate.getTime().getTime());    
-		lastUpdateFrom.add(Calendar.MONTH, -6);      // Profile horizon, retrieve this from tenant profile
-		*/
+    	
 		
 		
-		// Now form the SELECT statement for incremental data
-		String userActivityDomain = "ACTIVITY_" + tenantID;
-		String selectExpression = "select * from `" + userActivityDomain + "` where ACTDATE > '" + formatter.format(lastUpdate.getTime()) + "'";
-        List<Item> incrementalData = querySimpleDB(selectExpression);
-        
-		// Now form the SELECT statement for decremental data
-        selectExpression = "select * from `" + userActivityDomain + "` where ACTDATE < '" + formatter.format(currentDateFrom.getTime()) + 
-        															"' and ACTDATE > '" + formatter.format(lastUpdateFrom.getTime()) + "'" ;
-        List<Item> decrementalData = querySimpleDB(selectExpression);
-        
-		List<List<Item>> newData = new ArrayList<List<Item>>();
-		newData.add(incrementalData);
-		newData.add(decrementalData);
+    	List<Future<List<Item>>> list = new ArrayList<Future<List<Item>>>();
+
+		ExecutorService pool = Executors.newFixedThreadPool(FIXED_NO_OF_THREADS_OPER);
+		IncrementalDataThread incCallable = new IncrementalDataThread(tenantID, lastUpdate);
+		DecrementalDataThread decCallable = new DecrementalDataThread(tenantID, fromDate, toDate);
+		Future<List<Item>> incFuture = pool.submit(incCallable);
+		Future<List<Item>> decFuture = pool.submit(decCallable);
+
+		list.add(incFuture);
+		list.add(decFuture);
 		
-		return newData;
+		
+		
+		return list;
 	}
 	
 	// Gets as input the raw data, implements custom weighting, filtering logic and produces a profile of the form UID, <PID, VALUE>+
@@ -289,11 +282,11 @@ public abstract class ProfileProcessor {
 				}
 			}
 			item.setAttributes(attributes);
-			batchInsert(sdb, profileDomain, item, false);
+			items.add(item);
 		
 		}
-		// Write any remaining - less than 25 - profiles
-		batchInsert(sdb, profileDomain, null, true);
+		// Increment profiles
+		batchInsert(profileDomain);
 		
 		
 		// Now do the decremental profiles
@@ -343,7 +336,7 @@ public abstract class ProfileProcessor {
 				ReplaceableItem item = new ReplaceableItem();
 				item.setName(userID);
 				item.setAttributes(attributes);
-				batchInsert(sdb, profileDomain, item, false);
+				items.add(item);
 			}
 			
 			if (deleteAttributes.size() > 0) {
@@ -351,14 +344,15 @@ public abstract class ProfileProcessor {
 				DeletableItem item = new DeletableItem();
 				item.setName(userID);
 				item.setAttributes(deleteAttributes);
+				// Delete any attributes with zero counts
 				batchDelete(sdb, profileDomain, item, false);
 			}
 			
 		}
-		// Write any remaining - less than 25 attributes
-		batchInsert(sdb, profileDomain, null, true);
+		// Update the attributes that have decreased in value
+		batchInsert(profileDomain);
 		
-		// Delete any remaining - less than 25 profiles / attributes
+		// Delete any attributes with zero counts
 		batchDelete(sdb, profileDomain, null, true);
 		
 	}
@@ -512,9 +506,9 @@ public abstract class ProfileProcessor {
 	}
 	
 	public void updateProfiles(String tenantID, Calendar currentDateFrom, Calendar lastUpdate, Calendar lastUpdateFrom) throws Exception {
-		List<List<Item>> newData = getDataSinceLastUpdate(tenantID, currentDateFrom, lastUpdate, lastUpdateFrom);
-		List<Item> incrementalData = newData.get(0);
-		List<Item> decrementalData = newData.get(1);
+		List<Future<List<Item>>>  newData = getDataSinceLastUpdate(tenantID, currentDateFrom, lastUpdate, lastUpdateFrom);
+		List<Item> incrementalData = newData.get(0).get();
+		List<Item> decrementalData = newData.get(1).get();
 		
 		List<Profile> incrementalProfiles = createProfile(incrementalData);
 		/*
@@ -606,86 +600,41 @@ public abstract class ProfileProcessor {
 		deletedItems = new ArrayList<DeletableItem>();
     }
 	
-	private void batchInsert(AmazonSimpleDB sdb, String domain, ReplaceableItem profile, boolean forceWrite) 
+	private void batchInsert(String domain) 
 	throws DuplicateItemNameException, InvalidParameterValueException, NumberDomainBytesExceededException, NumberSubmittedItemsExceededException, 
 	NumberSubmittedAttributesExceededException, NumberDomainAttributesExceededException, NumberItemAttributesExceededException, 
 	NoSuchDomainException, AmazonServiceException, AmazonClientException, Exception {
 		
-		
-		if (profile != null) {
-			items.add(profile);
-		}
-		
-		if (!forceWrite) {
-			if (items.size() < 25) {
-				return;
-			}
-		}
-		
-		if (items.size() == 0) {
+		if (items == null || items.size() == 0) {
+			items = new ArrayList<ReplaceableItem>();
 			return;
 		}
 		
-    	try {
-    		sdb.batchPutAttributes(new BatchPutAttributesRequest(domain, items));
-    	}
-		catch (DuplicateItemNameException ex) {
-    		String errorMessage = "Cannot write to SimpleDB domain " + domain + " because of duplicate item names" + " " + ex.getStackTrace();
-    		logger.error(errorMessage);
-    		throw new DuplicateItemNameException(errorMessage);
-    	}
-		catch (InvalidParameterValueException ex) {
-    		String errorMessage = "Cannot write to SimpleDB domain " + domain + " because of invalid parameter value" + " " + ex.getStackTrace();
-    		logger.error(errorMessage);
-    		throw new InvalidParameterValueException(errorMessage);
-    	}
-		catch (NumberDomainBytesExceededException ex) {
-    		String errorMessage = "Cannot write to SimpleDB domain " + domain + " because max number of domain bytes exceeded" + " " + ex.getStackTrace();
-    		logger.error(errorMessage);
-    		throw new NumberDomainBytesExceededException(errorMessage);
-    	}
-		catch (NumberSubmittedItemsExceededException ex) {
-    		String errorMessage = "Cannot write to SimpleDB domain " + domain + " because max number of submitted items exceeded" + " " + ex.getStackTrace();
-    		logger.error(errorMessage);
-    		throw new NumberSubmittedItemsExceededException(errorMessage);
-    	}
-		catch (NumberSubmittedAttributesExceededException ex) {
-    		String errorMessage = "Cannot write to SimpleDB domain " + domain + " because max number of submitted attributes exceeded" + " " + ex.getStackTrace();
-    		logger.error(errorMessage);
-    		throw new NumberSubmittedAttributesExceededException(errorMessage);
-    	}
-		catch (NumberDomainAttributesExceededException ex) {
-    		String errorMessage = "Cannot write to SimpleDB domain " + domain + " because max number of domain attributes exceeded" + " " + ex.getStackTrace();
-    		logger.error(errorMessage);
-    		throw new NumberDomainAttributesExceededException(errorMessage);
-    	}
-		catch (NumberItemAttributesExceededException ex) {
-    		String errorMessage = "Cannot write to SimpleDB domain " + domain + " because max number of item attributes exceeded" + " " + ex.getStackTrace();
-    		logger.error(errorMessage);
-    		throw new NumberItemAttributesExceededException(errorMessage);
-    	}
-    	catch (NoSuchDomainException ex) {
-    		String errorMessage = "Cannot find SimpleDB domain " + domain + " " + ex.getStackTrace();
-    		logger.error(errorMessage);
-    		throw new NoSuchDomainException(errorMessage);
-    	}
-    	catch (AmazonServiceException ase) {
-    		String errorMessage = "Cannot write in SimpleDB, Amazon Service error (" + ase.getErrorType().toString() + ")" + " " + ase.getStackTrace();
-    		logger.error(errorMessage);
-    		throw new AmazonServiceException(errorMessage);
-        }
-    	catch (AmazonClientException ace) {
-            String errorMessage = "Caught an AmazonClientException, which means the client encountered "
-                + "a serious internal problem while trying to communicate with SimpleDB, "
-                + "such as not being able to access the network " + " " + ace.getStackTrace();
-            logger.error(errorMessage);
-    		throw new AmazonClientException(errorMessage);
-        }
-    	catch (Exception ex) {
-    		String errorMessage = "Cannot write to SimpleDB";
-    		logger.error(errorMessage);
-    		throw new Exception();
-    	}
+		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
+				ProfileProcessor.class.getResourceAsStream(AWS_CREDENTIALS)));
+		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
+		
+		List<ReplaceableItem> itemsToProcess = new ArrayList<ReplaceableItem>();
+
+		if (items.size() > MAX_RECORDS_TO_PROCESS) {
+			int itemsPerThread = items.size() / NO_OF_THREADS_TO_RUN;
+			for (ReplaceableItem profile : items) {
+				itemsToProcess.add(profile);
+				if (itemsToProcess.size() == itemsPerThread) {
+					Thread batchDateProc = new BatchDataProcessorThread(sdb, itemsToProcess, domain);
+					itemsToProcess = new ArrayList<ReplaceableItem>();
+					batchDateProc.start();
+				}
+				
+			}
+			//write any remaining
+			if (itemsToProcess.size() > 0) {
+				Thread batchDateProc = new BatchDataProcessorThread(sdb, itemsToProcess, domain);
+				batchDateProc.start();
+			}
+		} else {
+			sdb.batchPutAttributes(new BatchPutAttributesRequest(domain, items));
+		}
     	
     	items = new ArrayList<ReplaceableItem>();
     }
