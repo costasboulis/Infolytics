@@ -369,6 +369,7 @@ public class CorrelationsTest {
 		return true;
 	}
 	
+	@Ignore
 	@Test
 	public void testPersonalized() {
 //		String filename = "smallSintagesPareasProfiles.csv";
@@ -416,6 +417,7 @@ public class CorrelationsTest {
 		
 	}
 	
+	@Ignore
 	@Test
 	public void testMerging() {
 //		String filename = "smallSintagesPareasProfiles.csv";

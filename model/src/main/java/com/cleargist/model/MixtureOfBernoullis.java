@@ -28,6 +28,7 @@ import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.services.s3.model.StorageClass;
 import com.cleargist.catalog.entity.jaxb.Catalog.Products.Product;
+import com.cleargist.profile.Profile;
 
 /**
  * Mixture of multivariate Bernoulli distributions with missing values
@@ -94,6 +95,11 @@ public class MixtureOfBernoullis extends BaseModel {
 	
 	public String getDataKey() {
 		return this.dataKey;
+	}
+	
+	public void updateModel(String tenantID, List<Profile> incrementalProfiles, List<Profile> decrementalProfiles) 
+	throws AmazonServiceException, AmazonClientException, Exception {
+		
 	}
 	
 	public void createModel(String tenantID) throws Exception {

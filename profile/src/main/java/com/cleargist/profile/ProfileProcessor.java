@@ -105,7 +105,7 @@ public abstract class ProfileProcessor {
 		return allItems;
 	}
 	
-	protected List<Future<List<Item>>> getDataSinceLastUpdate(String tenantID, String latestProfile, int profHorizon) throws Exception {
+	public List<Future<List<Item>>> getDataSinceLastUpdate(String tenantID, String latestProfile, int profHorizon) throws Exception {
 		String datePattern = "yyMMddHHmmssSSSZ";
         Date latestProfileDate = (new SimpleDateFormat(datePattern)).parse(latestProfile);
         Calendar lastUpdate = new GregorianCalendar();
@@ -123,7 +123,7 @@ public abstract class ProfileProcessor {
         return getDataSinceLastUpdate(tenantID, toDate, lastUpdate, fromDate);
 	}
 	
-	protected List<Future<List<Item>>> getDataSinceLastUpdate(String tenantID, Calendar toDate, Calendar lastUpdate, Calendar fromDate) throws Exception {
+	public List<Future<List<Item>>> getDataSinceLastUpdate(String tenantID, Calendar toDate, Calendar lastUpdate, Calendar fromDate) throws Exception {
 		
 		
     	/*
@@ -496,6 +496,24 @@ public abstract class ProfileProcessor {
     	if (!localFileDeleted) {
     		logger.error("Could not delete local file " + localFile.getAbsolutePath());
     	}
+	}
+	
+	public void updateProfiles(String tenantID, String latestProfile, int profileHorizon) throws Exception {
+		String datePattern = "yyMMddHHmmssSSSZ";
+        Date latestProfileDate = (new SimpleDateFormat(datePattern)).parse(latestProfile);
+        Calendar lastUpdate = new GregorianCalendar();
+        lastUpdate.setTime(latestProfileDate);
+        
+        Date today = new Date();
+        Calendar toDate = new GregorianCalendar();
+        toDate.setTime(today);
+        toDate.add(Calendar.MONTH, -profileHorizon);
+        
+        Calendar fromDate = new GregorianCalendar();
+        fromDate.setTime(lastUpdate.getTime());
+        fromDate.add(Calendar.MONTH, -profileHorizon);
+		
+		updateProfiles(tenantID, toDate, lastUpdate, fromDate);
 	}
 	
 	public void updateProfiles(String tenantID, List<Item> incrementalItems, List<Item> decrementalItems) throws Exception {

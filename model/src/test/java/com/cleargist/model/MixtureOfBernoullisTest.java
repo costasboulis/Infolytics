@@ -13,6 +13,7 @@ import java.util.HashSet;
 import java.util.Random;
 
 import org.apache.log4j.Logger;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import com.amazonaws.auth.PropertiesCredentials;
@@ -237,6 +238,7 @@ public class MixtureOfBernoullisTest {
 		return adjRandIndex;
 	}
 	
+	@Ignore
 	@Test
 	public void trainInMemoryTest() {
 	//	createSample();

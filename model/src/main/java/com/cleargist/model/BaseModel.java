@@ -24,6 +24,7 @@ import com.amazonaws.services.simpledb.model.GetAttributesResult;
 import com.amazonaws.services.simpledb.model.PutAttributesRequest;
 import com.amazonaws.services.simpledb.model.ReplaceableAttribute;
 import com.cleargist.catalog.entity.jaxb.Catalog;
+import com.cleargist.profile.Profile;
 
  
 
@@ -41,7 +42,9 @@ public abstract class BaseModel implements Modelable {
     private static final int MEMCACHED_PORT = 11211;
     private int TTL_CACHE = 60 * 60 * 24;   // This must be the same as the model update rate
     
-	
+    public abstract void updateModel(String tenantID, List<Profile> incrementalProfiles, List<Profile> decrementalProfiles) 
+	throws AmazonServiceException, AmazonClientException, Exception;
+    
     public abstract void createModel(String tenantID) throws AmazonServiceException, AmazonClientException, Exception;
     
 	protected abstract void calculateSufficientStatistics(String bucketName, String baseFilename, String tenantID) throws Exception;

@@ -84,7 +84,7 @@ public class CorrelationsModelUpdateTest {
         sdb.deleteAttributes(deleteAttributesRequest);
 	}
 	
-	
+	@Ignore
 	@Test
 	public void updateModelA() throws Exception {
 		
@@ -94,8 +94,8 @@ public class CorrelationsModelUpdateTest {
 		
 		String incrementalCorrelationsKey = "statsIncremental.txt";
 		String batchCorrelationsKey = "statsBatch.txt";
+		Thread.sleep(5000);
 		boolean b = areStatsEqual("cleargist", incrementalCorrelationsKey, batchCorrelationsKey);;
-		
 		assertTrue(b);
 		
 		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
@@ -104,7 +104,7 @@ public class CorrelationsModelUpdateTest {
 		s3.deleteObject("cleargist", batchCorrelationsKey);
 	}
 	
-	
+	@Ignore
 	@Test
 	public void updateModelB() throws Exception {
 		
@@ -114,8 +114,8 @@ public class CorrelationsModelUpdateTest {
 		
 		String incrementalCorrelationsKey = "statsIncremental.txt";
 		String batchCorrelationsKey = "statsBatch.txt";
+		Thread.sleep(5000);
 		boolean b = areStatsEqual("cleargist", incrementalCorrelationsKey, batchCorrelationsKey);;
-		
 		assertTrue(b);
 		
 		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
@@ -124,7 +124,7 @@ public class CorrelationsModelUpdateTest {
 		s3.deleteObject("cleargist", batchCorrelationsKey);
 	}
 	
-	
+	@Ignore
 	@Test
 	public void updateModelC() throws Exception {
 		
@@ -134,6 +134,7 @@ public class CorrelationsModelUpdateTest {
 		
 		String incrementalCorrelationsKey = "statsIncremental.txt";
 		String batchCorrelationsKey = "statsBatch.txt";
+		Thread.sleep(5000);
 		boolean b = areStatsEqual("cleargist", incrementalCorrelationsKey, batchCorrelationsKey);;
 		
 		assertTrue(b);
@@ -144,6 +145,7 @@ public class CorrelationsModelUpdateTest {
 		s3.deleteObject("cleargist", batchCorrelationsKey);
 	}
 	
+	@Ignore
 	@Test
 	public void updateModelD() throws Exception {
 		
@@ -153,6 +155,7 @@ public class CorrelationsModelUpdateTest {
 		
 		String incrementalCorrelationsKey = "statsIncremental.txt";
 		String batchCorrelationsKey = "statsBatch.txt";
+		Thread.sleep(5000);
 		boolean b = areStatsEqual("cleargist", incrementalCorrelationsKey, batchCorrelationsKey);;
 		
 		assertTrue(b);

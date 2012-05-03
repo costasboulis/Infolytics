@@ -49,6 +49,7 @@ import com.amazonaws.services.simpledb.model.ReplaceableItem;
 import com.cleargist.catalog.dao.CatalogDAO;
 import com.cleargist.catalog.dao.CatalogDAOImpl;
 import com.cleargist.catalog.entity.jaxb.Catalog;
+import com.cleargist.profile.Profile;
 
 
 public class SemanticModel extends BaseModel {
@@ -99,6 +100,11 @@ public class SemanticModel extends BaseModel {
 		out = out.trim();
 		
 		return out;
+	}
+	
+	public void updateModel(String tenantID, List<Profile> incrementalProfiles, List<Profile> decrementalProfiles) 
+	throws AmazonServiceException, AmazonClientException, Exception {
+		
 	}
 	
 	public void createModel(String tenantID) 

@@ -7,6 +7,7 @@ import java.util.List;
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonServiceException;
 import com.cleargist.catalog.entity.jaxb.Catalog;
+import com.cleargist.profile.Profile;
 
 public class CombinationModel extends BaseModel {
 	private int TOP_N_SEMANTIC = 100;
@@ -20,6 +21,11 @@ public class CombinationModel extends BaseModel {
 		this.semanticModel = new SemanticModel();
 		this.semanticModel.setTopCorrelations(TOP_N_SEMANTIC);
 		this.correlationsModel.setTopCorrelations(TOP_N_CORRELATIONS);
+	}
+	
+	public void updateModel(String tenantID, List<Profile> incrementalProfiles, List<Profile> decrementalProfiles) 
+	throws AmazonServiceException, AmazonClientException, Exception {
+		
 	}
 	
 	public void createModel(String tenantID) 
