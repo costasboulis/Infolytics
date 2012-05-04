@@ -10,6 +10,7 @@ import java.math.BigInteger;
 import java.text.NumberFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
@@ -335,6 +336,17 @@ public class ScraperEvaluator {
 		}
 	}
 	
+	private float calculateAccuracy(List<String> hyp, List<String> ref) {
+		float acc = 0.0f;
+		for (int i = 0 ; i < hyp.size(); i ++) {
+			if (hyp.get(i).equals(ref.get(i))) {
+				acc += 1.0f;
+			}
+		}
+		
+		return acc / (float)ref.size();
+	}
+	
 	public void evaluate(File hypDealsFile, File refDealsFile) {
 		
 		hypDeals = readDeals(hypDealsFile);
@@ -368,6 +380,8 @@ public class ScraperEvaluator {
 		int[] refIsComboDeal = new int[length];
 		int[] hypHasOptions = new int[length];
 		int[] refHasOptions = new int[length];
+		List<String> hypCouponRedemption = new ArrayList<String>();
+		List<String> refCouponRedemption = new ArrayList<String>();
 		
 		int dealIndx = 0;
 		for (Map.Entry<String, DealType> hypEntry : hypDeals.entrySet()) {
@@ -379,6 +393,18 @@ public class ScraperEvaluator {
 				logger.error("Cannot find REF deal for " + dealID);
 				System.exit(-1);
 			}
+			
+			// Coupon Redemption dates
+			String couponStartDate = hypDeal.getCouponRedemptionStartingDate() == null ? "NULL" : hypDeal.getCouponRedemptionStartingDate().toString();
+			String couponEndDate = hypDeal.getCouponRedemptionEndDate() == null ? "NULL" : hypDeal.getCouponRedemptionEndDate().toString();
+			String couponRedemptionHypDates = couponStartDate + "_" + couponEndDate;
+			hypCouponRedemption.add(couponRedemptionHypDates);
+			
+			String couponStartRefDate = refDeal.getCouponRedemptionStartingDate() == null ? "NULL" : refDeal.getCouponRedemptionStartingDate().toString();
+			String couponEndRefDate = refDeal.getCouponRedemptionEndDate() == null ? "NULL" : refDeal.getCouponRedemptionEndDate().toString();
+			String couponRedemptionRefDates = couponStartRefDate + "_" + couponEndRefDate;
+			refCouponRedemption.add(couponRedemptionRefDates);
+			
 			
 			// Has Blocker Dates
 			hypHasBlockerDates[dealIndx] = hypDeal.isHasBlockerDates() ? 1 : 0;
@@ -436,6 +462,9 @@ public class ScraperEvaluator {
 			
 			dealIndx ++;
 		}
+		
+		// Coupon redemption dates
+		System.out.println("Coupon Redemption Dates Accuracy : " + calculateAccuracy(hypCouponRedemption, refCouponRedemption));
 		
 		// Has Blocker Dates Confusion Matrix
 		int[][] conf = createConfusionMatrix(hypHasBlockerDates, refHasBlockerDates);

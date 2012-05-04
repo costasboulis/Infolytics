@@ -88,90 +88,54 @@ public abstract class BaseModel implements Modelable {
 		return client.incr(key, 0);
 	}
 	
-	public List<Catalog.Products.Product> getRecommendedProducts(List<String> productIds, String tenantID, Filter filter) throws Exception {
+	public ModelResponse getRecommendedProducts(List<String> productIds, String tenantID, Filter filter) throws Exception {
 		
 		String sourceItemId = null;
 		MemcachedClient client = null;
     	try {
         	client = new MemcachedClient(new InetSocketAddress(MEMCACHED_SERVER, MEMCACHED_PORT));
-        	List<Catalog.Products.Product> cacheCollection = new ArrayList<Catalog.Products.Product>();
         	try {
-        		System.out.println("Step 1.");
         		StringBuffer sb = new StringBuffer();
         		sb.append(filter.getName()); sb.append("_"); sb.append(getDomainBasename()); sb.append(tenantID);
         		for (String p : productIds) {
         			sb.append("_"); sb.append(p);
         		}
         		sourceItemId = sb.toString();
-        		cacheCollection = (List<Catalog.Products.Product>) client.get(sourceItemId);
-        		System.out.println(sourceItemId);
+        		ModelResponse cacheCollection = (ModelResponse) client.get(sourceItemId);
         		if (cacheCollection != null) {
-        			System.out.println("Cache Hit.");
-        			System.out.println(cacheCollection);
-        			List<Catalog.Products.Product> productList = (List<Catalog.Products.Product>) cacheCollection;
-        			
-        			// Update health metric
-        			String eventID = productList.size() > 0 ? "OK" : "EMPTY";
-        			String key = getHealthMetricKey(eventID, tenantID, "RECS");
-        			client.incr(key, 1);
-        			
-        			
-                	return productList;
+        			return cacheCollection;
                 } 
         	}
         	catch (OperationTimeoutException ex) {
-        		System.out.println("Timeout accessing memcached.");
+        		logger.error("Timeout accessing memcached.");
         	}
         }
         catch (IOException ex) {
-        	System.out.println("Cannot insantiate memcached client");
+        	logger.error("Cannot insantiate memcached client");
         }
-        
-    	System.out.println("Cache Miss.");
         
         List<Catalog.Products.Product> recommendedProducts = new ArrayList<Catalog.Products.Product>();
-        try {
-        	recommendedProducts = getRecommendedProductsInternal(productIds, tenantID, filter);
-        	System.out.println(recommendedProducts);
-        }
-        catch (Exception ex) {
-        	// Update health metric
-    		String key = getHealthMetricKey("FAILED", tenantID, "RECS");
-    		client.incr(key, 1);
-    		
-        	throw new Exception();
-        }
+        recommendedProducts = getRecommendedProductsInternal(productIds, tenantID, filter);
         
         if (client != null) {
         	try {
-        		client.set(sourceItemId, TTL_CACHE, new Integer(1));
-        		//client.set(sourceItemId, TTL_CACHE, (Object)recommendedProducts);
-        		
-        		// Update health metric
-        		String eventID = recommendedProducts.size() > 0 ? "OK" : "EMPTY";
-        		String key = getHealthMetricKey(eventID, tenantID, "RECS");
-        		client.incr(key, 1);
-        		
-        		
+        		ModelResponse modelResponse = new ModelResponse(recommendedProducts, true);
+        		client.set(sourceItemId, TTL_CACHE, (Object)modelResponse);
         		client.shutdown(10, TimeUnit.SECONDS);
         	}
         	catch (Exception ex) {
-        		System.out.println("Cannot write to memcached " + MEMCACHED_SERVER + " port " + MEMCACHED_PORT);
+        		logger.error("Cannot write to memcached " + MEMCACHED_SERVER + " port " + MEMCACHED_PORT);
         	}
         }
         
-        
-        
-    	/*Integer integ = new Integer(288);
-        System.out.println(integ);
-        client.set("myNewKey", 900, integ);
-        Object myObject=client.get("joe");
-        System.out.println(myObject);*/
-        
-        return recommendedProducts;
+        return recommendedProducts.size() > 0 ? new ModelResponse(recommendedProducts, true) : new ModelResponse(getTopProducts(tenantID), false);
 	}
 	
-	public List<Catalog.Products.Product> getPersonalizedRecommendedProducts(String userId, String tenantID, Filter filter) throws Exception {
+	public List<Catalog.Products.Product> getTopProducts(String tenantID) {
+		return new LinkedList<Catalog.Products.Product>();
+	}
+	
+	public ModelResponse getPersonalizedRecommendedProducts(String userId, String tenantID, Filter filter) throws Exception {
 		String sourceItemId = null;
 		MemcachedClient client = null;
     	try {
@@ -184,26 +148,24 @@ public abstract class BaseModel implements Modelable {
         		sourceItemId = sb.toString();
         		cacheCollection = client.get(sourceItemId);
         		if (cacheCollection != null) {
-        			logger.debug("Cache Hit.");
-                	return (List<Catalog.Products.Product>) cacheCollection;
+                	return (ModelResponse) cacheCollection;
                 } 
         	}
         	catch (OperationTimeoutException ex) {
         		logger.warn("Timeout accessing memcached.");
         	}
-            
         }
         catch (IOException ex) {
         	logger.warn("Cannot insantiate memcached client");
         }
         
-        logger.debug("Cache Miss.");
         
         List<Catalog.Products.Product> recommendedProducts = getPersonalizedRecommendedProductsInternal(userId, tenantID, filter);
         
         if (client != null) {
         	try {
-        		client.set(sourceItemId, TTL_CACHE, new Integer(1));
+        		ModelResponse modelResponse = new ModelResponse(recommendedProducts, true);
+        		client.set(sourceItemId, TTL_CACHE, (Object)modelResponse);
         		client.shutdown(10, TimeUnit.SECONDS);
         	}
         	catch (Exception ex) {
@@ -211,7 +173,7 @@ public abstract class BaseModel implements Modelable {
         	}
         }
         
-        return recommendedProducts;
+        return recommendedProducts.size() > 0 ? new ModelResponse(recommendedProducts, true) : new ModelResponse(getTopProducts(tenantID), false);
 	}
 	
 	public abstract List<Catalog.Products.Product> getRecommendedProductsInternal(List<String> productIds, String tenantID, Filter filter) throws Exception;

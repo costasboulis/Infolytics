@@ -41,9 +41,9 @@ public class SintagesPareasCatalog extends CatalogDAOImpl {
 		return out;
 	}
 	
-	public void addProduct(String url, String tenantID) throws Exception {
+	public void addProduct(String url, String productID, String tenantID) throws Exception {
 		// Check if the product already exists
-		if (doesProductExist(url, "", tenantID)) {
+		if (doesProductExist(productID, "", tenantID)) {
 			return;
 		}
 		
@@ -84,24 +84,30 @@ public class SintagesPareasCatalog extends CatalogDAOImpl {
 			}
 			
 		}
-		
-		// Get canonical ID
-		Elements elmnts = doc.select("link[rel=canonical]");
-		if (elmnts != null && elmnts.size() > 0){
-			Element el = elmnts.get(0);
-			String elText = el.toString();
-			Matcher canonicalMatcher = this.hrefPattern.matcher(elText);
-			if (canonicalMatcher.matches()) {
-				String canonical = canonicalMatcher.group(1);
-				product.setUid(canonical);
+		if (!url.equals(productID)) {
+			product.setUid(productID);
+		}
+		else {
+			// Get canonical ID
+			Elements elmnts = doc.select("link[rel=canonical]");
+			if (elmnts != null && elmnts.size() > 0){
+				Element el = elmnts.get(0);
+				String elText = el.toString();
+				Matcher canonicalMatcher = this.hrefPattern.matcher(elText);
+				if (canonicalMatcher.matches()) {
+					String canonical = canonicalMatcher.group(1);
+					product.setUid(canonical);
+				}
+				else {
+					product.setUid(url);
+				}
 			}
 			else {
 				product.setUid(url);
 			}
 		}
-		else {
-			product.setUid(url);
-		}
+		
+		
 		
 		
 		// Get ingredients
@@ -123,6 +129,10 @@ public class SintagesPareasCatalog extends CatalogDAOImpl {
 		product.setPrice(BigDecimal.valueOf(0.0));
 		product.setInstock("Y");
 		
-		addProduct(product, "", tenantID);
+		super.addProduct(product, "", tenantID);
+	}
+	
+	public void addProduct(String url, String tenantID) throws Exception {
+		addProduct(url, url, tenantID);
 	}
 }
