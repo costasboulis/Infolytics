@@ -32,11 +32,15 @@ public interface CatalogDAO {
 	NumberDomainAttributesExceededException, NumberItemAttributesExceededException, NoSuchDomainException, 
 	AmazonServiceException, AmazonClientException, IOException, Exception;
 	
+	public void insertProducts(List<Catalog.Products.Product> products, String tenantID) throws Exception;
+	
 	public boolean doesProductExist(String productID, String catalogID, String tenantID)  throws Exception;
 	
 	public Catalog.Products.Product getProductByID(String productID, String catalogID, String tenantID) throws Exception;
 	
 	public List<Catalog.Products.Product> getAllProducts(String catalogID, String tenantID) throws Exception;
+	
+	public List<Catalog.Products.Product> getActiveProducts(String catalogID, String tenantID) throws Exception;
 	
 	public void deleteProduct(String productID, String catalogID, String tenantID) throws Exception;
 	

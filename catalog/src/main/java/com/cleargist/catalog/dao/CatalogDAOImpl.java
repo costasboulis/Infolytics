@@ -98,15 +98,9 @@ public class CatalogDAOImpl implements CatalogDAO {
 	}
 	
 	public void deleteCatalog(String catalogID, String tenantID) throws Exception {
-		AmazonSimpleDB sdb = null;
-    	try {
-    		sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
-    				CatalogDAOImpl.class.getResourceAsStream(AWS_CREDENTIALS)));
-    	}
-    	catch (IOException ex) {
-    		logger.error("Cannot initiate SimpleDB client");
-    		throw new IOException();
-    	}
+		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
+				CatalogDAOImpl.class.getResourceAsStream(AWS_CREDENTIALS)));
+    	
         String catalogDomain = getCatalogName(catalogID, tenantID);
         try {
     		for (String domain : sdb.listDomains().getDomainNames()) {
@@ -245,15 +239,21 @@ public class CatalogDAOImpl implements CatalogDAO {
 		}
 		
 	}
+	public void insertProducts(List<Catalog.Products.Product> products, String tenantID) throws Exception {
+		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
+				CatalogDAOImpl.class.getResourceAsStream(AWS_CREDENTIALS)));
+		String catalogDomain = getCatalogName(null, tenantID);
+		insertItems(sdb, products, catalogDomain); 
+	}
 	
-	private void insertItems(AmazonSimpleDB sdb, Catalog catalog, String catalogDomain) 
+	private void insertItems(AmazonSimpleDB sdb, List<Catalog.Products.Product> catalog, String catalogDomain) 
 	throws DuplicateItemNameException, InvalidParameterValueException, NumberDomainBytesExceededException, NumberSubmittedItemsExceededException, 
 	NumberSubmittedAttributesExceededException, NumberDomainAttributesExceededException, NumberItemAttributesExceededException, 
 	NoSuchDomainException, AmazonServiceException, AmazonClientException, Exception {
 		// Persist the items in the SimpleDB
     	List<ReplaceableItem> recsPairs = new ArrayList<ReplaceableItem>();
     	HashSet<String> uids = new HashSet<String>();
-    	for (Catalog.Products.Product product : catalog.getProducts().getProduct()) {
+    	for (Catalog.Products.Product product : catalog) {
     		List<ReplaceableAttribute> attributes = new ArrayList<ReplaceableAttribute>();
     		
     		String uid = product.getUid();
@@ -404,7 +404,7 @@ public class CatalogDAOImpl implements CatalogDAO {
         }
     	
     	// Insert catalog items
-    	insertItems(sdb, catalog, catalogDomain);
+    	insertItems(sdb, catalog.getProducts().getProduct(), catalogDomain);
 	}
 	
 	public void appendCatalog(String bucket, String filename, String catalogID, String tenantID) 
@@ -421,7 +421,7 @@ public class CatalogDAOImpl implements CatalogDAO {
         String catalogDomain = getCatalogName(catalogID, tenantID);
         
 		// Insert catalog items
-        insertItems(sdb, catalog, catalogDomain);
+        insertItems(sdb, catalog.getProducts().getProduct(), catalogDomain);
 	}
 	
 	private void writeSimpleDB(AmazonSimpleDB sdb, String SimpleDBDomain, List<ReplaceableItem> recsPairs) 
@@ -572,6 +572,10 @@ public class CatalogDAOImpl implements CatalogDAO {
 		return result.getAttributes().size() == 0 ? false : true;
 	}
 	
+	public List<Catalog.Products.Product> getActiveProducts(String catalogID, String tenantID) throws Exception {
+		return getAllProducts(catalogID, tenantID, "where " + INSTOCK_STRING + "='Y'");
+	}
+	
 	public Catalog.Products.Product getProductByID(String productID, String catalogID, String tenantID) throws Exception {
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				CatalogDAOImpl.class.getResourceAsStream(AWS_CREDENTIALS)));
@@ -643,10 +647,14 @@ public class CatalogDAOImpl implements CatalogDAO {
 	}
 	
 	public List<Catalog.Products.Product> getAllProducts(String catalogID, String tenantID) throws Exception {
+		return getAllProducts(catalogID, tenantID, "");
+	}
+	
+	private List<Catalog.Products.Product> getAllProducts(String catalogID, String tenantID, String queryString) throws Exception {
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				CatalogDAOImpl.class.getResourceAsStream(AWS_CREDENTIALS)));
 		String catalogDomain = getCatalogName(catalogID, tenantID);
-    	String selectExpression = "select * from `" + catalogDomain + "` limit 2500";
+    	String selectExpression = "select * from `" + catalogDomain + "` " + queryString + " limit 2500";
     	String resultNextToken = null;
         SelectRequest selectRequest = new SelectRequest(selectExpression);
         List<Catalog.Products.Product> products = new LinkedList<Catalog.Products.Product>();

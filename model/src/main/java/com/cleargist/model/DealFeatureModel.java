@@ -8,11 +8,15 @@ import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.TimeZone;
 
 import org.apache.log4j.Logger;
 
+import weka.classifiers.Classifier;
+import weka.classifiers.functions.LinearRegression;
+import weka.classifiers.functions.Logistic;
 import weka.core.Attribute;
 import weka.core.FastVector;
 import weka.core.Instance;
@@ -25,6 +29,7 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.ObjectMetadata;
+import com.cleargist.catalog.dao.CatalogDAO;
 import com.cleargist.catalog.dao.CatalogDAOImpl;
 import com.cleargist.catalog.deals.entity.jaxb.AddressType;
 import com.cleargist.catalog.deals.entity.jaxb.Collection;
@@ -36,9 +41,13 @@ import com.cleargist.catalog.entity.jaxb.Catalog.Products.Product;
 import com.cleargist.profile.Profile;
 import com.cleargist.profile.ProfileDAO;
 import com.cleargist.profile.ProfileDAOImplS3;
+import com.cleargist.profile.ProfileDAOLocal;
+import com.cleargist.profile.ProfileDAOMemcached;
+
+import edu.emory.mathcs.backport.java.util.Collections;
 
 //TODO: Bug when there are multiple deals bought in the same day. A negative deal may be selected that is really positive
-
+//TODO: Sample down instances from each profile, probably they don't fit all in memory
 
 public class DealFeatureModel extends BaseModel {
 	private Scraper scraper = new GoldenDealsScraper();
@@ -48,6 +57,10 @@ public class DealFeatureModel extends BaseModel {
 	private HashMap<String, Instance> dealInstances;
 	private HashMap<String, Integer> dealFirstDay; 
 	private ProfileDAO profileAccessor;
+	private ProfileDAO clusterMembershipsAccessor;
+	private ProfileDAO dealClusterProbsAccessor;
+	private static final String MEMCACHED_SERVER = "176.34.191.239";
+    private static final int MEMCACHED_PORT = 11211;
 	private Random rand;
 	private List<List<DealType>> deals;  // Deals arranged according to day of first launch
 	private String xsdBucket;            // S3 bucket where deals schema is stored
@@ -92,6 +105,10 @@ public class DealFeatureModel extends BaseModel {
 		this.rand = new Random();
 		
 		this.profileAccessor = new ProfileDAOImplS3();
+		
+		this.clusterMembershipsAccessor = new ProfileDAOMemcached("clusterMembs", MEMCACHED_SERVER, MEMCACHED_PORT);
+		
+		this.dealClusterProbsAccessor = new ProfileDAOMemcached("dealProbs", MEMCACHED_SERVER, MEMCACHED_PORT);
 	}
 	
 	public void setXSDBucket(String xsdBucket) {
@@ -110,40 +127,248 @@ public class DealFeatureModel extends BaseModel {
 		this.key = key;
 	}
 	
-	private List<AttributeObject> getClusterMemberships(String userID) throws Exception {
-		List<AttributeObject> clusterMemberships = new ArrayList<AttributeObject>();
-		return clusterMemberships;
+	
+	private String getClusterMembershipsBucket(String tenantID) {
+		return "clusters" + tenantID; 
+	}
+	
+	private String getClusterMembershipsKey(String tenantID) {
+		return "clusterMemberships.txt";
+	}
+	
+	private String getProfilesBucket(String tenantID) {
+		return "profiles" + tenantID; 
+	}
+	
+	private String getProfilesKey(String tenantID) {
+		return "profiles.txt";
 	}
 	
 	public void createModel(String tenantID) throws AmazonServiceException, AmazonClientException, Exception {
 		
-		// Retrieve any new deals from last update, arrange deals according to day of first launch and extract Instance for each deal
-		updateExtractedDeals(this.xsdBucket, this.xsdKey, this.bucket, this.key);
+		// Retrieve any new deals from last update
+		// Arrange deals according to day of first launch
+		// Extract Instance for each deal
+		// Update IN_STOCK attribute in catalog
+		updateExtractedDeals(this.xsdBucket, this.xsdKey, this.bucket, this.key, tenantID);
+		
+		
+		// Load the cluster memberships
+		String clustersBucket = getClusterMembershipsBucket(tenantID);
+		String clusterKey = getClusterMembershipsKey(tenantID);
+		this.clusterMembershipsAccessor.loadAllProfiles(clustersBucket, clusterKey);
+		
 		
 		// Create classifier training data for each cluster
-		List<Instances> clusterInstances = new ArrayList<Instances>();
-		this.profileAccessor.initSequentialProfileRead(tenantID);
+		List<Instances> allClusterInstances = new ArrayList<Instances>();
+		String profilesBucket = getProfilesBucket(tenantID);
+		String profilesKey = getProfilesKey(tenantID);
+		this.profileAccessor.initSequentialProfileRead(profilesBucket, profilesKey);
+		
 		Profile profile = null;
 		while ((profile = this.profileAccessor.getNextProfile()) != null) {
 			// Find the clusters this user belongs to
 			String userID = profile.getUserID();
-			List<AttributeObject> clusterMemberships = getClusterMemberships(userID);
+			Profile clusterMemberships = this.clusterMembershipsAccessor.getProfile(userID);
+			if (clusterMemberships == null) {
+				logger.error("Did not find cluster memberships for user " + userID);
+				continue;
+			}
 			
 			List<List<Instance>> insts = getInstancesFromProfile(profile);
 			List<Instance> positiveInstances = insts.get(0);
-			
-			
 			List<Instance> negativeInstances = insts.get(1);
+			
+			for (Map.Entry<String, Float> attObject : clusterMemberships.getAttributes().entrySet()) {
+				int clusterID = Integer.parseInt(attObject.getKey());
+				float weight = attObject.getValue();
+				
+				if (weight < 0.05f) {
+					break;
+				}
+				
+				Instances clusterInstances = allClusterInstances.get(clusterID);
+				if (clusterInstances == null) {
+					clusterInstances = initInstances();
+					allClusterInstances.set(clusterID, clusterInstances);
+				}
+				for (Instance positiveInstance : positiveInstances) {
+					Instance instance = new Instance(positiveInstance);
+					instance.setClassValue(1.0);
+					instance.setWeight(weight);
+					instance.setDataset(clusterInstances);
+					
+					clusterInstances.add(instance);
+				}
+				
+				for (Instance negativeInstance : negativeInstances) {
+					Instance instance = new Instance(negativeInstance);
+					instance.setClassValue(0.0);
+					instance.setWeight(weight);
+					instance.setDataset(clusterInstances);
+					
+					clusterInstances.add(instance);
+				}
+			}
 		}
 		this.profileAccessor.closeSequentialProfileRead();
 		
-		// Go through each profile, retrieve prob(cluster | user)
+		// Training data for classifiers of all clusters are now set. Proceed with training of classifiers
+		Logistic[] classifiers = new Logistic[allClusterInstances.size()];
+		int i = 0;
+		for (Instances clusterInstances : allClusterInstances) {
+			
+			classifiers[i] = new Logistic();
+			try {
+				classifiers[i].buildClassifier(clusterInstances);
+			}
+			catch (Exception ex) {
+				logger.error("Could not train classifier for cluster " + i);
+				continue;
+			}
+			i ++;
+		}
+		
+		// Now compute prob(deal is bought | cluster) and store it in memcached
+		CatalogDAOImpl catalog = new CatalogDAOImpl();
+		List<Catalog.Products.Product> activeDeals = catalog.getActiveProducts("", tenantID);
+		for (Catalog.Products.Product activeDeal : activeDeals) {
+			String activeDealID = activeDeal.getUid();
+			Instance activeDealInstance = dealInstances.get(activeDealID);
+			if (activeDealInstance == null) {
+				logger.error("Cannot find Instance for deal " + activeDealID);
+				continue;
+			}
+			
+			Profile pr = new Profile();
+			pr.setUserID(activeDealID);
+			for (int c = 0; c < classifiers.length; c ++) {
+				double prob = classifiers[c].classifyInstance(activeDealInstance);
+				
+				pr.add(Integer.toString(c), (float)prob);
+			}
+			
+			dealClusterProbsAccessor.writeProfile(pr);
+		}
+		
+	}
+	
+	protected void calculateSufficientStatistics(String bucketName, String baseFilename, String tenantID) throws Exception {
+		
+	}
+
+	protected void mergeSufficientStatistics(String tenantID) throws Exception {
+		
+	}
+	
+	protected void estimateModelParameters(String tenantID) throws Exception {
+		
+	}
+	
+	public void updateModel(String tenantID, List<Profile> incrementalProfiles, List<Profile> decrementalProfiles) 
+	throws AmazonServiceException, AmazonClientException, Exception {
+		
+	}
+	
+	public List<Catalog.Products.Product> getRecommendedProductsInternal(List<String> productIDs, String tenantID, Filter filter) throws Exception {
+		return new ArrayList<Catalog.Products.Product>();
+	}
+	
+	protected String getDomainBasename() {
+		return "MODEL_DEAL_CLUSTER_";
+	}
+    
+    protected String getStatsBucketName(String tenantID) {
+    	return STATS_BASE_BUCKETNAME + "dealattribute" + tenantID;
+    }
+    
+	public List<Catalog.Products.Product> getPersonalizedRecommendedProductsInternal(String userId, String tenantID, Filter filter) throws Exception {
+		Profile profile = clusterMembershipsAccessor.getProfile(userId);
+		if (profile == null) {
+			return new ArrayList<Catalog.Products.Product>();
+		}
+		
+		
+		Profile dealIdsProfile = dealClusterProbsAccessor.getProfile("DealIds");
+		if (dealIdsProfile == null) {
+			logger.error("Could not retrieve list of deals");
+			return new ArrayList<Catalog.Products.Product>();
+		}
+		
+		List<AttributeObject> rankedList = new ArrayList<AttributeObject>();
+		HashMap<String, Float> hmA = profile.getAttributes();
+		for (String dealID : dealIdsProfile.getAttributes().keySet()) {
+			Profile dealClusterProfile = dealClusterProbsAccessor.getProfile(dealID);
+			if (dealClusterProfile == null) {
+				continue;
+			}
+			
+			HashMap<String, Float> hmB = dealClusterProfile.getAttributes();
+			double prob = 0.0;
+			for (Map.Entry<String, Float> entry : hmA.entrySet()) {
+				Float f = hmB.get(entry.getKey());
+				
+				if (f == null) {
+					continue;
+				}
+				
+				prob += entry.getValue() * f;
+			}
+			if (prob > 0.0) {
+				rankedList.add(new AttributeObject(dealID, prob));
+			}
+			
+		}
+		Collections.sort(rankedList);
+		List<String> unfilteredIDs = new ArrayList<String>();
+    	for (AttributeObject attObject : rankedList) {
+    		unfilteredIDs.add(attObject.getUID());
+    	}
+    	
+		return filter.applyFiltering(unfilteredIDs, tenantID);
+	}
+	
+	/*
+	 * Updates the IN_STOCK attribute of catalog. It sets to 'N' the deals that have expired
+	 */
+	private void updateInStockAttribute(Collection collection, String tenantID) throws Exception {
+		CatalogDAOImpl catalog = new CatalogDAOImpl();
+		List<Catalog.Products.Product> updatedProducts = new ArrayList<Catalog.Products.Product>();
+		List<Catalog.Products.Product> activeDeals = catalog.getActiveProducts("", tenantID);
+		for (Catalog.Products.Product activeDeal : activeDeals) {
+			String inStock = activeDeal.getInstock();
+			if (inStock == null) {
+				continue;
+			}
+			if (inStock.equals("Y")) {
+				for (DealType deal : collection.getDeals().getDeal()) {
+					if (!deal.getDealId().equals(activeDeal.getUid())) {
+						continue;
+					}
+					
+					Date now = new Date();
+					Calendar clnd = new GregorianCalendar();
+					clnd.setTimeZone(TimeZone.getTimeZone("GR"));
+					clnd.setTime(now);
+					boolean isExpired = deal.getCouponPurchaseEndDate().toGregorianCalendar().before(now);
+					
+					if (isExpired) {
+						activeDeal.setInstock("N");
+						updatedProducts.add(activeDeal);
+					}
+					
+					break;
+				}
+			}
+		}
+		
+		catalog.insertProducts(updatedProducts, tenantID);
 	}
 	
 	/*
 	 * Writes the new structured deals in S3 and returns all deals according to the day of launch
 	 */
-	private void updateExtractedDeals(String xsdBucket, String xsdKey, String bucket, String key) throws Exception {
+	private void updateExtractedDeals(String xsdBucket, String xsdKey, String bucket, String key, String tenantID) throws Exception {
 		// Load already extracted deals
 		boolean doesStructuredDealsFileExist = isValidFile(bucket, key);
 		HashMap<String, Calendar> extractedDeals = new HashMap<String, Calendar>();
@@ -201,6 +426,8 @@ public class DealFeatureModel extends BaseModel {
 			dealFirstDay.put(deal.getDealId(), getDayCounter(deal));
 		}
 		
+		// Update the IN_STOCK attribute in Catalog
+		updateInStockAttribute(collection, tenantID);
 	}
 	
 	private int getDayCounter(DealType deal) {
@@ -258,6 +485,8 @@ public class DealFeatureModel extends BaseModel {
 		}
 		
 		Instances dataSet = new Instances("Deals", attributes, 0);
+		dataSet.insertAttributeAt(new Attribute("Bought"), dataSet.numAttributes());
+		dataSet.setClassIndex(dataSet.numAttributes() - 1);
 		
 		return dataSet;
 	}

@@ -38,7 +38,15 @@ public class DummyCatalog implements CatalogDAO {
 		
 	}
 	
+	public void insertProducts(List<Catalog.Products.Product> products, String tenantID) throws Exception {
+		
+	}
+	
 	public List<Catalog.Products.Product> getAllProducts(String catalogID, String tenantID) throws Exception {
+		return new LinkedList<Catalog.Products.Product>();
+	}
+	
+	public List<Catalog.Products.Product> getActiveProducts(String catalogID, String tenantID) throws Exception {
 		return new LinkedList<Catalog.Products.Product>();
 	}
 	
