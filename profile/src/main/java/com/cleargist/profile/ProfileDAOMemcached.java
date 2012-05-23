@@ -39,7 +39,7 @@ public class ProfileDAOMemcached implements ProfileDAO {
     	this.client.set(key, TTL_CACHE, (Object)profile);
     }
     
-    public Profile getProfile(String profileID) throws Exception {
+    public Profile getProfile(String tenantID, String profileID) throws Exception {
     	String key = getKey(profileID);
     	Object obj = this.client.get(key);
     	if (obj == null) {
@@ -67,11 +67,19 @@ public class ProfileDAOMemcached implements ProfileDAO {
 		
 	}
 	
-	public void loadAllProfiles(String bucket, String key) throws Exception {
+	public void loadAllProfiles(String tenantID, String bucket, String key) throws Exception {
 		
 	}
 	
 	public void resetCache() {
 		this.client.flush();
+	}
+	
+	public void updateProfiles(String tenantID, List<Profile> incrementalProfiles, List<Profile> decrementalProfiles) throws Exception {
+		
+	}
+	
+	public void initProfiles(String tenantID) throws Exception {
+		
 	}
 }

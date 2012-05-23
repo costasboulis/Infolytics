@@ -134,7 +134,7 @@ public class Profile {
 		StringBuffer sb = new StringBuffer();
 		sb.append(this.userID); 
 		for (Map.Entry<String, Float> entry : this.attributes.entrySet()) {
-			sb.append(" "); sb.append(entry.getKey()); sb.append(" "); sb.append(entry.getValue());
+			sb.append(";"); sb.append(entry.getKey()); sb.append(";"); sb.append(entry.getValue());
 		}
 		return sb.toString();
 	}

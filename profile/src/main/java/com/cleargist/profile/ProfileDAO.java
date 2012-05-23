@@ -15,8 +15,19 @@ public interface ProfileDAO {
 	public Profile getNextProfile() throws Exception;
 	
 	// Random-access
-	public void loadAllProfiles(String bucket, String key) throws Exception;
+	public void loadAllProfiles(String tenantID, String bucket, String key) throws Exception;
 	
-	public Profile getProfile(String profileID) throws Exception;
+	public Profile getProfile(String tenantID, String profileID) throws Exception;
 	
+	/**
+	 * * Merges the new profiles (incremental / decremental) with the existing ones
+	 * 
+	 * @param tenantID
+	 * @param incrementalProfiles
+	 * @param decrementalProfiles
+	 * @throws Exception
+	 */
+	public void updateProfiles(String tenantID, List<Profile> incrementalProfiles, List<Profile> decrementalProfiles) throws Exception;
+	
+	public void initProfiles(String tenantID) throws Exception;
 }

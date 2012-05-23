@@ -24,7 +24,7 @@ public class ProfileDAOLocal implements ProfileDAO {
 	}
 	
 	
-	public void loadAllProfiles(String bucket, String key) throws Exception {
+	public void loadAllProfiles(String tenantID, String bucket, String key) throws Exception {
 		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
 				ProfileDAOImplS3.class.getResourceAsStream(AWS_CREDENTIALS)));
 		
@@ -39,7 +39,7 @@ public class ProfileDAOLocal implements ProfileDAO {
 		reader.close();
 	}
 	
-	public Profile getProfile(String profileID) throws Exception {
+	public Profile getProfile(String tenantID, String profileID) throws Exception {
 		return profiles.get(profileID);
 	}
 	
@@ -64,6 +64,14 @@ public class ProfileDAOLocal implements ProfileDAO {
 	}
 	
 	public void closeSequentialProfileRead() throws Exception {
+		
+	}
+	
+	public void updateProfiles(String tenantID, List<Profile> incrementalProfiles, List<Profile> decrementalProfiles) throws Exception {
+		
+	}
+	
+	public void initProfiles(String tenantID) throws Exception {
 		
 	}
 	
