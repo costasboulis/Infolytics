@@ -156,7 +156,7 @@ public class DealFeatureModel extends BaseModel {
 		// Load the cluster memberships
 		String clustersBucket = getClusterMembershipsBucket(tenantID);
 		String clusterKey = getClusterMembershipsKey(tenantID);
-		this.clusterMembershipsAccessor.loadAllProfiles(clustersBucket, clusterKey);
+		this.clusterMembershipsAccessor.loadAllProfiles(tenantID, clustersBucket, clusterKey);
 		
 		
 		// Create classifier training data for each cluster
@@ -169,7 +169,7 @@ public class DealFeatureModel extends BaseModel {
 		while ((profile = this.profileAccessor.getNextProfile()) != null) {
 			// Find the clusters this user belongs to
 			String userID = profile.getUserID();
-			Profile clusterMemberships = this.clusterMembershipsAccessor.getProfile(userID);
+			Profile clusterMemberships = this.clusterMembershipsAccessor.getProfile(tenantID, userID);
 			if (clusterMemberships == null) {
 				logger.error("Did not find cluster memberships for user " + userID);
 				continue;
@@ -283,13 +283,13 @@ public class DealFeatureModel extends BaseModel {
     }
     
 	public List<Catalog.Products.Product> getPersonalizedRecommendedProductsInternal(String userId, String tenantID, Filter filter) throws Exception {
-		Profile profile = clusterMembershipsAccessor.getProfile(userId);
+		Profile profile = clusterMembershipsAccessor.getProfile(tenantID, userId);
 		if (profile == null) {
 			return new ArrayList<Catalog.Products.Product>();
 		}
 		
 		
-		Profile dealIdsProfile = dealClusterProbsAccessor.getProfile("DealIds");
+		Profile dealIdsProfile = dealClusterProbsAccessor.getProfile(tenantID, "DealIds");
 		if (dealIdsProfile == null) {
 			logger.error("Could not retrieve list of deals");
 			return new ArrayList<Catalog.Products.Product>();
@@ -298,7 +298,7 @@ public class DealFeatureModel extends BaseModel {
 		List<AttributeObject> rankedList = new ArrayList<AttributeObject>();
 		HashMap<String, Float> hmA = profile.getAttributes();
 		for (String dealID : dealIdsProfile.getAttributes().keySet()) {
-			Profile dealClusterProfile = dealClusterProbsAccessor.getProfile(dealID);
+			Profile dealClusterProfile = dealClusterProbsAccessor.getProfile(tenantID, dealID);
 			if (dealClusterProfile == null) {
 				continue;
 			}

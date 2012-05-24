@@ -5,9 +5,11 @@ package com.cleargist.model;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -16,6 +18,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 
 
 import org.apache.log4j.Logger;
@@ -73,7 +77,7 @@ public class CorrelationsModel extends BaseModel {
 	
 	
 	public CorrelationsModel() {
-		this.profilesPerChunk = 25000;
+		this.profilesPerChunk = 35000;
 		this.topCorrelations = 10;
 	}
 	
@@ -88,8 +92,10 @@ public class CorrelationsModel extends BaseModel {
 		
 		calculateSufficientStatistics(bucketName, STATS_BASE_FILENAME, tenantID);
 		
+		logger.info("Merging stats");
 		mergeSufficientStatistics(tenantID);
 		
+		logger.info("Estimating model parameters");
 		estimateModelParameters(tenantID);
 		
 		if (deleteStatsDirectory) {
@@ -109,6 +115,8 @@ public class CorrelationsModel extends BaseModel {
 		
 		// Now that the new model is ready swap the domain names
     	swapModelDomainNames(getDomainBasename(), tenantID);
+    	
+    	logger.info("Done with training");
     	
   /* Don't clear cache since it holds responses from all tenants. Better set the expiration time of each new entry  	
     	// Clear cache
@@ -303,7 +311,7 @@ public class CorrelationsModel extends BaseModel {
 		HashMap<String, Float> SS0 = new HashMap<String, Float>();
 		float numberOfProfiles = 0.0f;
 		try {
-    		BufferedReader reader = new BufferedReader(new InputStreamReader(statsFile.getObjectContent()));
+    		BufferedReader reader = new BufferedReader(new InputStreamReader(new GZIPInputStream(statsFile.getObjectContent())));
     		String line = reader.readLine();
         	try {
         		numberOfProfiles = Float.parseFloat(line);
@@ -377,7 +385,8 @@ public class CorrelationsModel extends BaseModel {
 		String tmpFilename = "correlations" + mergedStatsFilename + tenantID;
 		File localMergedFile = new File(tmpFilename);
 		try {
-			out = new BufferedWriter(new FileWriter(localMergedFile));
+			out = new BufferedWriter( new OutputStreamWriter( new GZIPOutputStream(new FileOutputStream(localMergedFile))));
+//			out = new BufferedWriter(new FileWriter(localMergedFile));
 		}
 		catch (IOException ex) {
 			logger.error("Cannot write to file " + localMergedFile.getAbsolutePath());
@@ -387,7 +396,7 @@ public class CorrelationsModel extends BaseModel {
 		String bucketName = statsFile.getBucketName();
     	S3Object mergedFile = s3.getObject(bucketName, mergedStatsFilename);
     	try {
-    		BufferedReader reader = new BufferedReader(new InputStreamReader(mergedFile.getObjectContent()));
+    		BufferedReader reader = new BufferedReader(new InputStreamReader(new GZIPInputStream(mergedFile.getObjectContent())));
     		String line = reader.readLine();
     		try {
 				numberOfProfiles += Float.parseFloat(line);
@@ -904,7 +913,8 @@ public class CorrelationsModel extends BaseModel {
 		
 		String localStatsFilename = baseFilename + "_" + tenantID + "_" + chunkID;
 		File localSSFile = new File(localStatsFilename);
-		BufferedWriter out = new BufferedWriter(new FileWriter(localSSFile));
+		BufferedWriter out = new BufferedWriter( new OutputStreamWriter( new GZIPOutputStream(new FileOutputStream(localSSFile))));
+//		BufferedWriter out = new BufferedWriter(new FileWriter(localSSFile));
 		out.write(Float.toString(numberOfProfiles) + newline); 
 		for (Map.Entry<String, Float> me : SS0.entrySet()) {
 			StringBuffer sb = new StringBuffer();
@@ -956,7 +966,7 @@ public class CorrelationsModel extends BaseModel {
 		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
 				CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
     	
-    	String statsFilename = baseFilename + chunkID;
+    	String statsFilename = baseFilename + chunkID + ".gz";
 		PutObjectRequest r = new PutObjectRequest(bucketName, statsFilename, localSSFile);
     	r.setStorageClass(StorageClass.ReducedRedundancy);
     	s3.putObject(r);
@@ -987,7 +997,7 @@ public class CorrelationsModel extends BaseModel {
     	// Read in memory SS0
     	float numberOfProfiles = 0.0f;
     	HashMap<String, Float> SS0 = new HashMap<String, Float>();
-    	BufferedReader reader = new BufferedReader(new InputStreamReader(mergedStats.getObjectContent()));
+    	BufferedReader reader = new BufferedReader(new InputStreamReader(new GZIPInputStream(mergedStats.getObjectContent())));
 		String line = reader.readLine();
 		numberOfProfiles = Float.parseFloat(line);
 		while ((line = reader.readLine()) != null) {

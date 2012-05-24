@@ -486,5 +486,13 @@ public class CorrelationsTest {
 		assertTrue(true);
 	}
 	
-	
+	@Test
+	public void testWithRealData() throws Exception {
+		CorrelationsModel model = new CorrelationsModel();
+		model.setProfilesPerChunk(50000);
+		
+		model.createModel("104");
+		
+		assertTrue(true);
+	}
 }
