@@ -486,13 +486,31 @@ public class CorrelationsTest {
 		assertTrue(true);
 	}
 	
+	@Ignore
 	@Test
 	public void testWithRealData() throws Exception {
 		CorrelationsModel model = new CorrelationsModel();
 		model.setProfilesPerChunk(50000);
 		
 		model.createModel("104");
+
 		
 		assertTrue(true);
+	}
+	
+	@Test
+	public void testRecommendations() throws Exception {
+		CorrelationsModel model = new CorrelationsModel();
+		StandardFilter filter = new StandardFilter();
+		List<String> productIDs = new LinkedList<String>();
+		productIDs.add("11811");
+		try {
+			List<Catalog.Products.Product> recommendedProducts = model.getRecommendedProductsInternal(productIDs, "104", filter);
+			assertTrue(recommendedProducts.size() > 0);
+		}
+		catch (Exception ex) {
+			assertTrue(false);
+		}
+		
 	}
 }

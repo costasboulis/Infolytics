@@ -8,6 +8,7 @@ import java.util.List;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import com.amazonaws.auth.PropertiesCredentials;
@@ -76,7 +77,6 @@ public class SemanticModelTest {
 	*/
 	
 	
-	@After
 	public void cleanUp() throws Exception {
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				SemanticModelTest.class.getResourceAsStream(AWS_CREDENTIALS)));
@@ -113,6 +113,13 @@ public class SemanticModelTest {
 		
 	}
 	
+	@Test
+	public void train() throws Exception {
+		SemanticModel model = new SemanticModel();
+		model.createModel("104");
+	}
+	
+	@Ignore
 	@Test
 	public void testCorrelations() {
 		SemanticModel model = new SemanticModel();

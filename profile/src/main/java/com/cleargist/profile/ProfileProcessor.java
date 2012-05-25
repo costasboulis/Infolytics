@@ -1,75 +1,34 @@
 package com.cleargist.profile;
 
 
-
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.InputStreamReader;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.GregorianCalendar;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-import org.apache.log4j.Logger;
-
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.auth.PropertiesCredentials;
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
-import com.amazonaws.services.s3.model.CreateBucketRequest;
-import com.amazonaws.services.s3.model.ListObjectsRequest;
-import com.amazonaws.services.s3.model.ObjectListing;
-import com.amazonaws.services.s3.model.PutObjectRequest;
-import com.amazonaws.services.s3.model.Region;
-import com.amazonaws.services.s3.model.S3Object;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
-import com.amazonaws.services.s3.model.StorageClass;
 import com.amazonaws.services.simpledb.AmazonSimpleDB;
 import com.amazonaws.services.simpledb.AmazonSimpleDBClient;
-import com.amazonaws.services.simpledb.model.Attribute;
-import com.amazonaws.services.simpledb.model.BatchDeleteAttributesRequest;
-import com.amazonaws.services.simpledb.model.BatchPutAttributesRequest;
-import com.amazonaws.services.simpledb.model.CreateDomainRequest;
-import com.amazonaws.services.simpledb.model.DeletableItem;
-import com.amazonaws.services.simpledb.model.DeleteDomainRequest;
-import com.amazonaws.services.simpledb.model.DuplicateItemNameException;
-import com.amazonaws.services.simpledb.model.GetAttributesRequest;
-import com.amazonaws.services.simpledb.model.GetAttributesResult;
-import com.amazonaws.services.simpledb.model.InvalidParameterValueException;
 import com.amazonaws.services.simpledb.model.Item;
-import com.amazonaws.services.simpledb.model.NoSuchDomainException;
-import com.amazonaws.services.simpledb.model.NumberDomainAttributesExceededException;
-import com.amazonaws.services.simpledb.model.NumberDomainBytesExceededException;
-import com.amazonaws.services.simpledb.model.NumberItemAttributesExceededException;
-import com.amazonaws.services.simpledb.model.NumberSubmittedAttributesExceededException;
-import com.amazonaws.services.simpledb.model.NumberSubmittedItemsExceededException;
-import com.amazonaws.services.simpledb.model.ReplaceableAttribute;
-import com.amazonaws.services.simpledb.model.ReplaceableItem;
 import com.amazonaws.services.simpledb.model.SelectRequest;
 import com.amazonaws.services.simpledb.model.SelectResult;
 
 
 public abstract class ProfileProcessor {
 	private static final String AWS_CREDENTIALS = "/AwsCredentials.properties";
-	public static String newline = System.getProperty("line.separator");
-	private Logger logger = Logger.getLogger(getClass());
 	private static String SIMPLEDB_ENDPOINT = "https://sdb.eu-west-1.amazonaws.com";
+	public static String newline = System.getProperty("line.separator");
 	private static final int FIXED_NO_OF_THREADS_OPER = 50;
-	private int MAX_PROFILES_PER_FILE = 50000;
-	private ProfileDAO profileDAO = new ProfileDAOSimpleDB();
+	private ProfileDAO profileDAO;
 	
 	
 	public List<Future<List<Item>>> getDataSinceLastUpdate(String tenantID, String latestProfile, int profHorizon) throws Exception {
@@ -88,6 +47,16 @@ public abstract class ProfileProcessor {
         fromDate.add(Calendar.MONTH, -profHorizon);
         
         return getDataSinceLastUpdate(tenantID, toDate, lastUpdate, fromDate);
+	}
+	
+	public void setProfileDAO(String profileDAOString) {
+		if (profileDAOString.equals("SIMPLEDB")) {
+			this.profileDAO = new ProfileDAOSimpleDB();
+		}
+		else if (profileDAOString.equals("S3")) {
+			this.profileDAO = new ProfileDAOImplS3();
+		}
+		
 	}
 	
 	public List<Future<List<Item>>> getDataSinceLastUpdate(String tenantID, Calendar toDate, Calendar lastUpdate, Calendar fromDate) throws Exception {

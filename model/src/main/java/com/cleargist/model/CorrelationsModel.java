@@ -977,6 +977,17 @@ public class CorrelationsModel extends BaseModel {
 	
 	public void estimateModelParameters(String tenantID) 
 	throws AmazonServiceException, AmazonClientException, IOException, Exception {
+		
+		// Model parameters are written in SimpleDB
+		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
+				CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
+		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
+		
+    	String correlationsModelDomainName = getBackupModelDomainName(getDomainBasename(), tenantID);
+    	sdb.deleteDomain(new DeleteDomainRequest(correlationsModelDomainName));
+    	sdb.createDomain(new CreateDomainRequest(correlationsModelDomainName));
+    	
+    	
     	AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
 				CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
     	
@@ -1020,13 +1031,6 @@ public class CorrelationsModel extends BaseModel {
     	
     	
     	// Read line-by-line the SS1 compute the correlation coefficient and write to SimpleDB
-		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
-				CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
-		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
-		
-    	String correlationsModelDomainName = getBackupModelDomainName(getDomainBasename(), tenantID);
-    	sdb.deleteDomain(new DeleteDomainRequest(correlationsModelDomainName));
-    	sdb.createDomain(new CreateDomainRequest(correlationsModelDomainName));
 		List<ReplaceableItem> items = new ArrayList<ReplaceableItem>();
 		while (true) {
 			String[] fields = line.split(";");

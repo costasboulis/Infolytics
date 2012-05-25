@@ -193,6 +193,7 @@ public class ProfileProcessorTest {
 		cleanUp("test");
 		setUp("test");
 		SessionDetailViewProfileProcessor pr = new SessionDetailViewProfileProcessor();
+		pr.setProfileDAO("SIMPLEDB");
 		
 		// Create profiles
 		DataHandler dh = new DataHandler();
@@ -235,6 +236,7 @@ public class ProfileProcessorTest {
 		cleanUp("test");
 		setUp("test");
 		SessionDetailViewProfileProcessor pr = new SessionDetailViewProfileProcessor();
+		pr.setProfileDAO("SIMPLEDB");
 		
 		// Create profiles
 		DataHandler dh = new DataHandler();
@@ -279,6 +281,7 @@ public class ProfileProcessorTest {
 		cleanUp("test");
 		setUp("test");
 		SessionDetailViewProfileProcessor pr = new SessionDetailViewProfileProcessor();
+		pr.setProfileDAO("SIMPLEDB");
 		
 		// Create profiles
 		DataHandler dh = new DataHandler();
@@ -322,6 +325,7 @@ public class ProfileProcessorTest {
 		cleanUp("test");
 		setUp("test");
 		SessionDetailViewProfileProcessor pr = new SessionDetailViewProfileProcessor();
+		pr.setProfileDAO("SIMPLEDB");
 		
 		// Create profiles
 		DataHandler dh = new DataHandler();

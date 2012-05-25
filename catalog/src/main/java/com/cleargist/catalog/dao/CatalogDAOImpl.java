@@ -69,6 +69,7 @@ import com.cleargist.catalog.entity.jaxb.Catalog;
 
 public class CatalogDAOImpl implements CatalogDAO {
 	private static final String AWS_CREDENTIALS = "/AwsCredentials.properties";
+	private static String SIMPLEDB_ENDPOINT = "https://sdb.eu-west-1.amazonaws.com";
 	private Logger logger = Logger.getLogger(getClass());
 	private Locale locale = new Locale("el", "GR");
 	public static String newline = System.getProperty("line.separator");
@@ -100,7 +101,8 @@ public class CatalogDAOImpl implements CatalogDAO {
 	public void deleteCatalog(String catalogID, String tenantID) throws Exception {
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				CatalogDAOImpl.class.getResourceAsStream(AWS_CREDENTIALS)));
-    	
+		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
+		
         String catalogDomain = getCatalogName(catalogID, tenantID);
         try {
     		for (String domain : sdb.listDomains().getDomainNames()) {
@@ -242,6 +244,7 @@ public class CatalogDAOImpl implements CatalogDAO {
 	public void insertProducts(List<Catalog.Products.Product> products, String tenantID) throws Exception {
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				CatalogDAOImpl.class.getResourceAsStream(AWS_CREDENTIALS)));
+		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
 		String catalogDomain = getCatalogName(null, tenantID);
 		insertItems(sdb, products, catalogDomain); 
 	}
@@ -361,7 +364,8 @@ public class CatalogDAOImpl implements CatalogDAO {
 		// Delete existing Amazon SimpleDB domain, if it exists
         AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				CatalogDAOImpl.class.getResourceAsStream(AWS_CREDENTIALS)));
-    	
+        sdb.setEndpoint(SIMPLEDB_ENDPOINT);
+        
         String catalogDomain = getCatalogName(catalogID, tenantID);
         try {
     		for (String domain : sdb.listDomains().getDomainNames()) {
@@ -417,7 +421,8 @@ public class CatalogDAOImpl implements CatalogDAO {
 		
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				CatalogDAOImpl.class.getResourceAsStream(AWS_CREDENTIALS)));
-    	
+		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
+		
         String catalogDomain = getCatalogName(catalogID, tenantID);
         
 		// Insert catalog items
@@ -491,15 +496,10 @@ public class CatalogDAOImpl implements CatalogDAO {
     }
 	
 	public void deleteProduct(String productID, String catalogID, String tenantID) throws Exception {
-		AmazonSimpleDB sdb = null;
-    	try {
-    		sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
-    				CatalogDAOImpl.class.getResourceAsStream(AWS_CREDENTIALS)));
-    	}
-    	catch (IOException ex) {
-    		logger.error("Cannot initiate SimpleDB client");
-    		throw new Exception();
-    	}
+		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
+				CatalogDAOImpl.class.getResourceAsStream(AWS_CREDENTIALS)));
+    	sdb.setEndpoint(SIMPLEDB_ENDPOINT);
+    	
 		String catalogDomain = getCatalogName(catalogID, tenantID);
     	String selectExpression = "select * from `" + catalogDomain + "` where UID = '" + productID + "'";
         SelectRequest selectRequest = new SelectRequest(selectExpression);
@@ -562,6 +562,7 @@ public class CatalogDAOImpl implements CatalogDAO {
 	public boolean doesProductExist(String productID, String catalogID, String tenantID)  throws Exception {
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				CatalogDAOImpl.class.getResourceAsStream(AWS_CREDENTIALS)));
+		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
 		
 		String catalogDomain = getCatalogName(catalogID, tenantID);
 		GetAttributesRequest request = new GetAttributesRequest();
@@ -579,6 +580,7 @@ public class CatalogDAOImpl implements CatalogDAO {
 	public Catalog.Products.Product getProductByID(String productID, String catalogID, String tenantID) throws Exception {
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				CatalogDAOImpl.class.getResourceAsStream(AWS_CREDENTIALS)));
+		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
 		
 		String catalogDomain = getCatalogName(catalogID, tenantID);
 		GetAttributesRequest request = new GetAttributesRequest();
@@ -653,6 +655,8 @@ public class CatalogDAOImpl implements CatalogDAO {
 	private List<Catalog.Products.Product> getAllProducts(String catalogID, String tenantID, String queryString) throws Exception {
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				CatalogDAOImpl.class.getResourceAsStream(AWS_CREDENTIALS)));
+		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
+		
 		String catalogDomain = getCatalogName(catalogID, tenantID);
     	String selectExpression = "select * from `" + catalogDomain + "` " + queryString + " limit 2500";
     	String resultNextToken = null;
@@ -747,6 +751,7 @@ public class CatalogDAOImpl implements CatalogDAO {
 	public void addProduct(Catalog.Products.Product product, String catalogID, String tenantID) throws Exception {
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				CatalogDAOImpl.class.getResourceAsStream(AWS_CREDENTIALS)));
+		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
 		
 		List<ReplaceableAttribute> attributes = new ArrayList<ReplaceableAttribute>();
 		ReplaceableAttribute attributeUID = new ReplaceableAttribute(UID_STRING, product.getUid(), true);
