@@ -235,12 +235,11 @@ public class CorrelationsModel extends BaseModel {
             String targetItemId = null;
         	double score = 0.0;
             for (Attribute attribute : result.getAttributes()) {
-            	String[] fields = attribute.getValue().split(";");
-            	targetItemId = fields[0];
+            	targetItemId = attribute.getName();
             	if (sourceIDs.contains(targetItemId)) {
             		continue;
             	}
-            	score = Double.parseDouble(fields[1]);
+            	score = Double.parseDouble(attribute.getValue());
             	
             	double weight = attObject.getScore();
             	double weightedScore = weight * score;
@@ -985,8 +984,9 @@ public class CorrelationsModel extends BaseModel {
 		
     	String correlationsModelDomainName = getBackupModelDomainName(getDomainBasename(), tenantID);
     	sdb.deleteDomain(new DeleteDomainRequest(correlationsModelDomainName));
+    	Thread.sleep(5000);
     	sdb.createDomain(new CreateDomainRequest(correlationsModelDomainName));
-    	
+    	Thread.sleep(5000);
     	
     	AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
 				CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
@@ -1095,10 +1095,7 @@ public class CorrelationsModel extends BaseModel {
 			
 			List<ReplaceableAttribute> attributes = new ArrayList<ReplaceableAttribute>();
 			for (AttributeObject attObject : l) {
-				String attributeName = "ATTRIBUTE_" + attObject.getUID();
-				StringBuffer sb = new StringBuffer();
-				sb.append(attObject.getUID()); sb.append(";"); sb.append(attObject.getScore());
-				ReplaceableAttribute attribute = new ReplaceableAttribute(attributeName, sb.toString(), true);
+				ReplaceableAttribute attribute = new ReplaceableAttribute(attObject.getUID(), Double.toString(attObject.getScore()), true);
 				attributes.add(attribute);
 			}
 			String itemName = sourceID;

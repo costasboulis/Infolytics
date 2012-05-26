@@ -3,8 +3,12 @@ package com.cleargist.model;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.FileWriter;
+import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -14,6 +18,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 
 import org.apache.log4j.Logger;
 
@@ -23,6 +29,7 @@ import com.amazonaws.auth.PropertiesCredentials;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.ObjectListing;
+import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.Region;
 import com.amazonaws.services.s3.model.S3Object;
@@ -55,7 +62,7 @@ import com.cleargist.profile.Profile;
 public class SemanticModel extends BaseModel {
 	private static final String AWS_CREDENTIALS = "/AwsCredentials.properties";
 	private static final String RAW_PROFILES_FILENAME = "raw_profiles.txt";
-	private static final String TFIDF_FILENAME = "tfidf.txt";
+	private static final String TFIDF_FILENAME = "tfidf.gz";
 	private static final String IDF_FILENAME = "idf.txt";
 	private static final String ASSOCIATIONS_FILENAME = "semantic_associations_";
 	private static final String INCREMENTAL_ASSOCIATIONS_FILENAME = "incremental_semantic_associations_";
@@ -241,7 +248,8 @@ public class SemanticModel extends BaseModel {
 		reader = new BufferedReader(new InputStreamReader(rawProfilesFile.getObjectContent()));
 		String tmpFilename = TFIDF_FILENAME + tenantID;
 		File localTfidfFile = new File(tmpFilename);
-		out = new BufferedWriter(new FileWriter(localTfidfFile));
+		out = new BufferedWriter( new OutputStreamWriter( new GZIPOutputStream(new FileOutputStream(localTfidfFile))));
+//		out = new BufferedWriter(new FileWriter(localTfidfFile));
 		while ((line = reader.readLine()) != null) {
 			String[] topFields = line.split("\";\"");
 			if (topFields.length != 2) {
@@ -270,6 +278,9 @@ public class SemanticModel extends BaseModel {
 		// Now copy the local tfidf file to S3
 		r = new PutObjectRequest(bucketName, TFIDF_FILENAME, localTfidfFile);
     	r.setStorageClass(StorageClass.ReducedRedundancy);
+    	ObjectMetadata metadata = new ObjectMetadata();
+    	metadata.setContentEncoding("gzip");
+    	r.setMetadata(metadata);
     	s3.putObject(r);
     	localTfidfFile.delete();
     	logger.info("Finished with the tfidf representation part");
@@ -311,6 +322,7 @@ public class SemanticModel extends BaseModel {
 		
 		String tfidfBucket = getStatsBucketName(tenantID);
 		s3.copyObject(tfidfBucket, TFIDF_FILENAME, tfidfBucket, MERGED_STATS_FILENAME);
+		
 	}
 	
 	/*
@@ -330,11 +342,12 @@ public class SemanticModel extends BaseModel {
 		}
 		
 		// Now compute the cosine similarity
-		String associationsFilename = ASSOCIATIONS_FILENAME + tenantID;
+		String associationsFilename = ASSOCIATIONS_FILENAME + tenantID + ".gz";
 		File localAssociationsFile = new File(associationsFilename);
-		BufferedWriter out = new BufferedWriter(new FileWriter(localAssociationsFile));
+		BufferedWriter out = new BufferedWriter( new OutputStreamWriter( new GZIPOutputStream(new FileOutputStream(localAssociationsFile))));
+//		BufferedWriter out = new BufferedWriter(new FileWriter(localAssociationsFile));
 		for (int i = 0; i < k; i ++) {
-			if ((i+1) % 1000 == 0) {
+			if ((i+1) % 100 == 0) {
 				logger.info("Processed " + i + " items");
 			}
 			List<AttributeObject> topN = new ArrayList<AttributeObject>();
@@ -409,8 +422,8 @@ public class SemanticModel extends BaseModel {
 		
 		String bucketName = getStatsBucketName(tenantID);
 		String key = MERGED_STATS_FILENAME;
-		S3Object tfidfFile = s3.getObject(bucketName, key);
-		BufferedReader reader = new BufferedReader(new InputStreamReader(tfidfFile.getObjectContent()));
+		S3Object statsFile = s3.getObject(bucketName, key);
+		BufferedReader reader = new BufferedReader(new InputStreamReader(new GZIPInputStream(statsFile.getObjectContent())));
 		int k = 0;
 		String line = null;
 		while ((line = reader.readLine()) != null) {
@@ -465,12 +478,11 @@ public class SemanticModel extends BaseModel {
             String targetItemId = null;
         	double score = 0.0;
             for (Attribute attribute : result.getAttributes()) {
-            	String[] fields = attribute.getValue().split(";");
-            	targetItemId = fields[0];
+            	targetItemId = attribute.getName();
             	if (sourceIDs.contains(targetItemId)) {
             		continue;
             	}
-            	score = Double.parseDouble(fields[1]);
+            	score = Double.parseDouble(attribute.getValue());
             	
             	double weight = attObject.getScore();
             	double weightedScore = weight * score;
@@ -555,18 +567,15 @@ public class SemanticModel extends BaseModel {
 		
 		List<ReplaceableItem> items = new ArrayList<ReplaceableItem>();
 		
-		for (String domain : sdb.listDomains().getDomainNames()) {
-			if (domain.equals(domainName)) {
-				sdb.deleteDomain(new DeleteDomainRequest(domainName));
-				break;
-			}
-		}
+		sdb.deleteDomain(new DeleteDomainRequest(domainName));
+		Thread.sleep(5000);
 		sdb.createDomain(new CreateDomainRequest(domainName));
+		Thread.sleep(5000);
 		
 		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
 				SemanticModel.class.getResourceAsStream(AWS_CREDENTIALS)));
 		S3Object associationsFile = s3.getObject(bucketName, filename);
-		BufferedReader reader = new BufferedReader(new InputStreamReader(associationsFile.getObjectContent()));
+		BufferedReader reader = new BufferedReader(new InputStreamReader(new GZIPInputStream(associationsFile.getObjectContent())));
 		String line = null;
 		while ((line = reader.readLine()) != null) {
 			String[] fields = line.split(";");
@@ -574,10 +583,7 @@ public class SemanticModel extends BaseModel {
 			String itemName = fields[0];
 			List<ReplaceableAttribute> attributes = new ArrayList<ReplaceableAttribute>();
 			for (int i = 1; i < fields.length; i = i + 2) {
-				String attributeName = "Attribute_" + fields[i];
-				StringBuffer sb = new StringBuffer();
-				sb.append(fields[i]); sb.append(";"); sb.append(fields[i+1]);
-				ReplaceableAttribute attribute = new ReplaceableAttribute(attributeName, sb.toString(), true);
+				ReplaceableAttribute attribute = new ReplaceableAttribute(fields[i], fields[i+1], true);
 				attributes.add(attribute);
 			}
 			items.add(new ReplaceableItem(itemName, attributes));

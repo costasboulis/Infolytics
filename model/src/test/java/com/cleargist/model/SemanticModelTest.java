@@ -113,35 +113,30 @@ public class SemanticModelTest {
 		
 	}
 	
+	@Ignore
 	@Test
 	public void train() throws Exception {
 		SemanticModel model = new SemanticModel();
-		model.createModel("104");
+		model.setTopCorrelations(100);
+//		model.createModel("104");
+		model.estimateModelParameters("104");
+		model.swapModelDomainNames("MODEL_SEMANTIC_", "104");
 	}
 	
-	@Ignore
+	
 	@Test
-	public void testCorrelations() {
+	public void testRecommendations() {
 		SemanticModel model = new SemanticModel();
-		/*
-		try {
-			model.createModel("test");
-		}
-		catch (Exception ex) {
-			assertTrue(false);
-		}
-		*/
+		
 		StandardFilter filter = new StandardFilter();
 		List<String> productIDs = new LinkedList<String>();
-		productIDs.add("3156");
+		productIDs.add("11811");
 		try {
-			List<Catalog.Products.Product> recommendedProducts = model.getRecommendedProductsInternal(productIDs, "103", filter);
+			List<Catalog.Products.Product> recommendedProducts = model.getRecommendedProductsInternal(productIDs, "104", filter);
 			assertTrue(recommendedProducts.size() > 0);
 		}
 		catch (Exception ex) {
 			assertTrue(false);
 		}
-		
-		assertTrue(true);
 	}
 }
