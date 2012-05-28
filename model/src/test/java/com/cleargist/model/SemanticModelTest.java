@@ -113,17 +113,17 @@ public class SemanticModelTest {
 		
 	}
 	
-	@Ignore
+	
 	@Test
 	public void train() throws Exception {
 		SemanticModel model = new SemanticModel();
-		model.setTopCorrelations(100);
+		model.setTopCorrelations(300);
 //		model.createModel("104");
 		model.estimateModelParameters("104");
 		model.swapModelDomainNames("MODEL_SEMANTIC_", "104");
 	}
 	
-	
+	@Ignore
 	@Test
 	public void testRecommendations() {
 		SemanticModel model = new SemanticModel();

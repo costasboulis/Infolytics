@@ -974,35 +974,23 @@ public class CorrelationsModel extends BaseModel {
 		localSSFile.delete();
 	}
 	
-	public void estimateModelParameters(String tenantID) 
-	throws AmazonServiceException, AmazonClientException, IOException, Exception {
-		
+	public void estimateModelParameters(String tenantID, String statsBucket, String statsKey, String parametersDomain) throws Exception {
 		// Model parameters are written in SimpleDB
 		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
 				CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
 		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
 		
-    	String correlationsModelDomainName = getBackupModelDomainName(getDomainBasename(), tenantID);
-    	sdb.deleteDomain(new DeleteDomainRequest(correlationsModelDomainName));
+    	
+    	sdb.deleteDomain(new DeleteDomainRequest(parametersDomain));
     	Thread.sleep(5000);
-    	sdb.createDomain(new CreateDomainRequest(correlationsModelDomainName));
+    	sdb.createDomain(new CreateDomainRequest(parametersDomain));
     	Thread.sleep(5000);
     	
     	AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
 				CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
     	
-    	String statsBucketName = getStatsBucketName(tenantID);
-    	ObjectListing objectListing = s3.listObjects(statsBucketName);
-    	List<S3ObjectSummary> objSummaries = objectListing.getObjectSummaries();
     	
-    	if (objSummaries.size() != 1) {
-    		logger.warn("Expecting one stats file in bucket " + statsBucketName + " but found " + objSummaries.size());
-    		throw new Exception();
-    	}
-    	
-    	
-    	String key = objSummaries.get(0).getKey();
-    	S3Object mergedStats = s3.getObject(statsBucketName, key);
+    	S3Object mergedStats = s3.getObject(statsBucket, statsKey);
     	
     	
     	// Read in memory SS0
@@ -1102,7 +1090,7 @@ public class CorrelationsModel extends BaseModel {
 			items.add(new ReplaceableItem(itemName, attributes));
 			
 			if (items.size() == 25) {
-        		writeSimpleDB(sdb, correlationsModelDomainName, items);
+        		writeSimpleDB(sdb, parametersDomain, items);
         		items = new ArrayList<ReplaceableItem>();
         	}
 			
@@ -1113,9 +1101,31 @@ public class CorrelationsModel extends BaseModel {
 		reader.close();
 		
 		if (items.size() > 0) {
-			writeSimpleDB(sdb, correlationsModelDomainName, items);
+			writeSimpleDB(sdb, parametersDomain, items);
 			items = new ArrayList<ReplaceableItem>();
 		}
+	}
+	
+	public void estimateModelParameters(String tenantID) 
+	throws AmazonServiceException, AmazonClientException, IOException, Exception {
+		
+		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
+				CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
+		
+		String statsBucketName = getStatsBucketName(tenantID);
+    	ObjectListing objectListing = s3.listObjects(statsBucketName);
+    	List<S3ObjectSummary> objSummaries = objectListing.getObjectSummaries();
+    	
+    	if (objSummaries.size() != 1) {
+    		logger.warn("Expecting one stats file in bucket " + statsBucketName + " but found " + objSummaries.size());
+    		throw new Exception();
+    	}
+    	
+    	
+    	String key = objSummaries.get(0).getKey();
+		String correlationsModelDomainName = getBackupModelDomainName(getDomainBasename(), tenantID);
+		
+		estimateModelParameters(tenantID, statsBucketName, key, correlationsModelDomainName);
 	}
 	
 

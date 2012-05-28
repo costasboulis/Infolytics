@@ -5,9 +5,7 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.FileWriter;
-import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -112,6 +110,10 @@ public class SemanticModel extends BaseModel {
 	public void updateModel(String tenantID, List<Profile> incrementalProfiles, List<Profile> decrementalProfiles) 
 	throws AmazonServiceException, AmazonClientException, Exception {
 		
+	}
+	
+	public static String getAssociationsKey(String tenantID) {
+		return ASSOCIATIONS_FILENAME + tenantID + ".gz";
 	}
 	
 	public void createModel(String tenantID) 
@@ -342,7 +344,7 @@ public class SemanticModel extends BaseModel {
 		}
 		
 		// Now compute the cosine similarity
-		String associationsFilename = ASSOCIATIONS_FILENAME + tenantID + ".gz";
+		String associationsFilename = getAssociationsKey(tenantID);
 		File localAssociationsFile = new File(associationsFilename);
 		BufferedWriter out = new BufferedWriter( new OutputStreamWriter( new GZIPOutputStream(new FileOutputStream(localAssociationsFile))));
 //		BufferedWriter out = new BufferedWriter(new FileWriter(localAssociationsFile));
