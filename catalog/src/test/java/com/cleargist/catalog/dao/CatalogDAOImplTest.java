@@ -13,6 +13,7 @@ import javax.xml.datatype.DatatypeFactory;
 
 import org.apache.log4j.Logger;
 import org.junit.After;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import com.amazonaws.auth.PropertiesCredentials;

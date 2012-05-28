@@ -2,11 +2,16 @@ package com.cleargist.model;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import org.apache.log4j.Logger;
 
 import com.cleargist.catalog.dao.CatalogDAO;
 import com.cleargist.catalog.dao.CatalogDAOImpl;
+import com.cleargist.catalog.dao.CatalogDataThread;
 import com.cleargist.catalog.entity.jaxb.Catalog;
 
 public class StandardFilter implements Filter {
@@ -52,35 +57,46 @@ public class StandardFilter implements Filter {
 	}
 	
 	public List<Catalog.Products.Product> applyFiltering(List<String> unfilteredIds, String tenantID) {
+		List<Future<Catalog.Products.Product>> unfilteredList = new ArrayList<Future<Catalog.Products.Product>>();
 		List<Catalog.Products.Product> finalList = new ArrayList<Catalog.Products.Product>();
     	String category = null;
-    	for (String uid : unfilteredIds) {
-    		Catalog.Products.Product product = null;
-    		try {
-    			product = catalog.getProductByID(uid, "", tenantID);
-    		}
-    		catch (Exception ex) {
-    			logger.error("Could not lookup product " + uid + " in tenant " + tenantID);
-    			continue;
-    		}
+    	int noOfThreads = unfilteredIds.size(); 
+
+		ExecutorService pool = Executors.newFixedThreadPool(noOfThreads);
+		
+		for (String uid : unfilteredIds) {
+			unfilteredList.add(pool.submit(new CatalogDataThread(tenantID, uid, catalog)));
+		}
+		
+    	for (Future<Catalog.Products.Product> prodFuture : unfilteredList) {
     		
-    		if (product != null) {
-    			String instock = product.getInstock() == null ? "Y" : product.getInstock();
-    			if (instock.equals("N") && !this.allowOutOfStock) {
-					continue;
-				}
-    			
-    			String productCategory = product.getCategory() == null ? "Category" : product.getCategory();
-    			if (finalList.size() != 0 && !productCategory.equals(category) && this.showOnlyFromSameCategory) {
-    				continue;
-    			}
-    			finalList.add(product);
-    			if (finalList.size() == 1) {
-    				category = productCategory;
-    			}
-    			
-    			if (finalList.size() >= this.getNumRecs()) {
-    				break;
+    		if (prodFuture != null) {
+    			try {
+    				String instock;
+
+    				instock = prodFuture.get().getInstock() == null ? "Y" : prodFuture.get().getInstock();
+    				if (instock.equals("N") && !this.allowOutOfStock) {
+    					continue;
+    				}
+
+    				String productCategory = prodFuture.get().getCategory() == null ? "Category" : prodFuture.get().getCategory();
+    				if (finalList.size() != 0 && !productCategory.equals(category) && this.showOnlyFromSameCategory) {
+    					continue;
+    				}
+    				finalList.add(prodFuture.get());
+    				if (finalList.size() == 1) {
+    					category = productCategory;
+    				}
+
+    				if (finalList.size() >= this.getNumRecs()) {
+    					break;
+    				}
+    			} catch (InterruptedException e) {
+    				// TODO Auto-generated catch block
+    				e.printStackTrace();
+    			} catch (ExecutionException e) {
+    				// TODO Auto-generated catch block
+    				e.printStackTrace();
     			}
     		}
     	}

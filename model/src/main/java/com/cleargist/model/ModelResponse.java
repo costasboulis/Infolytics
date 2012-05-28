@@ -1,10 +1,12 @@
 package com.cleargist.model;
 
+import java.io.Serializable;
 import java.util.List;
 
 import com.cleargist.catalog.entity.jaxb.Catalog;
 
-public class ModelResponse {
+public class ModelResponse implements Serializable {
+	private static final long serialVersionUID = 1L;
 	private boolean isPersonalized;
 	private List<Catalog.Products.Product> products;
 	
