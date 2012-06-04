@@ -14,6 +14,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
@@ -83,167 +84,81 @@ public class CombinationModel extends BaseModel {
 	}
 	
 	protected void calculateSufficientStatistics(String bucketName, String baseFilename, String tenantID) throws Exception {
-		String rawCountsBucketName = this.correlationsModel.getStatsBucketName(tenantID);
-		this.correlationsModel.calculateSufficientStatistics(rawCountsBucketName, STATS_BASE_FILENAME, tenantID);
-		this.correlationsModel.mergeSufficientStatistics(tenantID);
 		
 		this.semanticModel.createModel(tenantID);
+		
+		String rawCountsBucketName = this.correlationsModel.getStatsBucketName(tenantID);
+		this.correlationsModel.calculateSufficientStatistics(rawCountsBucketName, STATS_BASE_FILENAME, tenantID);
+		
+		String semanticAssociationsBucket = BaseModel.STATS_BASE_BUCKETNAME + "semantic" + tenantID;
+		String semanticAssociationsKey = SemanticModel.getAssociationsKey(tenantID);
+		convertSemanticAssociationsToCounts(semanticAssociationsBucket, semanticAssociationsKey,
+											rawCountsBucketName, STATS_BASE_FILENAME + "semantic");
 	}
 	
 	protected void mergeSufficientStatistics(String tenantID) throws Exception {
 		
+		this.correlationsModel.mergeSufficientStatistics(tenantID);
+    	
+	}
+	
+	private void convertSemanticAssociationsToCounts(String semanticAssociationsBucket, String semanticAssociationsKey,
+													 String countsBucket, String semanticCountsKey) throws Exception {
+		
+		File localSS0MergedFile = new File(semanticCountsKey + "SS0" + UUID.randomUUID().toString());
+		File localSS1MergedFile = new File(semanticCountsKey + "SS1" + UUID.randomUUID().toString());
+		BufferedWriter outSS0 = new BufferedWriter( new OutputStreamWriter( new GZIPOutputStream(new FileOutputStream(localSS0MergedFile))));
+		BufferedWriter outSS1 = new BufferedWriter( new OutputStreamWriter( new GZIPOutputStream(new FileOutputStream(localSS1MergedFile))));
+		
 		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
 				CombinationModel.class.getResourceAsStream(AWS_CREDENTIALS)));
-		
-		// Load raw counts in memory
-		HashMap<String, Float> SS0 = new HashMap<String, Float>();
-		HashMap<String, HashMap<String, Float>> SS1 = new HashMap<String, HashMap<String, Float>>();
-		String rawCountsBucketName = this.correlationsModel.getStatsBucketName(tenantID);
-		S3Object rawCountsFile = s3.getObject(rawCountsBucketName, "partialStats1.gz");
-		BufferedReader reader = new BufferedReader(new InputStreamReader(new GZIPInputStream(rawCountsFile.getObjectContent())));
+		S3Object semanticAssociationsFile = s3.getObject(semanticAssociationsBucket, semanticAssociationsKey);
+		BufferedReader reader = new BufferedReader(new InputStreamReader(new GZIPInputStream(semanticAssociationsFile.getObjectContent())));
 		String line = null;
 		while ((line = reader.readLine()) != null) {
 			String[] fields = line.split(";");
-			if (fields.length != 2) {
-				break;
-			}
-			String sourceItemId = fields[0];
-            float score = 0.0f;
-        	try {
-        		score = Float.parseFloat(fields[1]);
-        	}
-        	catch (NumberFormatException ex) {
-        		logger.error("Cannot parse float " + fields[1] + " ... skipping");
-        		throw new Exception();
-        	}
-        	
-        	SS0.put(sourceItemId, score);
-		}
-		while (true) {
-			String[] fields = line.split(";");
-			if (fields.length % 2 == 0) {
-				logger.error("Cannot parse line \"" + line + "\" at file " + rawCountsFile.getKey() 
-						+ " at bucket " + rawCountsFile.getBucketName() + "... skipping");
-				if ((line = reader.readLine()) == null) {
-					break;
-				}
-				continue;
-			}
-			
-			HashMap<String, Float> hm = new HashMap<String, Float>();
-			for (int i = 1; i < fields.length - 1; i = i + 2) {
-				String targetID = fields[i];
-				float cooccurrenceCount = Float.parseFloat(fields[i + 1]);
-				
-				hm.put(targetID, cooccurrenceCount);
-			}
-			String sourceID = fields[0];
-			SS1.put(sourceID, hm);
-			
-			if ((line = reader.readLine()) == null) {
-				break;
-			}
-		}
-		reader.close();
-		
-		
-		// Set up the writing of new merged stats file
-		File localSS1file = new File("localSS1file" + tenantID + ".gz");
-		BufferedWriter out = new BufferedWriter( new OutputStreamWriter( new GZIPOutputStream(new FileOutputStream(localSS1file))));
-		
-		
-		// Traverse serially the semantic associations and update counts
-		String semanticBucketName = this.semanticModel.getStatsBucketName(tenantID);
-		String key = SemanticModel.getAssociationsKey(tenantID);
-		S3Object statsFile = s3.getObject(semanticBucketName, key);
-		reader = new BufferedReader(new InputStreamReader(new GZIPInputStream(statsFile.getObjectContent())));
-		while ((line = reader.readLine()) != null) {
-			String[] fields = line.split(";");
-			if (fields.length % 2 == 0) {
-				logger.warn("Cannot parse line \"" + line + "\"");
-				continue;
-			}
-			
-			float totSum = 0.0f;
-			HashMap<String, Float> hm = new HashMap<String, Float>();
-			String sourceItemId = fields[0];
-			for (int i = 1; i < fields.length ; i = i + 2) {
-				String targetItemID = fields[i];
-				float score = Float.parseFloat(fields[i + 1]) * this.SS0Normalization;
-				
-				hm.put(targetItemID, score);
-				
-				totSum += score;
-			}
-			
-			
-			// Now merge stats with raw counts
-			Float f = SS0.get(sourceItemId);
-			if (f == null) {
-				SS0.put(sourceItemId, totSum);
-			}
-			else {
-				SS0.put(sourceItemId, totSum + f);
-			}
-			
-			HashMap<String, Float> rawCounts = SS1.get(sourceItemId);
-			if (rawCounts == null) {
-				rawCounts = hm;
-			}
-			else {
-				for (Map.Entry<String, Float> me : hm.entrySet()) {
-					String targetItemId = me.getKey();
-					Float score = me.getValue();
-					
-					Float s = rawCounts.get(targetItemId);
-					if (s == null) {
-						rawCounts.put(targetItemId, score);
-					}
-					else {
-						rawCounts.put(targetItemId, score + s);
-					}
-						
-				}
-			}
-			
-			// Persist the rawCounts vector
+			String sourceId = fields[0];
+			float sum  = 0.0f;
 			StringBuffer sb = new StringBuffer();
-			sb.append(sourceItemId);
-			for (Map.Entry<String, Float> me : hm.entrySet()) {
-				sb.append(";"); sb.append(me.getKey()); sb.append(";"); sb.append(me.getValue());
+			sb.append(sourceId);
+			for (int i = 1; i < fields.length -1 ; i = i + 2) {
+				String targetId = fields[i];
+				float score = 0.0f;
+				try {
+					score = Float.parseFloat(fields[i + 1]);
+				}
+				catch (NumberFormatException ex) {
+					logger.error("Could not parse asscoaition value \"" + fields[i + 1] + "\" between source " + sourceId + " and target " + targetId);
+					continue;
+				}
+				float normalizedScore = score * this.SS0Normalization;
+				
+				sb.append(";"); sb.append(targetId); sb.append(";"); sb.append(normalizedScore); 
+				
+				sum += normalizedScore;
 			}
 			sb.append(newline);
-			
-			out.write(sb.toString());
-			out.flush();
-			
+			if (sum > 0.0f) {
+				outSS1.write(sb.toString());
+				outSS0.write(sourceId + ";" + sum + newline);
+			}
 		}
 		reader.close();
-		out.close();
+		outSS0.close();
+		outSS1.close();
 		
-		// Persist the SS0 counts
-		File localSS0file = new File("localSSOFile.gz");
-		out = new BufferedWriter( new OutputStreamWriter( new GZIPOutputStream(new FileOutputStream(localSS0file))));
-		for (Map.Entry<String, Float> me : SS0.entrySet()) {
-			StringBuffer sb = new StringBuffer();
-			sb.append(me.getKey()); sb.append(";"); sb.append(me.getValue()); sb.append(newline);
-			
-			out.write(sb.toString());
-			out.flush();
-		}
-		out.close();
 		
-		// Merge the SS0 and SS1 files
-		File localMergedFile = new File("mergedstatscombined" + tenantID + ".gz");
-		mergeAndZipFiles(localSS0file, localSS1file, localMergedFile);
-		
+		// Merge the SS0 and SS1 files to one file
+		File outFile = new File(semanticCountsKey + UUID.randomUUID().toString());
+		mergeAndZipFiles(localSS0MergedFile, localSS1MergedFile, outFile);
 		
 		// Upload the updated counts
-		PutObjectRequest r = new PutObjectRequest(getStatsBucketName(tenantID), MERGED_STATS_FILENAME + ".gz", localMergedFile);
+		PutObjectRequest r = new PutObjectRequest(countsBucket, semanticCountsKey, outFile);
     	r.setStorageClass(StorageClass.ReducedRedundancy);
     	s3.putObject(r);
-    	localMergedFile.delete();
-    	
+    	localSS0MergedFile.delete();
+    	localSS1MergedFile.delete();
+    	outFile.delete();
 	}
 	
 	private void mergeAndZipFiles(File fileA, File fileB, File outFile) throws Exception {
@@ -269,8 +184,21 @@ public class CombinationModel extends BaseModel {
 	
 	protected void estimateModelParameters(String tenantID) throws Exception {
 		
-		String statsBucket = getStatsBucketName(tenantID);
-		String statsKey = MERGED_STATS_FILENAME + ".gz";
+		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
+				CombinationModel.class.getResourceAsStream(AWS_CREDENTIALS)));
+		
+		// The stats are in the bucket of correlations model
+		String statsBucket = this.correlationsModel.getStatsBucketName(tenantID);
+    	ObjectListing objectListing = s3.listObjects(statsBucket);
+    	List<S3ObjectSummary> objSummaries = objectListing.getObjectSummaries();
+    	
+    	if (objSummaries.size() != 1) {
+    		logger.warn("Found more than one stats files for tenant " + tenantID + " in bucket " + statsBucket);
+    		return;
+    	}
+    	
+    	String statsKey = objSummaries.get(0).getKey();
+    	
 		String parametersDomain = getDomainBasename() + tenantID;
 		this.correlationsModel.estimateModelParameters(tenantID, statsBucket, statsKey, parametersDomain);
 	}
