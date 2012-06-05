@@ -5,9 +5,9 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.FileWriter;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
-import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -74,8 +74,29 @@ public class SemanticModel extends BaseModel {
 	public static String newline = System.getProperty("line.separator"); 
 	private Logger logger = Logger.getLogger(getClass());
 	private CatalogDAO catalog;
+	private AmazonS3 s3;
+	private AmazonSimpleDB sdb;
+	
 	
 	public SemanticModel() {
+		try {
+			this.s3 = new AmazonS3Client(new PropertiesCredentials(
+					SemanticModel.class.getResourceAsStream(AWS_CREDENTIALS)));
+		}
+		catch (IOException ex) {
+			logger.error("Could not read credentials for S3 ... client not initialized");
+		}
+		
+		try {
+			this.sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
+					SemanticModel.class.getResourceAsStream(AWS_CREDENTIALS)));
+			this.sdb.setEndpoint(SIMPLEDB_ENDPOINT);
+		}
+		catch (IOException ex) {
+			logger.error("Could not read credentials for SimpleDB ... client not initialized");
+		}
+		
+		
 		this.topCorrelations = 10;
 	}
 	
@@ -161,8 +182,6 @@ public class SemanticModel extends BaseModel {
 	protected void calculateSufficientStatistics(String bucketName, String baseFilename, String tenantID) throws Exception {
 		
 		logger.info("Initiating calculation of sufficient stats for tenant ID " + tenantID);
-		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
-				SemanticModel.class.getResourceAsStream(AWS_CREDENTIALS)));
 		
 		if (!s3.doesBucketExist(bucketName)) {
 			s3.createBucket(bucketName, Region.EU_Ireland);
@@ -338,8 +357,6 @@ public class SemanticModel extends BaseModel {
 	}
 	
 	protected void mergeSufficientStatistics(String tenantID) throws Exception {
-		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
-				SemanticModel.class.getResourceAsStream(AWS_CREDENTIALS)));
 		
 		String tfidfBucket = getStatsBucketName(tenantID);
 		CopyObjectRequest copyRequest = new CopyObjectRequest(tfidfBucket, TFIDF_FILENAME, tfidfBucket, MERGED_STATS_FILENAME);
@@ -423,8 +440,7 @@ public class SemanticModel extends BaseModel {
 		}
 		out.close();
 		
-		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
-				SemanticModel.class.getResourceAsStream(AWS_CREDENTIALS)));
+		
 		PutObjectRequest r = new PutObjectRequest(bucketName, associationsFilename, localAssociationsFile);
     	r.setStorageClass(StorageClass.ReducedRedundancy);
     	ObjectMetadata metadata = new ObjectMetadata();
@@ -439,8 +455,6 @@ public class SemanticModel extends BaseModel {
 	
 	protected void estimateModelParameters(String tenantID) throws Exception {
 		
-		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
-				SemanticModel.class.getResourceAsStream(AWS_CREDENTIALS)));
 		List<HashMap<String, Float>> vectors = new ArrayList<HashMap<String, Float>>();
 		HashMap<Integer, String> itemNames = new HashMap<Integer, String>();
 		
@@ -488,9 +502,6 @@ public class SemanticModel extends BaseModel {
 	}
 	
 	private List<Catalog.Products.Product> getRecommendedProductsList(List<AttributeObject> productIds, String tenantID, Filter filter) throws Exception {
-		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
-				SemanticModel.class.getResourceAsStream(AWS_CREDENTIALS)));
-		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
 		
 		HashSet<String> sourceIDs = new HashSet<String>();
     	for (AttributeObject attObject : productIds) {
@@ -576,8 +587,6 @@ public class SemanticModel extends BaseModel {
 		out.close();
 		
 		// move to S3
-		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
-				SemanticModel.class.getResourceAsStream(AWS_CREDENTIALS)));
 		PutObjectRequest r = new PutObjectRequest(bucketName, filename, localDescriptionsFile);
     	r.setStorageClass(StorageClass.ReducedRedundancy);
     	ObjectMetadata metadata = new ObjectMetadata();
@@ -588,9 +597,6 @@ public class SemanticModel extends BaseModel {
 	}
 	
 	private void loadFromS3File2Domain(String bucketName, String filename, String domainName) throws Exception {
-		AmazonSimpleDB sdb = new AmazonSimpleDBClient(new PropertiesCredentials(
-				SemanticModel.class.getResourceAsStream(AWS_CREDENTIALS)));
-		sdb.setEndpoint(SIMPLEDB_ENDPOINT);
 		
 		List<ReplaceableItem> items = new ArrayList<ReplaceableItem>();
 		
@@ -599,8 +605,7 @@ public class SemanticModel extends BaseModel {
 		sdb.createDomain(new CreateDomainRequest(domainName));
 		Thread.sleep(5000);
 		
-		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
-				SemanticModel.class.getResourceAsStream(AWS_CREDENTIALS)));
+		
 		S3Object associationsFile = s3.getObject(bucketName, filename);
 		BufferedReader reader = new BufferedReader(new InputStreamReader(new GZIPInputStream(associationsFile.getObjectContent())));
 		String line = null;
@@ -617,23 +622,26 @@ public class SemanticModel extends BaseModel {
 			}
 			items.add(new ReplaceableItem(itemName, attributes));
 			if (items.size() == 25) {
-        		writeSimpleDB(sdb, domainName, items);
+        		writeSimpleDB(domainName, items);
         		items = new ArrayList<ReplaceableItem>();
         		
         		tot += 25;
-        		logger.info("Written associations for " + tot + " products");
+        		if (tot % 100 == 0) {
+        			logger.info("Written associations for " + tot + " products");
+        		}
+        		
         	}
 		}
 		reader.close();
 		
 		if (items.size() > 0) {
-			writeSimpleDB(sdb, domainName, items);
+			writeSimpleDB(domainName, items);
 			items = new ArrayList<ReplaceableItem>();
 		}
 		
 	}
 	
-	private void writeSimpleDB(AmazonSimpleDB sdb, String SimpleDBDomain, List<ReplaceableItem> recsPairs) 
+	private void writeSimpleDB(String SimpleDBDomain, List<ReplaceableItem> recsPairs) 
 	throws DuplicateItemNameException, InvalidParameterValueException, NumberDomainBytesExceededException, NumberSubmittedItemsExceededException, 
 	NumberSubmittedAttributesExceededException, NumberDomainAttributesExceededException, NumberItemAttributesExceededException, 
 	NoSuchDomainException, AmazonServiceException, AmazonClientException, Exception {
@@ -710,8 +718,6 @@ public class SemanticModel extends BaseModel {
 		HashMap<Integer, String> itemNames = new HashMap<Integer, String>();
 		
 		// Load the old tfidf file in memory
-		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
-				SemanticModel.class.getResourceAsStream(AWS_CREDENTIALS)));
 		String oldTfidfFilename = TFIDF_FILENAME;
 		S3Object olfTfIdfFile = s3.getObject(getStatsBucketName(tenantID), oldTfidfFilename);
 		BufferedReader reader = new BufferedReader(new InputStreamReader(olfTfIdfFile.getObjectContent()));

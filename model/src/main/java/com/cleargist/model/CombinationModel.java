@@ -5,6 +5,7 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
@@ -53,6 +54,7 @@ public class CombinationModel extends BaseModel {
 	private CorrelationsModel correlationsModel;
 	private Logger logger = Logger.getLogger(getClass());
 	private float SS0Normalization;
+	private AmazonS3 s3;
 	
 	public CombinationModel() {
 		this.correlationsModel = new CorrelationsModel();
@@ -60,6 +62,15 @@ public class CombinationModel extends BaseModel {
 		this.semanticModel.setTopCorrelations(DEFAULT_TOP_N_SEMANTIC);
 		this.correlationsModel.setTopCorrelations(DEFAULT_TOP_N_CORRELATIONS);
 		this.SS0Normalization = DEFAULT_SS0_NORMALIZATION;
+		
+		try {
+			s3 = new AmazonS3Client(new PropertiesCredentials(
+					CombinationModel.class.getResourceAsStream(AWS_CREDENTIALS)));
+		}
+		catch (IOException ex) {
+			logger.error("Could not read credentials for S3 .. s3 client not initialized");
+		}
+		
 	}
 	
 	public void setSS0Normalization(float f) {
@@ -110,8 +121,6 @@ public class CombinationModel extends BaseModel {
 		BufferedWriter outSS0 = new BufferedWriter( new OutputStreamWriter( new GZIPOutputStream(new FileOutputStream(localSS0MergedFile))));
 		BufferedWriter outSS1 = new BufferedWriter( new OutputStreamWriter( new GZIPOutputStream(new FileOutputStream(localSS1MergedFile))));
 		
-		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
-				CombinationModel.class.getResourceAsStream(AWS_CREDENTIALS)));
 		S3Object semanticAssociationsFile = s3.getObject(semanticAssociationsBucket, semanticAssociationsKey);
 		BufferedReader reader = new BufferedReader(new InputStreamReader(new GZIPInputStream(semanticAssociationsFile.getObjectContent())));
 		String line = null;
@@ -183,9 +192,6 @@ public class CombinationModel extends BaseModel {
 	}
 	
 	protected void estimateModelParameters(String tenantID) throws Exception {
-		
-		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
-				CombinationModel.class.getResourceAsStream(AWS_CREDENTIALS)));
 		
 		// The stats are in the bucket of correlations model
 		String statsBucket = this.correlationsModel.getStatsBucketName(tenantID);
