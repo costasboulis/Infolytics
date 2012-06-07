@@ -77,7 +77,7 @@ public class CorrelationsModel extends BaseModel {
 	
 	
 	public CorrelationsModel() {
-		this.profilesPerChunk = 35000;
+		this.profilesPerChunk = 100000;
 		this.topCorrelations = 10;
 	}
 	

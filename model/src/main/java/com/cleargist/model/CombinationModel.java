@@ -123,7 +123,8 @@ public class CombinationModel extends BaseModel {
 		
 		S3Object semanticAssociationsFile = s3.getObject(semanticAssociationsBucket, semanticAssociationsKey);
 		BufferedReader reader = new BufferedReader(new InputStreamReader(new GZIPInputStream(semanticAssociationsFile.getObjectContent())));
-		String line = null;
+		String line = reader.readLine();
+		outSS0.write(line + newline);
 		while ((line = reader.readLine()) != null) {
 			String[] fields = line.split(";");
 			String sourceId = fields[0];

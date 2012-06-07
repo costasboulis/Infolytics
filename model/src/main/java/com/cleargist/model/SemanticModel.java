@@ -385,6 +385,7 @@ public class SemanticModel extends BaseModel {
 		File localAssociationsFile = new File(associationsFilename);
 		BufferedWriter out = new BufferedWriter( new OutputStreamWriter( new GZIPOutputStream(new FileOutputStream(localAssociationsFile))));
 //		BufferedWriter out = new BufferedWriter(new FileWriter(localAssociationsFile));
+		out.write(k + newline);
 		for (int i = 0; i < k; i ++) {
 			if ((i+1) % 100 == 0) {
 				logger.info("Processed " + i + " items");
@@ -608,7 +609,7 @@ public class SemanticModel extends BaseModel {
 		
 		S3Object associationsFile = s3.getObject(bucketName, filename);
 		BufferedReader reader = new BufferedReader(new InputStreamReader(new GZIPInputStream(associationsFile.getObjectContent())));
-		String line = null;
+		String line = reader.readLine();  // Skip the first line
 		File localOutFile = new File(associationsFile.getBucketName() + "_" + associationsFile.getKey() + "_");
 		BufferedWriter out = new BufferedWriter(new FileWriter(localOutFile));
 		while ((line = reader.readLine()) != null) {
