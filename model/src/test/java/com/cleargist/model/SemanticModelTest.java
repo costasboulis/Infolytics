@@ -118,9 +118,9 @@ public class SemanticModelTest {
 	public void train() throws Exception {
 		SemanticModel model = new SemanticModel();
 		model.setTopCorrelations(30);
-//		model.createModel("104");
-		model.estimateModelParameters("104");
-		model.swapModelDomainNames("MODEL_SEMANTIC_", "104");
+		model.createModel("104");
+//		model.estimateModelParameters("104");
+//		model.swapModelDomainNames("MODEL_SEMANTIC_", "104");
 	}
 	
 	@Ignore

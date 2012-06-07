@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -472,7 +473,6 @@ public class SemanticModel extends BaseModel {
 		logger.info("Entering tfidf file");
 		while ((line = reader.readLine()) != null) {
 			String[] fields = line.split(";");
-			logger.info("Line " + k + " : " + fields.length);
 			
 			itemNames.put(k, fields[0]);
 			HashMap<String, Float> hm = new HashMap<String, Float>();
@@ -609,6 +609,17 @@ public class SemanticModel extends BaseModel {
 		S3Object associationsFile = s3.getObject(bucketName, filename);
 		BufferedReader reader = new BufferedReader(new InputStreamReader(new GZIPInputStream(associationsFile.getObjectContent())));
 		String line = null;
+		File localOutFile = new File(associationsFile.getBucketName() + "_" + associationsFile.getKey() + "_");
+		BufferedWriter out = new BufferedWriter(new FileWriter(localOutFile));
+		while ((line = reader.readLine()) != null) {
+			StringBuffer sb = new StringBuffer();
+			sb.append(line); sb.append(newline);
+			out.write(sb.toString());
+		}
+		out.close();
+		reader.close();
+		
+		reader = new BufferedReader(new FileReader(localOutFile));
 		int tot = 0;
 		while ((line = reader.readLine()) != null) {
 			String[] fields = line.split(";");
@@ -633,6 +644,7 @@ public class SemanticModel extends BaseModel {
         	}
 		}
 		reader.close();
+		localOutFile.delete();
 		
 		if (items.size() > 0) {
 			writeSimpleDB(domainName, items);
