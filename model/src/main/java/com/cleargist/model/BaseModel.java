@@ -59,21 +59,6 @@ public abstract class BaseModel implements Modelable {
 		return sb.toString();
 	}
 	
-	private void resetHealthCounters(String tenantID) {
-		MemcachedClient client = null;
-    	try {
-        	client = new MemcachedClient(new InetSocketAddress(MEMCACHED_SERVER, MEMCACHED_PORT));
-    	}
-    	catch (IOException ex) {
-        	logger.warn("Cannot insantiate memcached client");
-        }
-		String healthMetricKey = getHealthMetricKey("OK", tenantID, "RECS");
-    	client.set(healthMetricKey, 0, 0);
-    	healthMetricKey = getHealthMetricKey("FAILED", tenantID, "RECS");
-    	client.set(healthMetricKey, 0, 0);
-    	healthMetricKey = getHealthMetricKey("EMPTY", tenantID, "RECS");
-    	client.set(healthMetricKey, 0, 0);
-	}
 	
 	public long getHealthCounter(String eventID, String tenantID, String serviceID) {
 		MemcachedClient client = null;

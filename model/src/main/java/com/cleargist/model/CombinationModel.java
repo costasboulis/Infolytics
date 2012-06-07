@@ -206,7 +206,7 @@ public class CombinationModel extends BaseModel {
     	
     	String statsKey = objSummaries.get(0).getKey();
     	
-		String parametersDomain = getDomainBasename() + tenantID;
+		String parametersDomain = getBackupModelDomainName(getDomainBasename(), tenantID);
 		this.correlationsModel.estimateModelParameters(tenantID, statsBucket, statsKey, parametersDomain);
 	}
 	

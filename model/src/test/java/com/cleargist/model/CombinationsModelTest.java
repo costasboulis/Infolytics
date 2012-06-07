@@ -16,7 +16,9 @@ public class CombinationsModelTest {
 	public void testModelCreation() throws Exception {
 		CombinationModel model = new CombinationModel();
 		
-		model.createModel("104");
+//		model.createModel("104");
+		model.estimateModelParameters("104");
+		model.swapModelDomainNames(model.getDomainBasename(), "104");
 		
 		assertTrue(true);
 	}

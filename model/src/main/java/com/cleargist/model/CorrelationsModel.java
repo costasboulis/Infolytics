@@ -6,6 +6,7 @@ import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -70,13 +71,20 @@ public class CorrelationsModel extends BaseModel {
 	private int topCorrelations;
 	private Logger logger = Logger.getLogger(getClass());
 	public static String newline = System.getProperty("line.separator");
-	
+	private AmazonS3 s3;
 	
 	
 	private float profilesPerChunk;
 	
 	
 	public CorrelationsModel() {
+		try {
+			this.s3 = new AmazonS3Client(new PropertiesCredentials(
+					CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
+		}
+		catch (IOException ex) {
+			logger.error("Cannot initialize S3 client ... failed to read credentials");
+		}
 		this.profilesPerChunk = 100000;
 		this.topCorrelations = 10;
 	}
@@ -99,8 +107,6 @@ public class CorrelationsModel extends BaseModel {
 		estimateModelParameters(tenantID);
 		
 		if (deleteStatsDirectory) {
-			AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
-					CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
 			String statsBucketName = getStatsBucketName(tenantID);
 			ObjectListing objListing = s3.listObjects(statsBucketName);
 			if (objListing.getObjectSummaries().size() > 0) {
@@ -148,8 +154,6 @@ public class CorrelationsModel extends BaseModel {
 		String incrStatsKey = updateSufficientStatistics(tenantID, incrementalProfiles, decrementalProfiles);
 		
 		String statsBucketName = getStatsBucketName(tenantID);
-		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
-				CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
 		boolean doesStatsFileExist = isValidFile(s3, statsBucketName, MERGED_STATS_FILENAME);
 		if (doesStatsFileExist) {
 			S3Object statsObject = s3.getObject(statsBucketName, incrStatsKey);
@@ -278,8 +282,6 @@ public class CorrelationsModel extends BaseModel {
 	
 	public void mergeSufficientStatistics(String tenantID) 
 	throws AmazonServiceException, AmazonClientException, IOException, Exception {
-		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
-				CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
     	
 		String statsBucketName = getStatsBucketName(tenantID);
     	ObjectListing objectListing = s3.listObjects(statsBucketName);
@@ -377,9 +379,6 @@ public class CorrelationsModel extends BaseModel {
     	
     	
     	// open the S3 merged file and create new local merged file
-		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
-				CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
-    	
 		BufferedWriter out = null;
 		String tmpFilename = "correlations" + mergedStatsFilename + tenantID;
 		File localMergedFile = new File(tmpFilename);
@@ -617,8 +616,6 @@ public class CorrelationsModel extends BaseModel {
 		
 		// write the stats
 		String bucketName = getStatsBucketName(tenantID);
-		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
-				CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
 		if (!s3.doesBucketExist(bucketName)) {
 			s3.createBucket(bucketName, Region.EU_Ireland);
 		}
@@ -829,10 +826,6 @@ public class CorrelationsModel extends BaseModel {
 	public void calculateSufficientStatistics(String bucketName, String baseFilename, String tenantID) throws Exception {
 		
 		// Delete stats bucket
-		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
-				CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
-		
-		
 		if (!s3.doesBucketExist(bucketName)) {
 			s3.createBucket(bucketName, Region.EU_Ireland);
 		}
@@ -962,9 +955,6 @@ public class CorrelationsModel extends BaseModel {
 		
 		
 		// Copy to S3
-		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
-				CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
-    	
     	String statsFilename = baseFilename + chunkID + ".gz";
 		PutObjectRequest r = new PutObjectRequest(bucketName, statsFilename, localSSFile);
     	r.setStorageClass(StorageClass.ReducedRedundancy);
@@ -986,18 +976,24 @@ public class CorrelationsModel extends BaseModel {
     	sdb.createDomain(new CreateDomainRequest(parametersDomain));
     	Thread.sleep(5000);
     	
-    	AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
-				CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
-    	
-    	
+    	// Write local file
     	S3Object mergedStats = s3.getObject(statsBucket, statsKey);
-    	
+    	BufferedReader reader = new BufferedReader(new InputStreamReader(new GZIPInputStream(mergedStats.getObjectContent())));
+    	File localOutFile = new File(mergedStats.getBucketName() + "_" + mergedStats.getKey() + "_" + tenantID);
+    	BufferedWriter out = new BufferedWriter(new FileWriter(localOutFile));
+    	String line = null;
+    	while ((line = reader.readLine()) != null) {
+    		out.write(line + newline);
+    	}
+    	out.flush();
+    	out.close();
+    	reader.close();
     	
     	// Read in memory SS0
     	float numberOfProfiles = 0.0f;
     	HashMap<String, Float> SS0 = new HashMap<String, Float>();
-    	BufferedReader reader = new BufferedReader(new InputStreamReader(new GZIPInputStream(mergedStats.getObjectContent())));
-		String line = reader.readLine();
+    	reader = new BufferedReader(new FileReader(localOutFile));
+    	line = reader.readLine();
 		numberOfProfiles = Float.parseFloat(line);
 		while ((line = reader.readLine()) != null) {
 			String[] fields = line.split(";");
@@ -1099,6 +1095,7 @@ public class CorrelationsModel extends BaseModel {
 			}
 		}
 		reader.close();
+		localOutFile.delete();
 		
 		if (items.size() > 0) {
 			writeSimpleDB(sdb, parametersDomain, items);
@@ -1108,9 +1105,6 @@ public class CorrelationsModel extends BaseModel {
 	
 	public void estimateModelParameters(String tenantID) 
 	throws AmazonServiceException, AmazonClientException, IOException, Exception {
-		
-		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
-				CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
 		
 		String statsBucketName = getStatsBucketName(tenantID);
     	ObjectListing objectListing = s3.listObjects(statsBucketName);
@@ -1258,10 +1252,6 @@ public class CorrelationsModel extends BaseModel {
 		    
 		} while (resultNextToken != null);
 		out.close();
-		
-		
-		AmazonS3 s3 = new AmazonS3Client(new PropertiesCredentials(
-				CorrelationsModel.class.getResourceAsStream(AWS_CREDENTIALS)));
     	
 		
 		PutObjectRequest r = new PutObjectRequest(bucketName, modelFilename, localFile);
